@@ -1,4 +1,4 @@
-name: Deploy Production
+name: Deploy Frontends Production
 
 on:
   workflow_dispatch:
@@ -8,183 +8,127 @@ on:
 
 permissions:
   contents: read
+  actions: read
 
 concurrency:
-  group: deploy-production-client
+  group: deploy-production-frontends
   cancel-in-progress: false
 
 jobs:
   verify:
+    # A manual feature-branch run can never reach production. Release is off
+    # until the reviewed VPS, pinned host key and infra artifact are provisioned.
+    if: github.ref == 'refs/heads/prod' && vars.FRONTEND_PRODUCTION_RELEASE_ENABLED == 'true'
     runs-on: ubuntu-latest
-    timeout-minutes: 20
-    env:
-      APP_REVISION: ${{ github.sha }}
-      APP_VERSION: git-${{ github.sha }}
-      NEXT_PUBLIC_MODE: production
-      NEXT_PUBLIC_SITE_URL: https://winwidget.ru
-      NEXT_PUBLIC_PRODUCTION_HOST: https://api.winwidget.ru
-      NEXT_PUBLIC_WIDGETS_HOST: ''
-      NEXT_PUBLIC_API_URL: https://api.winwidget.ru/api/v1
-      NEXT_PUBLIC_RECAPTCHA_SITE_KEY: ci-placeholder-site-key
-      NEXT_PUBLIC_RECAPTCHA_HOST: https://www.recaptcha.net
-      JWT_JWKS_URL: https://api.winwidget.ru/api/v1/auth/.well-known/jwks.json
-      JWT_ISSUER: https://api.winwidget.ru/auth
-      JWT_AUDIENCE: https://api.winwidget.ru
-      JWT_CLOCK_TOLERANCE_SECONDS: 5
-      JWT_MAX_TOKEN_LIFETIME_SECONDS: 900
-
+    timeout-minutes: 5
+    outputs:
+      run-id: ${{ steps.ci.outputs.run-id }}
     steps:
-      - name: Checkout repository
-        uses: actions/checkout@v6
-
-      - name: Setup pnpm
-        uses: pnpm/action-setup@v6
-        with:
-          version: 9.15.9
-
-      - name: Setup Node.js
-        uses: actions/setup-node@v6
-        with:
-          node-version: 20
-          cache: pnpm
-
-      - name: Install dependencies
+      - name: Require exact successful frontend verification
+        id: ci
         env:
-          HUSKY: 0
-        run: pnpm install --frozen-lockfile
-
-      - name: Verify production auth settings contract
-        run: node scripts/verify-auth-settings-contract.mjs
-
-      - name: Verify AI consultant contract
-        run: pnpm test:ai-consultant
-
-      - name: Verify WinCRM admin contract
-        run: pnpm test:admin-crm
-
-      - name: Type check
-        run: pnpm exec tsc --noEmit
-
-      - name: Validate production compose
+          GH_TOKEN: ${{ github.token }}
+          REPOSITORY: ${{ github.repository }}
+          REVISION: ${{ github.sha }}
+          GITHUB_API_URL: ${{ github.api_url }}
         run: |
-          docker compose --env-file .env.example -f deploy/docker-compose.prod.yml config --quiet
-          docker compose --env-file .env.example -f deploy/docker-compose.prod.yml config --format json |
-            node -e '
-              const config = JSON.parse(require("node:fs").readFileSync(0, "utf8"));
-              const client = config.services?.client;
-              if (config.name !== "winwidget" || !client) {
-                throw new Error("Invalid frontend production Compose");
-              }
-              if (JSON.stringify(Object.keys(config.services).sort()) !== JSON.stringify(["client"])) {
-                throw new Error("Frontend Compose must contain only the client service");
-              }
-              for (const key of [
-                "JWT_JWKS_URL",
-                "JWT_ISSUER",
-                "JWT_AUDIENCE",
-                "JWT_CLOCK_TOLERANCE_SECONDS",
-                "JWT_MAX_TOKEN_LIFETIME_SECONDS",
-              ]) {
-                if (!client.environment?.[key]) {
-                  throw new Error(`Missing frontend runtime ${key}`);
-                }
-              }
-              for (const key of [
-                "JWT_SECRET",
-                "JWT_ACCESS_PRIVATE_KEY_BASE64",
-                "JWT_ACCESS_JWKS_BASE64",
-              ]) {
-                if (key in (client.environment ?? {})) {
-                  throw new Error(`Frontend must not receive ${key}`);
-                }
-              }
-              const expectedBuildArgKeys = [
-                "APP_REVISION",
-                "NEXT_PUBLIC_API_URL",
-                "NEXT_PUBLIC_MODE",
-                "NEXT_PUBLIC_PRODUCTION_HOST",
-                "NEXT_PUBLIC_RECAPTCHA_HOST",
-                "NEXT_PUBLIC_RECAPTCHA_SITE_KEY",
-                "NEXT_PUBLIC_SITE_URL",
-                "NEXT_PUBLIC_WIDGETS_HOST",
-              ];
-              const actualBuildArgKeys = Object.keys(client.build?.args ?? {}).sort();
-              if (JSON.stringify(actualBuildArgKeys) !== JSON.stringify(expectedBuildArgKeys)) {
-                throw new Error("Unexpected frontend build argument allowlist");
-              }
-              const expectedBuildArgs = {
-                NEXT_PUBLIC_MODE: "production",
-                NEXT_PUBLIC_SITE_URL: "https://winwidget.ru",
-                NEXT_PUBLIC_PRODUCTION_HOST: "https://api.winwidget.ru",
-                NEXT_PUBLIC_WIDGETS_HOST: "",
-                NEXT_PUBLIC_API_URL: "https://api.winwidget.ru/api/v1",
-                NEXT_PUBLIC_RECAPTCHA_HOST: "https://www.recaptcha.net",
-              };
-              for (const [key, value] of Object.entries(expectedBuildArgs)) {
-                if (client.build?.args?.[key] !== value) {
-                  throw new Error(`Unexpected frontend build argument ${key}`);
-                }
-              }
-              if (
-                !client.build?.args?.NEXT_PUBLIC_RECAPTCHA_SITE_KEY ||
-                client.build.args.NEXT_PUBLIC_RECAPTCHA_SITE_KEY.startsWith("change_me")
-              ) {
-                throw new Error("Frontend production reCAPTCHA site key is missing");
-              }
-              if (client.build?.args?.APP_REVISION !== process.env.APP_REVISION) {
-                throw new Error("Frontend build revision is not pinned");
-              }
-              if (client.image !== `winwidget-client:${process.env.APP_VERSION}`) {
-                throw new Error("Frontend image tag is not pinned");
-              }
-            '
-
-      - name: Build
-        run: |
-          pnpm build
-          docker compose --env-file .env.example -f deploy/docker-compose.prod.yml build client
-          test "$(
-            docker image inspect "winwidget-client:$APP_VERSION" \
-              --format '{{ index .Config.Labels "org.opencontainers.image.revision" }}'
-          )" = "$APP_REVISION"
+          node --input-type=module <<'NODE'
+          import { appendFileSync } from 'node:fs';
+          const { REPOSITORY: repository, REVISION: revision } = process.env;
+          if (!/^[A-Za-z0-9_.-]+\/[A-Za-z0-9_.-]+$/.test(repository) || !/^[a-f0-9]{40}$/.test(revision)) throw new Error('Invalid immutable frontend identity');
+          async function api(path) {
+            const response = await fetch(`${process.env.GITHUB_API_URL}/repos/${repository}${path}`, {
+              headers: { authorization: `Bearer ${process.env.GH_TOKEN}`, accept: 'application/vnd.github+json', 'X-GitHub-Api-Version': '2022-11-28' },
+              redirect: 'error', signal: AbortSignal.timeout(15000)
+            });
+            if (!response.ok) throw new Error('Frontend CI evidence is unavailable');
+            return response.json();
+          }
+          const result = await api(`/actions/workflows/ci.yml/runs?head_sha=${revision}&per_page=100`);
+          const runs = result.workflow_runs.filter(run => run.head_sha === revision && run.head_repository?.full_name === repository && ['push','pull_request'].includes(run.event));
+          runs.sort((a,b) => b.id-a.id);
+          const run = runs[0];
+          if (!run || run.status !== 'completed' || run.conclusion !== 'success') throw new Error('Latest exact-SHA frontend CI is not green');
+          const { jobs, total_count: count } = await api(`/actions/runs/${run.id}/jobs?filter=latest&per_page=100`);
+          const required = ['Workspace contracts and shared package','Verify landing','Verify widgets','Verify admin-panel','Verify crm'].sort();
+          if (count !== required.length || JSON.stringify(jobs.map(job=>job.name).sort()) !== JSON.stringify(required) || jobs.some(job=>job.status!=='completed'||job.conclusion!=='success')) throw new Error('Not all four applications and shared contracts passed');
+          appendFileSync(process.env.GITHUB_OUTPUT, `run-id=${run.id}\n`);
+          console.log(`Exact frontend revision ${revision} admitted by CI run ${run.id}`);
+          NODE
 
   deploy:
     needs: verify
     runs-on: ubuntu-latest
-    timeout-minutes: 30
-
+    timeout-minutes: 55
+    env:
+      DEPLOY_REVISION: ${{ github.sha }}
+      VERIFIED_CI_RUN_ID: ${{ needs.verify.outputs.run-id }}
+      CHECKOUT_PATH: ${{ vars.FRONTEND_PRODUCTION_CHECKOUT }}
+      INFRA_REVISION: ${{ vars.FRONTEND_PRODUCTION_INFRA_REVISION }}
+      NGINX_SHA256: ${{ vars.FRONTEND_PRODUCTION_NGINX_SHA256 }}
+      ENV_SHA256: ${{ vars.FRONTEND_PRODUCTION_ENV_SHA256 }}
+      SSH_HOST: ${{ secrets.PRODUCTION_SSH_HOST }}
+      SSH_PORT: ${{ secrets.PRODUCTION_SSH_PORT }}
+      SSH_USER: ${{ secrets.PRODUCTION_SSH_USER }}
+      SSH_PRIVATE_KEY: ${{ secrets.PRODUCTION_SSH_PRIVATE_KEY }}
+      SSH_KNOWN_HOSTS: ${{ secrets.PRODUCTION_SSH_KNOWN_HOSTS }}
     steps:
-      - name: Configure SSH private key
-        env:
-          SSH_PRIVATE_KEY: ${{ secrets.PRODUCTION_SSH_PRIVATE_KEY }}
+      - name: Validate reviewed release configuration and pinned SSH identity
         run: |
-          mkdir -p ~/.ssh
-          printf '%s\n' "$SSH_PRIVATE_KEY" > ~/.ssh/deploy_key
-          chmod 600 ~/.ssh/deploy_key
-          ssh-keygen -y -f ~/.ssh/deploy_key > /dev/null
-
-      - name: Add VPS host to known_hosts
-        env:
-          SSH_HOST: ${{ secrets.PRODUCTION_SSH_HOST }}
-          SSH_PORT: ${{ secrets.PRODUCTION_SSH_PORT }}
-        run: |
-          ssh-keyscan -p "$SSH_PORT" -H "$SSH_HOST" >> ~/.ssh/known_hosts
-
-      - name: Deploy frontend on VPS
-        env:
-          APP_ROOT: /opt/winwidget
-          DEPLOY_REVISION: ${{ github.sha }}
-          SSH_HOST: ${{ secrets.PRODUCTION_SSH_HOST }}
-          SSH_PORT: ${{ secrets.PRODUCTION_SSH_PORT }}
-          SSH_USER: ${{ secrets.PRODUCTION_SSH_USER }}
-        run: |
-          ssh -i ~/.ssh/deploy_key -o IdentitiesOnly=yes -p "$SSH_PORT" \
-            "$SSH_USER@$SSH_HOST" \
-            "APP_ROOT='$APP_ROOT' EXPECTED_REVISION='$DEPLOY_REVISION' bash -s" <<'EOF'
           set -euo pipefail
-          cd "$APP_ROOT/winwidget.ru_client"
-          git fetch origin prod
-          git checkout prod
-          git pull --ff-only origin prod
-          APP_ROOT="$APP_ROOT" bash scripts/deploy-production.sh
-          EOF
+          umask 077
+          case "$CHECKOUT_PATH" in /opt/winwidget/winwidget.ru_client|/opt/winwidget/winwidget.ru_frontends) ;; *) echo 'Reviewed frontend checkout is not configured' >&2; exit 1 ;; esac
+          [[ "$DEPLOY_REVISION" =~ ^[a-f0-9]{40}$ && "$INFRA_REVISION" =~ ^[a-f0-9]{40}$ && "$NGINX_SHA256" =~ ^[a-f0-9]{64}$ && "$ENV_SHA256" =~ ^[a-f0-9]{64}$ && "$VERIFIED_CI_RUN_ID" =~ ^[1-9][0-9]*$ ]] || { echo 'Immutable frontend release configuration is incomplete' >&2; exit 1; }
+          [[ "$SSH_HOST" =~ ^[A-Za-z0-9][A-Za-z0-9.-]{0,252}$ && "$SSH_PORT" =~ ^[0-9]{1,5}$ && "$SSH_USER" == root ]] || { echo 'Unreviewed frontend SSH destination' >&2; exit 1; }
+          ((10#$SSH_PORT >= 1 && 10#$SSH_PORT <= 65535)) || exit 1
+          [[ -n "$SSH_PRIVATE_KEY" && -n "$SSH_KNOWN_HOSTS" ]] || { echo 'Pinned frontend SSH credentials are missing' >&2; exit 1; }
+          mkdir -p "$RUNNER_TEMP/frontend-ssh"
+          printf '%s\n' "$SSH_PRIVATE_KEY" >"$RUNNER_TEMP/frontend-ssh/key"
+          printf '%s\n' "$SSH_KNOWN_HOSTS" >"$RUNNER_TEMP/frontend-ssh/known_hosts"
+          chmod 600 "$RUNNER_TEMP/frontend-ssh/key" "$RUNNER_TEMP/frontend-ssh/known_hosts"
+          ssh-keygen -y -f "$RUNNER_TEMP/frontend-ssh/key" >/dev/null
+
+      - name: Deploy only the exact frontend revision
+        run: |
+          set -euo pipefail
+          ssh -F /dev/null -o BatchMode=yes -o ClearAllForwardings=yes \
+            -o ConnectTimeout=15 -o ForwardAgent=no -o IdentitiesOnly=yes \
+            -o LogLevel=ERROR -o PasswordAuthentication=no -o PermitLocalCommand=no \
+            -o RequestTTY=no -o ServerAliveCountMax=3 -o ServerAliveInterval=15 \
+            -o StrictHostKeyChecking=yes -o "UserKnownHostsFile=$RUNNER_TEMP/frontend-ssh/known_hosts" \
+            -i "$RUNNER_TEMP/frontend-ssh/key" -p "$SSH_PORT" "$SSH_USER@$SSH_HOST" \
+            "bash -s -- '$CHECKOUT_PATH' '$DEPLOY_REVISION' '$VERIFIED_CI_RUN_ID' '$INFRA_REVISION' '$NGINX_SHA256' '$ENV_SHA256'" <<'REMOTE'
+          set -euo pipefail
+          umask 077
+          checkout_path="$1"
+          revision="$2"
+          [[ "$(id -u)" == 0 && -d "$checkout_path" && ! -L "$checkout_path" ]] || exit 1
+          case "$checkout_path" in /opt/winwidget/winwidget.ru_client|/opt/winwidget/winwidget.ru_frontends) ;; *) exit 1 ;; esac
+          for directory in /opt/winwidget "$checkout_path" "$checkout_path/.git"; do
+            [[ -d "$directory" && ! -L "$directory" && "$(realpath -e "$directory")" == "$directory" && "$(stat -c '%u:%g' "$directory")" == 0:0 ]] || { echo 'Unsafe frontend checkout metadata' >&2; exit 1; }
+            permissions="$(stat -c '%a' "$directory")"
+            [[ "$permissions" =~ ^[0-7]{3,4}$ ]] && (( (8#$permissions & 8#022) == 0 )) || { echo 'Writable frontend checkout refused' >&2; exit 1; }
+          done
+          lock=/run/lock/winwidget-frontend-nginx.lock
+          [[ -d /run/lock && ! -L /run/lock && "$(realpath -e /run/lock)" == /run/lock && "$(stat -c '%u:%g:%a' /run/lock)" == 0:0:1777 ]] || exit 1
+          [[ ! -L "$lock" && (! -e "$lock" || -f "$lock") ]] || exit 1
+          if [[ ! -e "$lock" ]]; then (set -o noclobber; : >"$lock") 2>/dev/null || true; fi
+          [[ "$(stat -c '%u:%g:%a:%h' "$lock")" == 0:0:600:1 ]] || exit 1
+          exec 9<>"$lock"
+          [[ "$(stat -Lc '%d:%i' /proc/self/fd/9)" == "$(stat -c '%d:%i' "$lock")" ]] || exit 1
+          flock -n 9 || { echo 'Another frontend/Nginx deployment holds the lock' >&2; exit 1; }
+          export FRONTEND_DEPLOY_LOCK_FD=9
+          [[ "$(git -C "$checkout_path" branch --show-current)" == prod && -z "$(git -C "$checkout_path" status --porcelain --untracked-files=all)" ]] || { echo 'Production frontend checkout must be clean on prod' >&2; exit 1; }
+          git -C "$checkout_path" fetch --no-tags origin prod
+          [[ "$(git -C "$checkout_path" rev-parse FETCH_HEAD)" == "$revision" ]] || { echo 'A newer production revision superseded this release' >&2; exit 1; }
+          git -C "$checkout_path" merge --ff-only FETCH_HEAD
+          export EXPECTED_REVISION="$revision" VERIFIED_CI_REVISION="$revision" VERIFIED_CI_RUN_ID="$3"
+          export FRONTEND_PRODUCTION_INFRA_REVISION="$4" FRONTEND_PRODUCTION_NGINX_SHA256="$5" FRONTEND_PRODUCTION_ENV_SHA256="$6"
+          bash "$checkout_path/scripts/deploy-production.sh" --deploy
+          REMOTE
+
+      - name: Remove only this runner's ephemeral SSH files
+        if: always()
+        run: |
+          rm -f -- "$RUNNER_TEMP/frontend-ssh/key" "$RUNNER_TEMP/frontend-ssh/known_hosts"
+          rmdir -- "$RUNNER_TEMP/frontend-ssh" 2>/dev/null || true
