@@ -280,7 +280,9 @@ const LoginCodeFallback = ({
 						<>
 							<p className={styles['verification-hint']}>
 								Если контакт подтверждён в вашем аккаунте, отправим код. Он
-								действует 5 минут. Проверяйте также папку «Спам».
+								действует 5 минут.
+								{selectedChannel === 'EMAIL' &&
+									' Проверяйте также папку «Спам».'}
 							</p>
 							<label className={styles['otp-field']}>
 								Код из {selectedChannel === 'EMAIL' ? 'email' : 'SMS'}
