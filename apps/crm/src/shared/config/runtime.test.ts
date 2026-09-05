@@ -3,6 +3,56 @@ import { describe, expect, it } from 'vitest'
 import { resolveRuntimeConfig } from './runtime'
 
 describe('resolveRuntimeConfig', () => {
+	const production = {
+		NEXT_PUBLIC_MODE: 'production',
+		NEXT_PUBLIC_APP_URL: 'https://crm.winwidget.ru',
+		NEXT_PUBLIC_MAIN_APP_URL: 'https://winwidget.ru',
+		NEXT_PUBLIC_API_URL: 'https://api.winwidget.ru/api/v1'
+	}
+	it.each([undefined, 'false'])(
+		'keeps the application closed in production unless explicitly released',
+		flag => {
+			expect(
+				resolveRuntimeConfig({
+					...production,
+					NEXT_PUBLIC_WINCRM_ENABLED: flag
+				}).wincrmEnabled
+			).toBe(false)
+		}
+	)
+	it('keeps development working and allows a local prelaunch preview', () => {
+		expect(resolveRuntimeConfig({ NODE_ENV: 'test' }).wincrmEnabled).toBe(
+			true
+		)
+		expect(
+			resolveRuntimeConfig({
+				NODE_ENV: 'test',
+				NEXT_PUBLIC_WINCRM_ENABLED: 'false'
+			}).wincrmEnabled
+		).toBe(false)
+	})
+	it('keeps application and billing release flags independent', () => {
+		const applicationOnly = resolveRuntimeConfig({
+			...production,
+			NEXT_PUBLIC_WINCRM_ENABLED: 'true'
+		})
+		expect(applicationOnly.wincrmEnabled).toBe(true)
+		expect(applicationOnly.wincrmBillingEnabled).toBe(false)
+		const billingOnly = resolveRuntimeConfig({
+			...production,
+			NEXT_PUBLIC_WINCRM_BILLING_ENABLED: 'true'
+		})
+		expect(billingOnly.wincrmEnabled).toBe(false)
+		expect(billingOnly.wincrmBillingEnabled).toBe(true)
+	})
+	it.each(['', '1', '0', 'TRUE', 'False', 'yes', ' true ', 'false\n'])(
+		'rejects ambiguous application release flag values',
+		flag => {
+			expect(() =>
+				resolveRuntimeConfig({ NEXT_PUBLIC_WINCRM_ENABLED: flag })
+			).toThrow('NEXT_PUBLIC_WINCRM_ENABLED must be true or false')
+		}
+	)
 	it.each([undefined, 'false'])(
 		'keeps paid billing off by default and on explicit false',
 		flag => {
@@ -39,6 +89,7 @@ describe('resolveRuntimeConfig', () => {
 			appOrigin: 'http://localhost:3001',
 			mainAppOrigin: 'http://localhost:3000',
 			apiBaseUrl: 'http://localhost:4100/api/v1',
+			wincrmEnabled: true,
 			wincrmBillingEnabled: false
 		})
 	})
@@ -56,6 +107,7 @@ describe('resolveRuntimeConfig', () => {
 			appOrigin: 'https://crm.winwidget.ru',
 			mainAppOrigin: 'https://winwidget.ru',
 			apiBaseUrl: 'https://api.winwidget.ru/api/v1',
+			wincrmEnabled: false,
 			wincrmBillingEnabled: false
 		})
 	})

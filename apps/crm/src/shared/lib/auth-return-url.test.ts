@@ -8,6 +8,7 @@ const config: RuntimeConfig = {
 	appOrigin: 'https://crm.winwidget.ru',
 	mainAppOrigin: 'https://winwidget.ru',
 	apiBaseUrl: 'https://api.winwidget.ru/api/v1',
+	wincrmEnabled: true,
 	wincrmBillingEnabled: false
 }
 

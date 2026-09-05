@@ -36,6 +36,7 @@ ARG NEXT_PUBLIC_RECAPTCHA_SITE_KEY=
 ARG NEXT_PUBLIC_RECAPTCHA_HOST=https://www.recaptcha.net
 ARG NEXT_PUBLIC_APP_URL=https://crm.winwidget.ru
 ARG NEXT_PUBLIC_MAIN_APP_URL=https://winwidget.ru
+ARG NEXT_PUBLIC_WINCRM_ENABLED=false
 ARG NEXT_PUBLIC_WINCRM_BILLING_ENABLED=false
 
 ENV NEXT_PUBLIC_MODE=${NEXT_PUBLIC_MODE}
@@ -47,12 +48,14 @@ ENV NEXT_PUBLIC_RECAPTCHA_SITE_KEY=${NEXT_PUBLIC_RECAPTCHA_SITE_KEY}
 ENV NEXT_PUBLIC_RECAPTCHA_HOST=${NEXT_PUBLIC_RECAPTCHA_HOST}
 ENV NEXT_PUBLIC_APP_URL=${NEXT_PUBLIC_APP_URL}
 ENV NEXT_PUBLIC_MAIN_APP_URL=${NEXT_PUBLIC_MAIN_APP_URL}
+ENV NEXT_PUBLIC_WINCRM_ENABLED=${NEXT_PUBLIC_WINCRM_ENABLED}
 ENV NEXT_PUBLIC_WINCRM_BILLING_ENABLED=${NEXT_PUBLIC_WINCRM_BILLING_ENABLED}
 
 # Only dependency installation may use the network. Prerendering must not
 # contact production APIs, OAuth, payment providers or external font services.
 RUN --network=none set -eu; \
 	case "$FRONTEND_APP" in landing|widgets|admin-panel|crm) ;; *) exit 64 ;; esac; \
+	case "$NEXT_PUBLIC_WINCRM_ENABLED" in true|false) ;; *) exit 64 ;; esac; \
 	case "$NEXT_PUBLIC_WINCRM_BILLING_ENABLED" in true|false) ;; *) exit 64 ;; esac; \
 	pnpm --filter "./apps/${FRONTEND_APP}" run build; \
 	mkdir -p "apps/${FRONTEND_APP}/public"

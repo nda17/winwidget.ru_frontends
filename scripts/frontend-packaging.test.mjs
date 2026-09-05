@@ -205,6 +205,15 @@ test('Docker runtime copies only selected standalone assets and requires an app 
 		dockerfile,
 		/^ARG NEXT_PUBLIC_WINCRM_BILLING_ENABLED=false$/m
 	)
+	assert.match(dockerfile, /^ARG NEXT_PUBLIC_WINCRM_ENABLED=false$/m)
+	assert.match(
+		dockerfile,
+		/^ENV NEXT_PUBLIC_WINCRM_ENABLED=\$\{NEXT_PUBLIC_WINCRM_ENABLED\}$/m
+	)
+	assert.match(
+		dockerfile,
+		/case "\$NEXT_PUBLIC_WINCRM_ENABLED" in true\|false\)/
+	)
 	assert.match(
 		dockerfile,
 		/^ENV NEXT_PUBLIC_WINCRM_BILLING_ENABLED=\$\{NEXT_PUBLIC_WINCRM_BILLING_ENABLED\}$/m
@@ -243,6 +252,11 @@ test('verification CI covers all common consumers, root and CRM tests without de
 	assert.match(
 		workflow,
 		/--build-arg NEXT_PUBLIC_WINCRM_BILLING_ENABLED=false/
+	)
+	assert.match(workflow, /--build-arg NEXT_PUBLIC_WINCRM_ENABLED=false/)
+	assert.match(
+		repositoryFile('deploy/docker-compose.prod.yml'),
+		/NEXT_PUBLIC_WINCRM_ENABLED: 'false'/
 	)
 	assert.match(workflow, /docker run --rm --network none/)
 	assert.doesNotMatch(

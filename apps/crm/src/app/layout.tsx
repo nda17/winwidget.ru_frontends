@@ -1,5 +1,7 @@
 import AppProviders from '@/app/providers/AppProviders'
 import '@/app/styles/globals.scss'
+import { PrelaunchScreen } from '@/screens/prelaunch'
+import { getRuntimeConfig } from '@/shared/config/runtime'
 import type { Metadata } from 'next'
 import type { PropsWithChildren } from 'react'
 
@@ -18,10 +20,16 @@ export const metadata: Metadata = {
 }
 
 const RootLayout = ({ children }: PropsWithChildren) => {
+	const { wincrmEnabled, mainAppOrigin } = getRuntimeConfig()
+
 	return (
 		<html lang="ru">
 			<body>
-				<AppProviders>{children}</AppProviders>
+				{wincrmEnabled ? (
+					<AppProviders>{children}</AppProviders>
+				) : (
+					<PrelaunchScreen mainAppOrigin={mainAppOrigin} />
+				)}
 			</body>
 		</html>
 	)

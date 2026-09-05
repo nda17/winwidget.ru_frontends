@@ -203,18 +203,12 @@
 	}
 }
 
-.pricingFields,
-.pricingFieldsLocked {
+.pricingFields {
 	@apply grid min-w-0 grid-cols-2 gap-3 border-0 p-0;
 
 	@media (max-width: 760px) {
 		@apply grid-cols-1;
 	}
-}
-
-.pricingFieldsLocked,
-.pricingActionsLocked {
-	@apply pointer-events-none select-none opacity-55 blur-[1px];
 }
 
 .pricingField {
@@ -233,8 +227,7 @@
 	}
 }
 
-.pricingActions,
-.pricingActionsLocked {
+.pricingActions {
 	@apply flex flex-wrap gap-3;
 }
 

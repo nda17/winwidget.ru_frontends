@@ -1,5 +1,9 @@
 import { redirect } from 'next/navigation'
+import { getRuntimeConfig } from '@/shared/config/runtime'
 
-const HomePage = () => redirect('/inbox')
+const HomePage = () => {
+	if (getRuntimeConfig().wincrmEnabled) redirect('/inbox')
+	return null
+}
 
 export default HomePage

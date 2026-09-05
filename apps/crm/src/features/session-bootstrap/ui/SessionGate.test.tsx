@@ -101,6 +101,7 @@ describe('SessionGate', () => {
 	})
 
 	it('keeps a temporary failure on screen and allows retry', () => {
+		const redirectToLogin = vi.fn()
 		mockedUseSessionBootstrap.mockReturnValue({
 			status: 'error',
 			errorMessage: 'Временная ошибка',
@@ -109,7 +110,7 @@ describe('SessionGate', () => {
 		})
 
 		render(
-			<SessionGate redirectToLogin={vi.fn()}>
+			<SessionGate redirectToLogin={redirectToLogin}>
 				<div>Workspace</div>
 			</SessionGate>
 		)
@@ -117,5 +118,6 @@ describe('SessionGate', () => {
 		expect(screen.getByText('Временная ошибка')).toBeTruthy()
 		fireEvent.click(screen.getByRole('button', { name: 'Повторить' }))
 		expect(retry).toHaveBeenCalledTimes(1)
+		expect(redirectToLogin).not.toHaveBeenCalled()
 	})
 })

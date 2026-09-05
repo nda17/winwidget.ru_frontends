@@ -158,17 +158,36 @@ pnpm dev:crm
 `.env.example` содержит только безопасные локальные значения и имена
 переменных:
 
-| Переменная                           | Назначение                                                                |
-| ------------------------------------ | ------------------------------------------------------------------------- |
-| `NEXT_PUBLIC_MODE`                   | режим публичной frontend-конфигурации                                     |
-| `NEXT_PUBLIC_APP_URL`                | точный origin CRM frontend                                                |
-| `NEXT_PUBLIC_MAIN_APP_URL`           | точный origin основного сайта и auth UI                                   |
-| `NEXT_PUBLIC_API_URL`                | публичный prefix API Gateway                                              |
-| `NEXT_PUBLIC_WINCRM_BILLING_ENABLED` | release-флаг платёжного UI, строго `true` / `false`, по умолчанию `false` |
-| `APP_REVISION`                       | безопасный идентификатор сборки                                           |
+| Переменная                           | Назначение                                                                                              |
+| ------------------------------------ | ------------------------------------------------------------------------------------------------------- |
+| `NEXT_PUBLIC_MODE`                   | режим публичной frontend-конфигурации                                                                   |
+| `NEXT_PUBLIC_APP_URL`                | точный origin CRM frontend                                                                              |
+| `NEXT_PUBLIC_MAIN_APP_URL`           | точный origin основного сайта и auth UI                                                                 |
+| `NEXT_PUBLIC_API_URL`                | публичный prefix API Gateway                                                                            |
+| `NEXT_PUBLIC_WINCRM_ENABLED`         | общий release-флаг приложения: `true` / `false`, production default `false`, development default `true` |
+| `NEXT_PUBLIC_WINCRM_BILLING_ENABLED` | release-флаг платёжного UI, строго `true` / `false`, по умолчанию `false`                               |
+| `APP_REVISION`                       | безопасный идентификатор сборки                                                                         |
 
 Секреты, приватные ключи, database URL и service credentials нельзя хранить в
 этом frontend-репозитории или передавать через `NEXT_PUBLIC_*`.
+
+### Release gate приложения WinCRM
+
+`NEXT_PUBLIC_WINCRM_ENABLED=false` показывает адаптивную страницу «WinCRM —
+Скоро» со ссылкой на основной сайт. Server RootLayout не монтирует providers,
+session/access gates и дочерние экраны: запросы к Identity, Billing и CRM не
+отправляются, Trial не запускается. Все UI URL закрыты одним boundary; корневой
+redirect в `/inbox` также выключен. Независимый `/__frontend/health` остаётся
+доступен и не является подтверждением готовности backend.
+
+По умолчанию приложение закрыто в production и открыто в development.
+Для локального preview задайте строго `false`; `true` открывает настоящий
+рабочий интерфейс, но не включает платежи. Общий release-флаг и флаг оплаты
+независимы. Оба фиксируются при сборке Next.js: production Compose, CI и
+deployment controller пока требуют `false`. Production env для этого
+prelaunch-исправления не изменяется. Открывать приложение можно только отдельным
+согласованным rollout совместимого Gateway/Identity/Billing/CRM; общий сайт
+сохраняет собственный закрытый `CRM_RELEASE.apiEnabled` до того же rollout.
 
 ### Release gate оплаты WinCRM
 

@@ -15,7 +15,8 @@ x-build-args: &frontend-build-args
   NEXT_PUBLIC_RECAPTCHA_HOST: ${NEXT_PUBLIC_RECAPTCHA_HOST:-https://www.recaptcha.net}
   NEXT_PUBLIC_APP_URL: https://crm.winwidget.ru
   NEXT_PUBLIC_MAIN_APP_URL: https://winwidget.ru
-  # Frontend deployment must not enable payments before CRM backend rollout.
+  # Frontend deployment must not enable CRM APIs or payments before backend rollout.
+  NEXT_PUBLIC_WINCRM_ENABLED: 'false'
   NEXT_PUBLIC_WINCRM_BILLING_ENABLED: 'false'
 
 x-runtime: &frontend-runtime

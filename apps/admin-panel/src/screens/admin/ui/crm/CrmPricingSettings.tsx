@@ -67,8 +67,7 @@ export default function CrmPricingSettings() {
 			role => role === UserRole.ADMIN || role === UserRole.DEV
 		)
 	)
-	const canEdit =
-		CRM_RELEASE.apiEnabled && canView && user.rights.includes(UserRole.DEV)
+	const canEdit = CRM_RELEASE.apiEnabled && canView
 	const online = useSyncExternalStore(
 		subscribeOnline,
 		getOnline,
@@ -296,7 +295,7 @@ function PricingEditor({
 				setForbidden(true)
 				void queryClient.invalidateQueries({ queryKey: ['get-profile'] })
 				toast.error(
-					'Сохранение недоступно. Требуется действующий доступ DEV',
+					'Сохранение недоступно. Требуется действующий доступ ADMIN или DEV',
 					{
 						id: toastId
 					}
@@ -340,8 +339,8 @@ function PricingEditor({
 					</p>
 				</div>
 				<AdminTooltip
-					title="Изменение тарифа — только для DEV"
-					description="ADMIN видит текущие цены и лимиты. DEV может опубликовать новую версию. Изменение фиксируется в Журнале событий. Включено минимум два места с учётом владельца."
+					title="Изменение тарифа — для ADMIN и DEV"
+					description="ADMIN и DEV могут опубликовать новую версию цен и лимитов. Изменение фиксируется в Журнале событий. Включено минимум два места с учётом владельца."
 					risk="high"
 					riskText="Проверьте отдельно полную сумму за год и цену дополнительного места. Тарифы виджетов на этом экране не изменяются."
 				/>
@@ -350,7 +349,7 @@ function PricingEditor({
 			{forbidden ? (
 				<p className={styles.staleState} role="alert">
 					Сервер не подтвердил право на изменение. Войдите с действующим
-					доступом DEV и повторно откройте настройки.
+					доступом ADMIN или DEV и повторно откройте настройки.
 				</p>
 			) : conflict || (serverChanged && !pending) ? (
 				<div className={styles.staleState} role="alert">
@@ -377,12 +376,7 @@ function PricingEditor({
 			) : null}
 
 			<form onSubmit={save}>
-				<fieldset
-					className={
-						canEdit ? styles.pricingFields : styles.pricingFieldsLocked
-					}
-					disabled={locked}
-				>
+				<fieldset className={styles.pricingFields} disabled={locked}>
 					<legend className={styles.srOnly}>Цены и места WinCRM</legend>
 					{ALL_FIELDS.map(field => {
 						const isPrice = CRM_PRICE_FIELDS.some(price => price === field)
@@ -414,11 +408,7 @@ function PricingEditor({
 					Места: целое число от 2 до 10 000. Годовая цена — полная сумма за
 					12 месяцев.
 				</p>
-				<div
-					className={
-						canEdit ? styles.pricingActions : styles.pricingActionsLocked
-					}
-				>
+				<div className={styles.pricingActions}>
 					<button
 						type="submit"
 						className={styles.saveButton}

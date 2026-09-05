@@ -25,6 +25,7 @@ env:
   NEXT_PUBLIC_RECAPTCHA_HOST: https://www.recaptcha.net
   NEXT_PUBLIC_APP_URL: https://crm.winwidget.ru
   NEXT_PUBLIC_MAIN_APP_URL: https://winwidget.ru
+  NEXT_PUBLIC_WINCRM_ENABLED: 'false'
   NEXT_PUBLIC_WINCRM_BILLING_ENABLED: 'false'
 
 jobs:
@@ -109,6 +110,7 @@ jobs:
             --build-arg NEXT_PUBLIC_RECAPTCHA_HOST="$NEXT_PUBLIC_RECAPTCHA_HOST" \
             --build-arg NEXT_PUBLIC_APP_URL="$NEXT_PUBLIC_APP_URL" \
             --build-arg NEXT_PUBLIC_MAIN_APP_URL="$NEXT_PUBLIC_MAIN_APP_URL" \
+            --build-arg NEXT_PUBLIC_WINCRM_ENABLED=false \
             --build-arg NEXT_PUBLIC_WINCRM_BILLING_ENABLED=false \
             --tag "$IMAGE" .
       - name: Check exact revision and runtime ownership
@@ -128,3 +130,34 @@ jobs:
             console.log("Exact frontend image revision and ownership verified");
           '
           docker run --rm --network none "$IMAGE" node container-entrypoint.mjs --verify
+      - name: Verify closed CRM starts without network or session dependencies
+        if: matrix.app == 'crm'
+        run: |
+          container=wincrm-prelaunch-ci
+          trap 'docker rm -f "$container" >/dev/null 2>&1 || true' EXIT
+          docker run --detach --network none --name "$container" \
+            --env HOSTNAME=0.0.0.0 --env PORT=3000 --env NODE_ENV=production "$IMAGE"
+          docker exec "$container" node --input-type=module -e '
+            import assert from "node:assert/strict";
+            const origin = "http://127.0.0.1:3000";
+            let ready = false;
+            for (let attempt = 0; attempt < 60; attempt++) {
+              try {
+                const response = await fetch(`${origin}/__frontend/health`, { signal: AbortSignal.timeout(1000) });
+                const body = await response.json();
+                ready = response.ok && body.application === "crm" && body.revision === process.env.APP_REVISION;
+                if (ready) break;
+              } catch {}
+              await new Promise(resolve => setTimeout(resolve, 500));
+            }
+            assert.ok(ready, "Exact CRM image did not become ready");
+            for (const path of ["/", "/inbox", "/billing", "/billing/return", "/settings", "/invitations/11111111-1111-4111-8111-111111111111"]) {
+              const response = await fetch(`${origin}${path}`, { redirect: "manual", signal: AbortSignal.timeout(5000) });
+              assert.equal(response.status, 200, `Prelaunch ${path} must not redirect to a session-protected route`);
+              const html = await response.text();
+              assert.match(html, /Готовимся к запуску/);
+              assert.match(html, /Перейти в WinWidget/);
+              assert.doesNotMatch(html, /Не удалось проверить сессию/);
+            }
+            console.log("CRM prelaunch root and deep links verified in a network-isolated release image");
+          '

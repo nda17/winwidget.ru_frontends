@@ -553,6 +553,7 @@ describe('AccessGate', () => {
 			appOrigin: 'http://localhost:3001',
 			mainAppOrigin: 'http://localhost:3000',
 			apiBaseUrl: 'http://localhost:4100/api/v1',
+			wincrmEnabled: true,
 			wincrmBillingEnabled: false
 		})
 		window.history.replaceState({}, '', '/inbox')

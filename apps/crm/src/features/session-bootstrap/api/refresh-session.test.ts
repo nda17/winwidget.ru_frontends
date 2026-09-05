@@ -47,6 +47,8 @@ describe('refreshSession', () => {
 	it.each([
 		{ isAxiosError: true, response: { status: 403 } },
 		{ isAxiosError: true, response: { status: 500 } },
+		{ isAxiosError: true, response: { status: 503 } },
+		{ isAxiosError: true, code: 'ECONNABORTED' },
 		{ isAxiosError: true }
 	])('classifies non-401 failures as temporary', async error => {
 		post.mockRejectedValue(error)

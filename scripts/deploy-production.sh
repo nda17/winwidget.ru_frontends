@@ -175,11 +175,11 @@ compose config --format json 2>/dev/null | node_validate '
 		if(JSON.stringify(Object.keys(e).sort())!==JSON.stringify([...keys].sort()))fail();
 		if(e.NODE_ENV!=="production"||String(e.PORT)!=="3000"||e.HOSTNAME!=="0.0.0.0")fail();
 		if(keys.length>base.length && (e.JWT_JWKS_URL!=="https://api.winwidget.ru/api/v1/auth/.well-known/jwks.json" || e.JWT_ISSUER!=="https://api.winwidget.ru/auth" || e.JWT_AUDIENCE!=="https://api.winwidget.ru" || String(e.JWT_MAX_TOKEN_LIFETIME_SECONDS)!=="900" || !/^\d{1,2}$/.test(String(e.JWT_CLOCK_TOLERANCE_SECONDS)) || Number(e.JWT_CLOCK_TOLERANCE_SECONDS)>60))fail();
-		if(a.FRONTEND_APP!==app || !/^[a-f0-9]{40}$/.test(a.APP_REVISION) || s.image!==`winwidget-${app}:git-${a.APP_REVISION}` || a.NEXT_PUBLIC_WINCRM_BILLING_ENABLED!=="false")fail();
+		if(a.FRONTEND_APP!==app || !/^[a-f0-9]{40}$/.test(a.APP_REVISION) || s.image!==`winwidget-${app}:git-${a.APP_REVISION}` || a.NEXT_PUBLIC_WINCRM_ENABLED!=="false" || a.NEXT_PUBLIC_WINCRM_BILLING_ENABLED!=="false")fail();
 		const fixed={NEXT_PUBLIC_MODE:"production",NEXT_PUBLIC_SITE_URL:"https://winwidget.ru",NEXT_PUBLIC_PRODUCTION_HOST:"https://api.winwidget.ru",NEXT_PUBLIC_WIDGETS_HOST:"",NEXT_PUBLIC_API_URL:"https://api.winwidget.ru/api/v1",NEXT_PUBLIC_RECAPTCHA_HOST:"https://www.recaptcha.net",NEXT_PUBLIC_APP_URL:"https://crm.winwidget.ru",NEXT_PUBLIC_MAIN_APP_URL:"https://winwidget.ru"};
 		for(const[k,v]of Object.entries(fixed))if(a[k]!==v)fail();
 		if(typeof a.NEXT_PUBLIC_RECAPTCHA_SITE_KEY!=="string"||!a.NEXT_PUBLIC_RECAPTCHA_SITE_KEY||/^(change_me|ci-placeholder)/.test(a.NEXT_PUBLIC_RECAPTCHA_SITE_KEY))fail();
-		const allowed=[...Object.keys(fixed),"APP_REVISION","FRONTEND_APP","NEXT_PUBLIC_RECAPTCHA_SITE_KEY","NEXT_PUBLIC_WINCRM_BILLING_ENABLED"];
+		const allowed=[...Object.keys(fixed),"APP_REVISION","FRONTEND_APP","NEXT_PUBLIC_RECAPTCHA_SITE_KEY","NEXT_PUBLIC_WINCRM_ENABLED","NEXT_PUBLIC_WINCRM_BILLING_ENABLED"];
 		if(JSON.stringify(Object.keys(a).sort())!==JSON.stringify(allowed.sort()))fail();
 		if(s.ports?.length!==1||s.ports[0].host_ip!=="127.0.0.1"||String(s.ports[0].published)!==String(port)||s.ports[0].target!==3000)fail();
 	}

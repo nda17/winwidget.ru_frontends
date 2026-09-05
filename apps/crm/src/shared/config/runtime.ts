@@ -13,6 +13,7 @@ export interface PublicRuntimeEnvironment {
 	NEXT_PUBLIC_APP_URL?: string
 	NEXT_PUBLIC_MAIN_APP_URL?: string
 	NEXT_PUBLIC_API_URL?: string
+	NEXT_PUBLIC_WINCRM_ENABLED?: string
 	NEXT_PUBLIC_WINCRM_BILLING_ENABLED?: string
 	NODE_ENV?: string
 }
@@ -22,6 +23,7 @@ export interface RuntimeConfig {
 	appOrigin: string
 	mainAppOrigin: string
 	apiBaseUrl: string
+	wincrmEnabled: boolean
 	wincrmBillingEnabled: boolean
 }
 
@@ -87,6 +89,14 @@ const parseApiBaseUrl = (value: string) => {
 export const resolveRuntimeConfig = (
 	environment: PublicRuntimeEnvironment
 ): RuntimeConfig => {
+	const releaseFlag = environment.NEXT_PUBLIC_WINCRM_ENABLED
+	if (
+		releaseFlag !== undefined &&
+		releaseFlag !== 'true' &&
+		releaseFlag !== 'false'
+	) {
+		throw new Error('NEXT_PUBLIC_WINCRM_ENABLED must be true or false')
+	}
 	const billingFlag = environment.NEXT_PUBLIC_WINCRM_BILLING_ENABLED
 	if (
 		billingFlag !== undefined &&
@@ -129,6 +139,10 @@ export const resolveRuntimeConfig = (
 		appOrigin,
 		mainAppOrigin,
 		apiBaseUrl,
+		wincrmEnabled:
+			releaseFlag === undefined
+				? mode === 'development'
+				: releaseFlag === 'true',
 		wincrmBillingEnabled: billingFlag === 'true'
 	}
 }
@@ -142,6 +156,7 @@ export const getRuntimeConfig = () => {
 			NEXT_PUBLIC_APP_URL: process.env.NEXT_PUBLIC_APP_URL,
 			NEXT_PUBLIC_MAIN_APP_URL: process.env.NEXT_PUBLIC_MAIN_APP_URL,
 			NEXT_PUBLIC_API_URL: process.env.NEXT_PUBLIC_API_URL,
+			NEXT_PUBLIC_WINCRM_ENABLED: process.env.NEXT_PUBLIC_WINCRM_ENABLED,
 			NEXT_PUBLIC_WINCRM_BILLING_ENABLED:
 				process.env.NEXT_PUBLIC_WINCRM_BILLING_ENABLED,
 			NODE_ENV: process.env.NODE_ENV
