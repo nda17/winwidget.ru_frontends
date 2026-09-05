@@ -12,7 +12,6 @@ class AdminPages {
 	TELEGRAM_BOT = '/admin/telegram-bot'
 	CONTENT = '/admin/content'
 	TARIFFS = '/admin/tariffs'
-	BACKLOG = '/admin/backlog'
 	SUBSCRIPTIONS = '/admin/subscriptions'
 	CRM = '/admin/crm'
 	SYSTEM = '/admin/system'

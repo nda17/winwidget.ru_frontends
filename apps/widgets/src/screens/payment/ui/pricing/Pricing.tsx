@@ -36,6 +36,7 @@ import {
 } from 'react'
 import toast from 'react-hot-toast'
 import styles from './Pricing.module.scss'
+import CrmPricingCards from './CrmPricingCards'
 
 const PLAN_PRIORITY: Record<Plan, number> = {
 	TRIAL: 0,
@@ -252,6 +253,7 @@ const Pricing = ({
 	const router = useRouter()
 	const queryClient = useQueryClient()
 	const { user, isLoading: isUserLoading } = useUser()
+	const [product, setProduct] = useState<'WIDGETS' | 'CRM'>('WIDGETS')
 	const [period, setPeriod] = useState<BillingPeriod>('YEARLY')
 	const [autoRenewByPlan, setAutoRenewByPlan] = useState<
 		Record<PaidPlan, boolean>
@@ -689,516 +691,568 @@ const Pricing = ({
 				{PAYMENT_COPY.title}
 			</h1>
 
-			{!paymentEnabled && (
-				<div className={styles.paymentDisabledNotice}>
-					{PAYMENT_COPY.paymentDisabledNotice}
-				</div>
-			)}
-
-			{auth && subLoading ? (
-				<div className={styles.currentPlan} aria-hidden="true">
-					<SkeletonLoader
-						height={18}
-						width={220}
-						containerClassName={styles.currentPlanSkeletonLine}
-					/>
-					<SkeletonLoader
-						height={18}
-						width={90}
-						containerClassName={styles.currentPlanSkeletonLine}
-					/>
-					<SkeletonLoader
-						height={24}
-						width={74}
-						borderRadius={999}
-						containerClassName={styles.currentPlanSkeletonBadge}
-					/>
-				</div>
-			) : subscription ? (
-				<div className={styles.currentPlan}>
-					<span>
-						{PAYMENT_COPY.currentPlanText}{' '}
-						<strong>{planLabel[subscription.plan]}</strong>
-					</span>
-					{subscription.expiresAt && (
-						<span>
-							{PAYMENT_COPY.currentPlanUntilText}{' '}
-							{new Date(subscription.expiresAt).toLocaleDateString(
-								'ru-RU'
-							)}
-						</span>
-					)}
-					<span
-						className={
-							isActive ? styles.statusActive : styles.statusExpired
-						}
-					>
-						{isActive
-							? PAYMENT_COPY.activeStatusText
-							: PAYMENT_COPY.expiredStatusText}
-					</span>
-				</div>
-			) : null}
-
-			{auth && pendingLoading ? (
-				<div
-					className={`${styles.pendingNotice} ${styles.pendingNoticeSkeleton}`}
-					aria-hidden="true"
-				>
-					<div className={styles.pendingCopy}>
-						<SkeletonLoader
-							height={16}
-							width={210}
-							containerClassName={styles.pendingSkeletonLine}
-						/>
-						<SkeletonLoader
-							height={14}
-							width={280}
-							containerClassName={styles.pendingSkeletonLine}
-						/>
-					</div>
-					<div className={styles.pendingSkeletonActions}>
-						<SkeletonLoader
-							height={40}
-							width={170}
-							borderRadius={14}
-							containerClassName={styles.pendingSkeletonButton}
-						/>
-					</div>
-				</div>
-			) : pendingLoadError && !hasPendingPayment ? (
-				<div
-					className={`${styles.pendingNotice} ${styles.pendingNoticeError}`}
-					role="alert"
-				>
-					<div className={styles.pendingCopy}>
-						<p className={styles.pendingTitle}>
-							{PAYMENT_COPY.pendingPaymentErrorTitle}
-						</p>
-						<p className={styles.pendingText}>
-							{PAYMENT_COPY.pendingPaymentErrorText}
-						</p>
-					</div>
-				</div>
-			) : hasPendingPayment ? (
-				<div
-					className={`${styles.pendingNotice} ${
-						isPendingPaymentWarning ? styles.pendingNoticeWarning : ''
-					}`}
-				>
-					<div className={styles.pendingCopy}>
-						<p className={styles.pendingTitle}>
-							{isPendingDowngradeBlocked
-								? PAYMENT_COPY.pendingPaymentUnavailableTitle
-								: PAYMENT_COPY.pendingPaymentTitle}
-						</p>
-						<p className={styles.pendingText}>
-							{isPendingDowngradeBlocked ? (
-								<>
-									{renderTemplate(
-										PAYMENT_COPY.pendingPaymentUnavailableText,
-										{
-											currentPlan: (
-												<strong key="currentPlan">
-													{currentPlanLabel}
-												</strong>
-											),
-											payment: (
-												<strong key="payment">
-													{pendingPaymentLabel}
-												</strong>
-											)
-										}
-									)}
-								</>
-							) : (
-								<>
-									{renderTemplate(PAYMENT_COPY.pendingPaymentText, {
-										payment: (
-											<strong key="payment">{pendingPaymentLabel}</strong>
-										)
-									})}
-								</>
-							)}
-						</p>
-						<div className={styles.pendingMeta}>
-							<span className={styles.pendingTypeBadge}>
-								{getPaymentTypeLabel(
-									Boolean(activePendingPayment?.autoRenew)
-								)}
-							</span>
-							<span
-								className={`${styles.pendingCountdown} ${
-									isPendingPaymentWarning
-										? styles.pendingCountdownWarning
-										: ''
-								}`}
-							>
-								<span>{PAYMENT_COPY.pendingPaymentCountdownText} </span>
-								<strong aria-hidden="true">
-									{nowMs === null
-										? '--:--'
-										: formatCountdown(pendingRemainingMs)}
-								</strong>
-								<span className="srOnly">
-									{nowMs === null
-										? 'Оставшееся время рассчитывается'
-										: `${Math.max(1, Math.ceil(pendingRemainingMs / 60000))} мин.`}
-								</span>
-							</span>
-						</div>
-						{isPendingPaymentWarning && (
-							<p className={styles.pendingWarning} role="status">
-								{PAYMENT_COPY.pendingPaymentWarningText}
-							</p>
-						)}
-					</div>
-					<div className={styles.pendingActions}>
-						{!isPendingDowngradeBlocked && isPendingLinkAvailable && (
-							<a
-								href={activePendingPayment?.confirmationUrl ?? undefined}
-								target="_blank"
-								rel="noopener noreferrer"
-								className={styles.pendingResumeBtn}
-								onClick={() =>
-									toast.success(PAYMENT_COPY.paymentOpenedInNewTabText, {
-										id: `pending-payment-open-${activePendingPaymentId}`
-									})
-								}
-							>
-								{PAYMENT_COPY.pendingPaymentResumeButtonText}
-							</a>
-						)}
-						<button
-							type="button"
-							className={styles.pendingCancelBtn}
-							onClick={() => {
-								if (activePendingPaymentId) {
-									cancelPendingMutation.mutate(activePendingPaymentId)
-								}
-							}}
-							disabled={cancelPendingMutation.isPending}
-						>
-							{cancelPendingMutation.isPending
-								? PAYMENT_COPY.pendingPaymentCancelLoadingText
-								: PAYMENT_COPY.pendingPaymentCancelButtonText}
-						</button>
-					</div>
-				</div>
-			) : null}
-
-			{shouldShowPaymentContactPrompt && (
-				<div className={styles.contactRequiredNotice}>
-					<div className={styles.contactRequiredCopy}>
-						<p className={styles.contactRequiredTitle}>
-							{PAYMENT_COPY.contactRequiredTitle}
-						</p>
-						<p className={styles.contactRequiredText}>
-							{PAYMENT_COPY.contactRequiredText}
-						</p>
-						{pendingPaymentRequest && (
-							<>
-								<p className={styles.contactRequiredText}>
-									{renderTemplate(
-										PAYMENT_COPY.contactRequiredPendingText,
-										{
-											payment: (
-												<strong key="payment">
-													{`${planLabel[pendingPaymentRequest.plan]} на ${BILLING_PERIOD_LABEL[pendingPaymentRequest.billingPeriod]}`}
-												</strong>
-											)
-										}
-									)}
-								</p>
-								<p className={styles.contactRequiredText}>
-									{renderTemplate(
-										PAYMENT_COPY.contactRequiredAutoRenewText,
-										{
-											paymentType: (
-												<strong key="paymentType">
-													{getPaymentTypeLabel(
-														pendingPaymentRequest.autoRenew
-													)}
-												</strong>
-											)
-										}
-									)}
-								</p>
-							</>
-						)}
-					</div>
-					<div className={styles.contactRequiredForm}>
-						<input
-							className={styles.contactInput}
-							value={paymentEmail}
-							onChange={event => setPaymentEmail(event.target.value)}
-							placeholder={PAYMENT_COPY.contactEmailPlaceholder}
-							type="email"
-							disabled={emailCodeRequested || isSendingEmailCode}
-						/>
-						<button
-							type="button"
-							className={styles.contactBtn}
-							onClick={requestPaymentEmailCode}
-							disabled={isSendingEmailCode || isVerifyingEmailCode}
-						>
-							{isSendingEmailCode
-								? 'Отправляем...'
-								: emailCodeRequested
-									? PAYMENT_COPY.contactEmailResendButtonText
-									: PAYMENT_COPY.contactEmailSendButtonText}
-						</button>
-					</div>
-					{emailCodeRequested && (
-						<div className={styles.contactRequiredForm}>
+			<fieldset className={styles.productGroup}>
+				<legend className={styles.productLegend}>Выберите продукт</legend>
+				<div className={styles.productToggle}>
+					{(['WIDGETS', 'CRM'] as const).map(value => (
+						<label key={value} className={styles.productOption}>
 							<input
-								className={styles.contactInput}
-								value={paymentEmailCode}
-								onChange={event =>
-									setPaymentEmailCode(
-										event.target.value.replace(/\D/g, '').slice(0, 6)
+								type="radio"
+								name="payment-product"
+								value={value}
+								checked={product === value}
+								aria-controls={`payment-product-${value}`}
+								onChange={() => {
+									setProduct(value)
+									toast(
+										value === 'CRM' ? 'Тарифы WinCRM' : 'Тарифы виджетов'
 									)
-								}
-								placeholder={PAYMENT_COPY.contactEmailCodePlaceholder}
-								inputMode="numeric"
-								disabled={isVerifyingEmailCode}
-							/>
-							<button
-								type="button"
-								className={styles.contactBtn}
-								onClick={confirmPaymentEmailCode}
-								disabled={isSendingEmailCode || isVerifyingEmailCode}
-							>
-								{isVerifyingEmailCode
-									? 'Проверяем...'
-									: PAYMENT_COPY.contactEmailVerifyButtonText}
-							</button>
-							<button
-								type="button"
-								className={styles.contactSecondaryBtn}
-								onClick={() => {
-									resetEmailBinding()
-									setPaymentEmailCode('')
 								}}
-								disabled={isSendingEmailCode || isVerifyingEmailCode}
-							>
-								{PAYMENT_COPY.contactEmailResetButtonText}
-							</button>
-						</div>
-					)}
-				</div>
-			)}
-
-			{/* Period toggle */}
-			<fieldset className={styles.periodGroup}>
-				<legend className="srOnly">{PAYMENT_COPY.periodLegendText}</legend>
-				<div className={styles.periodToggle}>
-					<button
-						type="button"
-						className={`${styles.periodBtn} ${!isYearly ? styles.periodActive : ''}`}
-						onClick={() => handlePeriodChange('MONTHLY')}
-					>
-						{pricingContent.monthlyToggleText}
-					</button>
-					<button
-						type="button"
-						className={`${styles.periodBtn} ${isYearly ? styles.periodActive : ''}`}
-						onClick={() => handlePeriodChange('YEARLY')}
-					>
-						{pricingContent.yearlyToggleText}
-						{pricingContent.discountText && (
-							<span className={styles.discount}>
-								{pricingContent.discountText}
-							</span>
-						)}
-					</button>
+							/>
+							<span>{value === 'CRM' ? 'CRM' : 'Виджеты'}</span>
+						</label>
+					))}
 				</div>
 			</fieldset>
+			{product === 'CRM' ? (
+				<div id="payment-product-CRM" className={styles.productPanel}>
+					<CrmPricingCards />
+				</div>
+			) : (
+				<div id="payment-product-WIDGETS" className={styles.productPanel}>
+					{!paymentEnabled && (
+						<div className={styles.paymentDisabledNotice}>
+							{PAYMENT_COPY.paymentDisabledNotice}
+						</div>
+					)}
 
-			<div className={styles.plans}>
-				{paidPlans.map(plan => {
-					const planPrices = tariffPriceMap[plan.key]
-					const price = isYearly
-						? Math.round(planPrices.YEARLY / 12)
-						: planPrices.MONTHLY
-					const paymentTotal = isYearly
-						? planPrices.YEARLY
-						: planPrices.MONTHLY
-					const autoRenew = autoRenewByPlan[plan.key]
-					const isDowngradeBlocked = Boolean(
-						isActive &&
-						currentPlan &&
-						PLAN_PRIORITY[currentPlan] > PLAN_PRIORITY[plan.key]
-					)
-					const isCurrentPlan =
-						currentPlan === plan.key &&
-						(!currentPeriod || currentPeriod === period) &&
-						isActive
-					const titleId = `plan-${plan.key.toLowerCase()}-title`
-					const autoRenewInputId = `plan-${plan.key.toLowerCase()}-auto-renew`
-					const autoRenewDescriptionId = `plan-${plan.key.toLowerCase()}-auto-renew-description`
-
-					return (
-						<article
-							key={plan.key}
-							className={styles.planCard}
-							aria-labelledby={titleId}
-						>
-							<h2
-								id={titleId}
-								className={styles.planName}
-								style={{ color: PLAN_COLORS[plan.key] }}
-							>
-								{plan.title}
-							</h2>
-							{plan.subtitle && (
-								<p className={styles.planSubtitle}>{plan.subtitle}</p>
-							)}
-
-							<div className={styles.priceBlock}>
-								<span className={styles.price}>{formatRub(price)} ₽</span>
-								<span className={styles.pricePer}>
-									{PAYMENT_COPY.pricePerMonthText}
+					{auth && subLoading ? (
+						<div className={styles.currentPlan} aria-hidden="true">
+							<SkeletonLoader
+								height={18}
+								width={220}
+								containerClassName={styles.currentPlanSkeletonLine}
+							/>
+							<SkeletonLoader
+								height={18}
+								width={90}
+								containerClassName={styles.currentPlanSkeletonLine}
+							/>
+							<SkeletonLoader
+								height={24}
+								width={74}
+								borderRadius={999}
+								containerClassName={styles.currentPlanSkeletonBadge}
+							/>
+						</div>
+					) : subscription ? (
+						<div className={styles.currentPlan}>
+							<span>
+								{PAYMENT_COPY.currentPlanText}{' '}
+								<strong>{planLabel[subscription.plan]}</strong>
+							</span>
+							{subscription.expiresAt && (
+								<span>
+									{PAYMENT_COPY.currentPlanUntilText}{' '}
+									{new Date(subscription.expiresAt).toLocaleDateString(
+										'ru-RU'
+									)}
 								</span>
-							</div>
-
-							{isYearly && (
-								<p className={styles.yearlyNote}>
-									{formatText(PAYMENT_COPY.yearlyTotalText, {
-										amount: formatRub(planPrices.YEARLY)
-									})}
-								</p>
 							)}
+							<span
+								className={
+									isActive ? styles.statusActive : styles.statusExpired
+								}
+							>
+								{isActive
+									? PAYMENT_COPY.activeStatusText
+									: PAYMENT_COPY.expiredStatusText}
+							</span>
+						</div>
+					) : null}
 
-							<ul className={styles.features}>
-								{plan.features.map(feature => (
-									<li key={feature}>{feature}</li>
-								))}
-							</ul>
-
-							<div className={styles.autoRenewBlock}>
-								<label
-									className={styles.autoRenewOption}
-									htmlFor={autoRenewInputId}
-									aria-label={`Автопродление: ${formatRub(paymentTotal)} ₽ ${
-										isYearly ? 'раз в год' : 'каждый месяц'
-									}`}
-								>
-									<input
-										id={autoRenewInputId}
-										type="checkbox"
-										className={styles.autoRenewInput}
-										checked={autoRenew}
-										onChange={event =>
-											handleAutoRenewChange(plan.key, event.target.checked)
+					{auth && pendingLoading ? (
+						<div
+							className={`${styles.pendingNotice} ${styles.pendingNoticeSkeleton}`}
+							aria-hidden="true"
+						>
+							<div className={styles.pendingCopy}>
+								<SkeletonLoader
+									height={16}
+									width={210}
+									containerClassName={styles.pendingSkeletonLine}
+								/>
+								<SkeletonLoader
+									height={14}
+									width={280}
+									containerClassName={styles.pendingSkeletonLine}
+								/>
+							</div>
+							<div className={styles.pendingSkeletonActions}>
+								<SkeletonLoader
+									height={40}
+									width={170}
+									borderRadius={14}
+									containerClassName={styles.pendingSkeletonButton}
+								/>
+							</div>
+						</div>
+					) : pendingLoadError && !hasPendingPayment ? (
+						<div
+							className={`${styles.pendingNotice} ${styles.pendingNoticeError}`}
+							role="alert"
+						>
+							<div className={styles.pendingCopy}>
+								<p className={styles.pendingTitle}>
+									{PAYMENT_COPY.pendingPaymentErrorTitle}
+								</p>
+								<p className={styles.pendingText}>
+									{PAYMENT_COPY.pendingPaymentErrorText}
+								</p>
+							</div>
+						</div>
+					) : hasPendingPayment ? (
+						<div
+							className={`${styles.pendingNotice} ${
+								isPendingPaymentWarning ? styles.pendingNoticeWarning : ''
+							}`}
+						>
+							<div className={styles.pendingCopy}>
+								<p className={styles.pendingTitle}>
+									{isPendingDowngradeBlocked
+										? PAYMENT_COPY.pendingPaymentUnavailableTitle
+										: PAYMENT_COPY.pendingPaymentTitle}
+								</p>
+								<p className={styles.pendingText}>
+									{isPendingDowngradeBlocked ? (
+										<>
+											{renderTemplate(
+												PAYMENT_COPY.pendingPaymentUnavailableText,
+												{
+													currentPlan: (
+														<strong key="currentPlan">
+															{currentPlanLabel}
+														</strong>
+													),
+													payment: (
+														<strong key="payment">
+															{pendingPaymentLabel}
+														</strong>
+													)
+												}
+											)}
+										</>
+									) : (
+										<>
+											{renderTemplate(PAYMENT_COPY.pendingPaymentText, {
+												payment: (
+													<strong key="payment">
+														{pendingPaymentLabel}
+													</strong>
+												)
+											})}
+										</>
+									)}
+								</p>
+								<div className={styles.pendingMeta}>
+									<span className={styles.pendingTypeBadge}>
+										{getPaymentTypeLabel(
+											Boolean(activePendingPayment?.autoRenew)
+										)}
+									</span>
+									<span
+										className={`${styles.pendingCountdown} ${
+											isPendingPaymentWarning
+												? styles.pendingCountdownWarning
+												: ''
+										}`}
+									>
+										<span>
+											{PAYMENT_COPY.pendingPaymentCountdownText}{' '}
+										</span>
+										<strong aria-hidden="true">
+											{nowMs === null
+												? '--:--'
+												: formatCountdown(pendingRemainingMs)}
+										</strong>
+										<span className="srOnly">
+											{nowMs === null
+												? 'Оставшееся время рассчитывается'
+												: `${Math.max(1, Math.ceil(pendingRemainingMs / 60000))} мин.`}
+										</span>
+									</span>
+								</div>
+								{isPendingPaymentWarning && (
+									<p className={styles.pendingWarning} role="status">
+										{PAYMENT_COPY.pendingPaymentWarningText}
+									</p>
+								)}
+							</div>
+							<div className={styles.pendingActions}>
+								{!isPendingDowngradeBlocked && isPendingLinkAvailable && (
+									<a
+										href={
+											activePendingPayment?.confirmationUrl ?? undefined
 										}
+										target="_blank"
+										rel="noopener noreferrer"
+										className={styles.pendingResumeBtn}
+										onClick={() =>
+											toast.success(
+												PAYMENT_COPY.paymentOpenedInNewTabText,
+												{
+													id: `pending-payment-open-${activePendingPaymentId}`
+												}
+											)
+										}
+									>
+										{PAYMENT_COPY.pendingPaymentResumeButtonText}
+									</a>
+								)}
+								<button
+									type="button"
+									className={styles.pendingCancelBtn}
+									onClick={() => {
+										if (activePendingPaymentId) {
+											cancelPendingMutation.mutate(activePendingPaymentId)
+										}
+									}}
+									disabled={cancelPendingMutation.isPending}
+								>
+									{cancelPendingMutation.isPending
+										? PAYMENT_COPY.pendingPaymentCancelLoadingText
+										: PAYMENT_COPY.pendingPaymentCancelButtonText}
+								</button>
+							</div>
+						</div>
+					) : null}
+
+					{shouldShowPaymentContactPrompt && (
+						<div className={styles.contactRequiredNotice}>
+							<div className={styles.contactRequiredCopy}>
+								<p className={styles.contactRequiredTitle}>
+									{PAYMENT_COPY.contactRequiredTitle}
+								</p>
+								<p className={styles.contactRequiredText}>
+									{PAYMENT_COPY.contactRequiredText}
+								</p>
+								{pendingPaymentRequest && (
+									<>
+										<p className={styles.contactRequiredText}>
+											{renderTemplate(
+												PAYMENT_COPY.contactRequiredPendingText,
+												{
+													payment: (
+														<strong key="payment">
+															{`${planLabel[pendingPaymentRequest.plan]} на ${BILLING_PERIOD_LABEL[pendingPaymentRequest.billingPeriod]}`}
+														</strong>
+													)
+												}
+											)}
+										</p>
+										<p className={styles.contactRequiredText}>
+											{renderTemplate(
+												PAYMENT_COPY.contactRequiredAutoRenewText,
+												{
+													paymentType: (
+														<strong key="paymentType">
+															{getPaymentTypeLabel(
+																pendingPaymentRequest.autoRenew
+															)}
+														</strong>
+													)
+												}
+											)}
+										</p>
+									</>
+								)}
+							</div>
+							<div className={styles.contactRequiredForm}>
+								<input
+									className={styles.contactInput}
+									value={paymentEmail}
+									onChange={event => setPaymentEmail(event.target.value)}
+									placeholder={PAYMENT_COPY.contactEmailPlaceholder}
+									type="email"
+									disabled={emailCodeRequested || isSendingEmailCode}
+								/>
+								<button
+									type="button"
+									className={styles.contactBtn}
+									onClick={requestPaymentEmailCode}
+									disabled={isSendingEmailCode || isVerifyingEmailCode}
+								>
+									{isSendingEmailCode
+										? 'Отправляем...'
+										: emailCodeRequested
+											? PAYMENT_COPY.contactEmailResendButtonText
+											: PAYMENT_COPY.contactEmailSendButtonText}
+								</button>
+							</div>
+							{emailCodeRequested && (
+								<div className={styles.contactRequiredForm}>
+									<input
+										className={styles.contactInput}
+										value={paymentEmailCode}
+										onChange={event =>
+											setPaymentEmailCode(
+												event.target.value.replace(/\D/g, '').slice(0, 6)
+											)
+										}
+										placeholder={PAYMENT_COPY.contactEmailCodePlaceholder}
+										inputMode="numeric"
+										disabled={isVerifyingEmailCode}
+									/>
+									<button
+										type="button"
+										className={styles.contactBtn}
+										onClick={confirmPaymentEmailCode}
+										disabled={isSendingEmailCode || isVerifyingEmailCode}
+									>
+										{isVerifyingEmailCode
+											? 'Проверяем...'
+											: PAYMENT_COPY.contactEmailVerifyButtonText}
+									</button>
+									<button
+										type="button"
+										className={styles.contactSecondaryBtn}
+										onClick={() => {
+											resetEmailBinding()
+											setPaymentEmailCode('')
+										}}
+										disabled={isSendingEmailCode || isVerifyingEmailCode}
+									>
+										{PAYMENT_COPY.contactEmailResetButtonText}
+									</button>
+								</div>
+							)}
+						</div>
+					)}
+
+					{/* Period toggle */}
+					<fieldset className={styles.periodGroup}>
+						<legend className="srOnly">
+							{PAYMENT_COPY.periodLegendText}
+						</legend>
+						<div className={styles.periodToggle}>
+							<button
+								type="button"
+								className={`${styles.periodBtn} ${!isYearly ? styles.periodActive : ''}`}
+								onClick={() => handlePeriodChange('MONTHLY')}
+							>
+								{pricingContent.monthlyToggleText}
+							</button>
+							<button
+								type="button"
+								className={`${styles.periodBtn} ${isYearly ? styles.periodActive : ''}`}
+								onClick={() => handlePeriodChange('YEARLY')}
+							>
+								{pricingContent.yearlyToggleText}
+								{pricingContent.discountText && (
+									<span className={styles.discount}>
+										{pricingContent.discountText}
+									</span>
+								)}
+							</button>
+						</div>
+					</fieldset>
+
+					<div className={styles.plans}>
+						{paidPlans.map(plan => {
+							const planPrices = tariffPriceMap[plan.key]
+							const price = isYearly
+								? Math.round(planPrices.YEARLY / 12)
+								: planPrices.MONTHLY
+							const paymentTotal = isYearly
+								? planPrices.YEARLY
+								: planPrices.MONTHLY
+							const autoRenew = autoRenewByPlan[plan.key]
+							const isDowngradeBlocked = Boolean(
+								isActive &&
+								currentPlan &&
+								PLAN_PRIORITY[currentPlan] > PLAN_PRIORITY[plan.key]
+							)
+							const isCurrentPlan =
+								currentPlan === plan.key &&
+								(!currentPeriod || currentPeriod === period) &&
+								isActive
+							const titleId = `plan-${plan.key.toLowerCase()}-title`
+							const autoRenewInputId = `plan-${plan.key.toLowerCase()}-auto-renew`
+							const autoRenewDescriptionId = `plan-${plan.key.toLowerCase()}-auto-renew-description`
+
+							return (
+								<article
+									key={plan.key}
+									className={styles.planCard}
+									aria-labelledby={titleId}
+								>
+									<h2
+										id={titleId}
+										className={styles.planName}
+										style={{ color: PLAN_COLORS[plan.key] }}
+									>
+										{plan.title}
+									</h2>
+									{plan.subtitle && (
+										<p className={styles.planSubtitle}>{plan.subtitle}</p>
+									)}
+
+									<div className={styles.priceBlock}>
+										<span className={styles.price}>
+											{formatRub(price)} ₽
+										</span>
+										<span className={styles.pricePer}>
+											{PAYMENT_COPY.pricePerMonthText}
+										</span>
+									</div>
+
+									{isYearly && (
+										<p className={styles.yearlyNote}>
+											{formatText(PAYMENT_COPY.yearlyTotalText, {
+												amount: formatRub(planPrices.YEARLY)
+											})}
+										</p>
+									)}
+
+									<ul className={styles.features}>
+										{plan.features.map(feature => (
+											<li key={feature}>{feature}</li>
+										))}
+									</ul>
+
+									<div className={styles.autoRenewBlock}>
+										<label
+											className={styles.autoRenewOption}
+											htmlFor={autoRenewInputId}
+											aria-label={`Автопродление: ${formatRub(paymentTotal)} ₽ ${
+												isYearly ? 'раз в год' : 'каждый месяц'
+											}`}
+										>
+											<input
+												id={autoRenewInputId}
+												type="checkbox"
+												className={styles.autoRenewInput}
+												checked={autoRenew}
+												onChange={event =>
+													handleAutoRenewChange(
+														plan.key,
+														event.target.checked
+													)
+												}
+												disabled={
+													!autoRenewalSignupEnabled ||
+													!autoRenewalTerms ||
+													isActionsDisabled ||
+													hasPendingPayment ||
+													isDowngradeBlocked
+												}
+												aria-describedby={autoRenewDescriptionId}
+											/>
+											<span
+												className={styles.autoRenewVisual}
+												aria-hidden="true"
+											>
+												<span>✓</span>
+											</span>
+											<span className={styles.autoRenewCopy}>
+												<strong>
+													{autoRenewalSignupEnabled
+														? 'Автопродление'
+														: 'Автопродление временно недоступно'}
+												</strong>
+												<span>
+													{`${formatRub(paymentTotal)} ₽ ${
+														isYearly ? 'раз в год' : 'каждый месяц'
+													}`}
+												</span>
+											</span>
+										</label>
+										<p
+											id={autoRenewDescriptionId}
+											className={styles.autoRenewSummary}
+										>
+											{autoRenewalSignupEnabled && autoRenewalTerms
+												? 'Сохраним способ оплаты в ЮKassa. Отключить автопродление можно в личном кабинете.'
+												: 'Разовая оплата по выбранному тарифу доступна.'}
+										</p>
+										{autoRenewalSignupEnabled && autoRenewalTerms && (
+											<details className={styles.autoRenewDetails}>
+												<summary>Все условия автопродления</summary>
+												<div className={styles.autoRenewDetailsContent}>
+													<p className={styles.autoRenewDescription}>
+														{autoRenewalTerms.text}
+													</p>
+													<Link href="/legal-documentation/oferta">
+														Открыть договор-оферту
+													</Link>
+												</div>
+											</details>
+										)}
+									</div>
+
+									<button
+										type="button"
+										className={styles.buyBtn}
+										style={{ background: PLAN_COLORS[plan.key] }}
 										disabled={
-											!autoRenewalSignupEnabled ||
-											!autoRenewalTerms ||
 											isActionsDisabled ||
 											hasPendingPayment ||
 											isDowngradeBlocked
 										}
-										aria-describedby={autoRenewDescriptionId}
-									/>
-									<span
-										className={styles.autoRenewVisual}
-										aria-hidden="true"
+										onClick={() =>
+											handlePaymentClick(
+												plan.key,
+												period,
+												paymentTotal,
+												autoRenew
+											)
+										}
 									>
-										<span>✓</span>
-									</span>
-									<span className={styles.autoRenewCopy}>
-										<strong>
-											{autoRenewalSignupEnabled
-												? 'Автопродление'
-												: 'Автопродление временно недоступно'}
-										</strong>
-										<span>
-											{`${formatRub(paymentTotal)} ₽ ${
-												isYearly ? 'раз в год' : 'каждый месяц'
-											}`}
-										</span>
-									</span>
-								</label>
-								<p
-									id={autoRenewDescriptionId}
-									className={styles.autoRenewSummary}
-								>
-									{autoRenewalSignupEnabled && autoRenewalTerms
-										? 'Сохраним способ оплаты в ЮKassa. Отключить автопродление можно в личном кабинете.'
-										: 'Разовая оплата по выбранному тарифу доступна.'}
-								</p>
-								{autoRenewalSignupEnabled && autoRenewalTerms && (
-									<details className={styles.autoRenewDetails}>
-										<summary>Все условия автопродления</summary>
-										<div className={styles.autoRenewDetailsContent}>
-											<p className={styles.autoRenewDescription}>
-												{autoRenewalTerms.text}
-											</p>
-											<Link href="/legal-documentation/oferta">
-												Открыть договор-оферту
-											</Link>
-										</div>
-									</details>
-								)}
-							</div>
+										{isDowngradeBlocked
+											? PAYMENT_COPY.unavailableButtonText
+											: isCurrentPlan
+												? PAYMENT_COPY.renewButtonText
+												: PAYMENT_COPY.payButtonText}
+									</button>
 
-							<button
-								type="button"
-								className={styles.buyBtn}
-								style={{ background: PLAN_COLORS[plan.key] }}
-								disabled={
-									isActionsDisabled ||
-									hasPendingPayment ||
-									isDowngradeBlocked
-								}
-								onClick={() =>
-									handlePaymentClick(
-										plan.key,
-										period,
-										paymentTotal,
-										autoRenew
-									)
-								}
-							>
-								{isDowngradeBlocked
-									? PAYMENT_COPY.unavailableButtonText
-									: isCurrentPlan
-										? PAYMENT_COPY.renewButtonText
-										: PAYMENT_COPY.payButtonText}
-							</button>
+									{isDowngradeBlocked && currentPlanLabel && (
+										<p className={styles.planRestriction}>
+											{renderTemplate(
+												PAYMENT_COPY.downgradeRestrictionText,
+												{
+													currentPlan: (
+														<strong key="currentPlan">
+															{currentPlanLabel}
+														</strong>
+													)
+												}
+											)}
+										</p>
+									)}
+								</article>
+							)
+						})}
+					</div>
 
-							{isDowngradeBlocked && currentPlanLabel && (
-								<p className={styles.planRestriction}>
-									{renderTemplate(PAYMENT_COPY.downgradeRestrictionText, {
-										currentPlan: (
-											<strong key="currentPlan">{currentPlanLabel}</strong>
-										)
-									})}
-								</p>
-							)}
-						</article>
-					)
-				})}
-			</div>
+					{PAYMENT_COPY.paymentNote && (
+						<p className={styles.note}>{PAYMENT_COPY.paymentNote}</p>
+					)}
 
-			{PAYMENT_COPY.paymentNote && (
-				<p className={styles.note}>{PAYMENT_COPY.paymentNote}</p>
+					{hasPendingPayment && PAYMENT_COPY.pendingPaymentNote && (
+						<p className={styles.notePending}>
+							{PAYMENT_COPY.pendingPaymentNote}
+						</p>
+					)}
+
+					{isActive &&
+						currentPlan !== 'TRIAL' &&
+						PAYMENT_COPY.carryoverNote && (
+							<p className={styles.noteCarryover}>
+								{PAYMENT_COPY.carryoverNote}
+							</p>
+						)}
+				</div>
 			)}
-
-			{hasPendingPayment && PAYMENT_COPY.pendingPaymentNote && (
-				<p className={styles.notePending}>
-					{PAYMENT_COPY.pendingPaymentNote}
-				</p>
-			)}
-
-			{isActive &&
-				currentPlan !== 'TRIAL' &&
-				PAYMENT_COPY.carryoverNote && (
-					<p className={styles.noteCarryover}>
-						{PAYMENT_COPY.carryoverNote}
-					</p>
-				)}
 		</section>
 	)
 }

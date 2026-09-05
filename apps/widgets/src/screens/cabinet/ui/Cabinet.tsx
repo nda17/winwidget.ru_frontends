@@ -6,6 +6,7 @@ import CabinetPayments from '@/screens/cabinet/ui/CabinetPayments'
 import CabinetProfile from '@/screens/cabinet/ui/CabinetProfile'
 import CabinetSessions from '@/screens/cabinet/ui/CabinetSessions'
 import CabinetWidgets from '@/screens/cabinet/ui/CabinetWidgets'
+import CrmStatusBadge from './CrmStatusBadge'
 import SkeletonLoader from '@/shared/ui/skeleton-loader/SkeletonLoader'
 import { useUser } from '@/entities/user'
 import { affiliateService } from '@/entities/affiliate'
@@ -168,6 +169,7 @@ const Cabinet: FC = () => {
 									)}
 								</div>
 							)}
+							<CrmStatusBadge />
 						</>
 					)}
 				</div>

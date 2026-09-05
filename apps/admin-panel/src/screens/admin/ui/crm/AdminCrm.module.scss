@@ -261,3 +261,19 @@
 .accessNote {
 	@apply rounded-lg border border-[#e8e0ef] bg-[#faf9fb] px-4 py-3 text-[0.76rem] leading-[1.5] text-[#796e80];
 }
+
+.releaseNote {
+	@apply mx-auto mb-6 flex w-full max-w-[920px] flex-col gap-2 rounded-xl border border-[#ddd0ed] bg-[#f5effb] p-4 text-sm leading-relaxed text-[#655171];
+}
+
+.architecture {
+	@apply mx-auto mb-6 w-full max-w-[920px] rounded-xl border border-[#e0d6f0] bg-white p-4;
+
+	> p {
+		@apply mb-4;
+	}
+}
+
+.architectureSummary {
+	@apply min-h-[44px] cursor-pointer rounded-md py-3 text-sm font-semibold text-[#655171] focus-visible:outline-none focus-visible:ring-2 focus-visible:ring-[#8b44b6];
+}

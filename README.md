@@ -115,7 +115,6 @@ app -> screens -> features -> entities -> shared
 - `affiliate`;
 - `home-page-content`;
 - `legal-page`;
-- `note`;
 - `site-settings`;
 - `site-widget`;
 - `subscription`;
@@ -172,6 +171,18 @@ UI, auth/API primitives и редактор виджета с прежними o
 У каждого приложения собственные `public`, `.next`, standalone image и
 readiness `/__frontend/health`. Админка не загружает редактируемые marketing
 HTML, affiliate tracker, cookie banner или landing footer.
+
+Общая админка сохраняет прежние URL и backend-права, но разделяет навигацию
+на шесть групп: «Обзор», «Клиенты и продукты», «Финансы», «Контент и связь»,
+«Эксплуатация», «Управление». Второй уровень показывает страницы выбранного
+раздела. Ограничения DEV применяются к изменяющим действиям, не ко всей
+доступной ADMIN справочной части.
+
+Административный Backlog, его UI и клиентский Notes API удалены. Удаление
+данных выполняет отдельная миграция Operations, а не frontend deployment;
+технический `winwidget.ru_services/docs/backlog.md` остаётся. Пока
+`CRM_RELEASE.apiEnabled=false`, `/admin/crm` показывает справку и состояние
+«Скоро», не обращаясь к ещё не выпущенным CRM/Billing contracts.
 
 Для первых трёх зон используются уникальные asset prefixes
 `/_frontends/{landing,widgets,admin-panel}`. Между зонами `ZoneLink` и

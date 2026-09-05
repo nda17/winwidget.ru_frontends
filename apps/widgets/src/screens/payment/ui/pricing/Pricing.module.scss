@@ -5,6 +5,33 @@
 	@apply relative z-[1] text-[2rem] font-bold mb-6 text-center text-[#22155c];
 	@apply font-display;
 }
+.productGroup {
+	@apply relative z-[1] mb-7 w-full max-w-[340px] border-0 p-0;
+}
+.productLegend {
+	@apply mb-3 w-full text-center text-sm text-[#81728f];
+}
+.productToggle {
+	@apply flex rounded-2xl border border-white/80 bg-white/80 p-1 shadow-lg shadow-purple-900/5;
+}
+.productOption {
+	@apply relative flex min-w-0 flex-1 cursor-pointer;
+}
+.productOption input {
+	@apply sr-only;
+}
+.productOption span {
+	@apply flex min-h-[44px] w-full items-center justify-center rounded-xl px-4 py-2 text-sm font-semibold text-[#7d7194] transition-colors;
+}
+.productOption input:checked + span {
+	@apply bg-[#7b3fa0] text-white;
+}
+.productOption input:focus-visible + span {
+	@apply outline-none ring-2 ring-[#7b3fa0] ring-offset-2;
+}
+.productPanel {
+	@apply flex w-full min-w-0 flex-col items-center;
+}
 .currentPlan {
 	@apply relative z-[1] flex items-center gap-4 mb-6 px-5 py-3 rounded-2xl text-sm bg-white/[0.76] border border-white/80 text-[#3b3354];
 	box-shadow:

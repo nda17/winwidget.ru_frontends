@@ -9,6 +9,7 @@ import AdminNavigation from '@/screens/admin/ui/common/admin-navigation/AdminNav
 import AdminSectionHeading from '@/screens/admin/ui/common/admin-section-heading/AdminSectionHeading'
 import Heading from '@/shared/ui/heading/Heading'
 import SkeletonLoader from '@/shared/ui/skeleton-loader/SkeletonLoader'
+import { CRM_RELEASE } from '@/shared/config/crm-release.config'
 import { useQuery } from '@tanstack/react-query'
 import { NextPage } from 'next'
 import toast from 'react-hot-toast'
@@ -46,12 +47,14 @@ const AdminCrm: NextPage = () => {
 	const { data, isLoading, isError, isFetching, refetch } = useQuery({
 		queryKey: ['admin-crm-template-catalog'],
 		queryFn: adminCrmService.getTemplateCatalog,
-		enabled: isAuthResolved && auth,
+		enabled: CRM_RELEASE.apiEnabled && isAuthResolved && auth,
 		staleTime: 60_000,
 		retry: 1
 	})
 
 	const refreshCatalog = async () => {
+		if (!CRM_RELEASE.apiEnabled || !isAuthResolved || !auth || isFetching)
+			return
 		const toastId = toast.loading('Обновляем каталог WinCRM...')
 		const result = await refetch()
 
@@ -74,6 +77,17 @@ const AdminCrm: NextPage = () => {
 				risk="medium"
 				riskText="ADMIN просматривает тариф и каталог. DEV может создать новую версию цен и лимитов с записью в Журнал событий."
 			/>
+
+			{!CRM_RELEASE.apiEnabled && (
+				<div className={styles.releaseNote} role="status">
+					<strong>WinCRM · {CRM_RELEASE.unavailableLabel}</strong>
+					<p>
+						Справочная часть доступна. Тарифы, каталог и изменения
+						подключатся после выпуска CRM-сервисов. Подписки Widgets
+						работают независимо.
+					</p>
+				</div>
+			)}
 
 			<div className={styles.summaryGrid}>
 				<article className={styles.summaryCard}>
@@ -102,27 +116,6 @@ const AdminCrm: NextPage = () => {
 			<div className={styles.section}>
 				<div className={styles.sectionHeader}>
 					<div>
-						<p className={styles.sectionTitle}>Границы сервисов</p>
-						<p className={styles.sectionHint}>
-							CRM не использует общий монолит или общую базу данных
-						</p>
-					</div>
-				</div>
-				<div className={styles.serviceGrid}>
-					{CRM_SERVICES.map(service => (
-						<article key={service.name} className={styles.serviceCard}>
-							<code className={styles.serviceName}>{service.name}</code>
-							<p className={styles.serviceDescription}>
-								{service.responsibility}
-							</p>
-						</article>
-					))}
-				</div>
-			</div>
-
-			<div className={styles.section}>
-				<div className={styles.sectionHeader}>
-					<div>
 						<p className={styles.sectionTitle}>Шаблоны процессов</p>
 						<p className={styles.sectionHint}>
 							Версионированный каталог{' '}
@@ -134,14 +127,24 @@ const AdminCrm: NextPage = () => {
 					<button
 						type="button"
 						className={styles.refreshButton}
-						disabled={!isAuthResolved || !auth || isFetching}
+						disabled={
+							!CRM_RELEASE.apiEnabled ||
+							!isAuthResolved ||
+							!auth ||
+							isFetching
+						}
 						onClick={refreshCatalog}
 					>
 						{isFetching ? 'Обновляем...' : 'Обновить'}
 					</button>
 				</div>
 
-				{!isAuthResolved || !auth || isLoading ? (
+				{!CRM_RELEASE.apiEnabled ? (
+					<p className={styles.accessNote}>
+						Каталог шаблонов появится после подключения CRM-сервисов. До
+						выпуска запросы к нему отключены.
+					</p>
+				) : !isAuthResolved || !auth || isLoading ? (
 					<div className={styles.templateGrid}>
 						<SkeletonLoader
 							count={1}
@@ -190,6 +193,26 @@ const AdminCrm: NextPage = () => {
 					</>
 				)}
 			</div>
+
+			<details className={styles.architecture}>
+				<summary className={styles.architectureSummary}>
+					Техническая справка · 4 независимых сервиса
+				</summary>
+				<p className={styles.sectionHint}>
+					WinCRM не использует общий монолит или общую базу данных.
+					Эксплуатационные показатели находятся в разделе «Эксплуатация».
+				</p>
+				<div className={styles.serviceGrid}>
+					{CRM_SERVICES.map(service => (
+						<article key={service.name} className={styles.serviceCard}>
+							<code className={styles.serviceName}>{service.name}</code>
+							<p className={styles.serviceDescription}>
+								{service.responsibility}
+							</p>
+						</article>
+					))}
+				</div>
+			</details>
 		</section>
 	)
 }

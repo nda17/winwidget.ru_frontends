@@ -4,3 +4,10 @@ export interface INavItem {
 	option?: string | undefined
 	devOnly?: boolean
 }
+
+export interface IAdminNavGroup {
+	id: string
+	title: string
+	description: string
+	items: INavItem[]
+}

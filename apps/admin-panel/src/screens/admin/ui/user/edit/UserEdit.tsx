@@ -157,7 +157,6 @@ const EVENT_SECTION_LABELS: Record<string, string> = {
 	SUBSCRIPTIONS: 'Подписки',
 	USERS: 'Пользователи',
 	WIDGETS: 'Виджеты',
-	BACKLOG: 'Бэклог',
 	MESSAGING: 'Очереди'
 }
 
@@ -191,9 +190,6 @@ const EVENT_ACTION_LABELS: Record<string, string> = {
 	WIDGET_BUTTON_IMAGE_UPDATE: 'Изображение кнопки виджета',
 	WIDGET_DELIVERY_RETRY: 'Повтор доставки виджета',
 	WIDGET_DELIVERY_CLOSE: 'Закрытие доставки виджета без повтора',
-	BACKLOG_TASK_CREATE: 'Создание задачи',
-	BACKLOG_TASK_UPDATE: 'Обновление задачи',
-	BACKLOG_TASK_DELETE: 'Удаление задачи',
 	MESSAGING_FAILURE_RETRY: 'Повтор интеграции'
 }
 

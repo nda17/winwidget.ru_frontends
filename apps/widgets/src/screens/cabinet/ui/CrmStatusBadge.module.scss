@@ -1,0 +1,27 @@
+.row {
+	@apply mt-2 flex min-w-0 flex-wrap items-center gap-x-2 gap-y-1 text-xs leading-relaxed;
+}
+.badge {
+	@apply inline-flex shrink-0 items-center rounded-full border px-[10px] py-[2px] text-xs font-semibold;
+}
+.neutral {
+	@apply border-[#d7c7ed] bg-[#eee7fb] text-[#6a4288];
+}
+.active {
+	@apply border-[#c1e7d7] bg-[#e7f6ef] text-[#176647];
+}
+.warning {
+	@apply border-[#ecd6ad] bg-[#fff5e4] text-[#8a5c16];
+}
+.status {
+	@apply text-[#766582];
+}
+.expiry {
+	@apply text-[#888];
+}
+.action {
+	@apply inline-flex min-h-[44px] items-center rounded-lg border-0 bg-transparent px-2 text-xs font-medium text-[#7b3fa0] underline underline-offset-4 hover:text-[#532570] disabled:cursor-wait disabled:opacity-60;
+}
+.action:focus-visible {
+	@apply outline-none ring-2 ring-[#7b3fa0] ring-offset-2;
+}

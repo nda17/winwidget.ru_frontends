@@ -15,6 +15,7 @@ import {
 } from '@/features/admin-crm'
 import AdminTooltip from '@/screens/admin/ui/common/admin-tooltip/AdminTooltip'
 import SkeletonLoader from '@/shared/ui/skeleton-loader/SkeletonLoader'
+import { CRM_RELEASE } from '@/shared/config/crm-release.config'
 import {
 	onlineManager,
 	useIsMutating,
@@ -66,7 +67,8 @@ export default function CrmPricingSettings() {
 			role => role === UserRole.ADMIN || role === UserRole.DEV
 		)
 	)
-	const canEdit = canView && user.rights.includes(UserRole.DEV)
+	const canEdit =
+		CRM_RELEASE.apiEnabled && canView && user.rights.includes(UserRole.DEV)
 	const online = useSyncExternalStore(
 		subscribeOnline,
 		getOnline,
@@ -80,13 +82,20 @@ export default function CrmPricingSettings() {
 	const query = useQuery({
 		queryKey,
 		queryFn: adminCrmService.getPricingSettings,
-		enabled: canView,
+		enabled: CRM_RELEASE.apiEnabled && canView,
 		staleTime: 60_000,
 		retry: 1
 	})
 
 	const reload = async (): Promise<PricingSettings | null> => {
-		if (!canView || !online || query.isFetching || isSaving) return null
+		if (
+			!CRM_RELEASE.apiEnabled ||
+			!canView ||
+			!online ||
+			query.isFetching ||
+			isSaving
+		)
+			return null
 		const toastId = toast.loading('Загружаем тариф WinCRM...')
 		const result = await query.refetch()
 		if (result.isError || !result.data) {
@@ -114,14 +123,28 @@ export default function CrmPricingSettings() {
 				<button
 					type="button"
 					className={styles.refreshButton}
-					disabled={!canView || !online || query.isFetching || isSaving}
+					disabled={
+						!CRM_RELEASE.apiEnabled ||
+						!canView ||
+						!online ||
+						query.isFetching ||
+						isSaving
+					}
 					onClick={() => void reload()}
 				>
 					{query.isFetching ? 'Обновляем...' : 'Обновить тариф'}
 				</button>
 			</div>
 
-			{!isAuthResolved || isUserLoading || (canView && query.isLoading) ? (
+			{!CRM_RELEASE.apiEnabled ? (
+				<p className={styles.accessNote}>
+					Настройки цен и мест подключатся после выпуска WinCRM. Бесплатный
+					период — 5 дней, минимум два места с учётом владельца.
+					Неопубликованные цены здесь не показываются.
+				</p>
+			) : !isAuthResolved ||
+			  isUserLoading ||
+			  (canView && query.isLoading) ? (
 				<SkeletonLoader count={1} className={styles.pricingSkeleton} />
 			) : !canView ? (
 				<p className={styles.accessNote}>

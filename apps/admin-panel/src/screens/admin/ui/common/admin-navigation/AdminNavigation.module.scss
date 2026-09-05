@@ -1,28 +1,43 @@
-.nav-list {
-	@apply w-full flex flex-wrap justify-center gap-x-6 gap-y-3 mb-6 overflow-visible pb-1;
-	scrollbar-width: none;
+.navigation {
+	@apply mb-7 w-full min-w-0 overflow-hidden rounded-2xl border border-[#e8ddf5] bg-white shadow-sm;
+}
 
-	&::-webkit-scrollbar {
-		@apply hidden;
-	}
+.caption {
+	@apply px-4 pt-4 text-xs font-semibold uppercase tracking-wide text-[#796987];
+}
 
-	> li {
-		@apply font-700 whitespace-nowrap shrink-0;
-	}
+.groups {
+	@apply grid grid-cols-3 gap-2 p-3 xl:grid-cols-6;
 
-	@media (max-width: 640px) {
-		@apply gap-x-5 pb-2 px-[4px];
-		scrollbar-width: none;
+	@media (max-width: 540px) {
+		@apply grid-cols-2 gap-1.5 p-2;
 	}
 }
 
+.groupLink {
+	@apply flex h-full min-h-[44px] items-center justify-center rounded-xl px-3 py-2 text-center text-sm font-semibold leading-snug text-[#655171] transition-colors hover:bg-[#f5eefb] focus-visible:outline-none focus-visible:ring-2 focus-visible:ring-[#8b44b6] focus-visible:ring-inset;
+}
+
+.groupActive {
+	@apply bg-[#f0e5fa] text-[#57266f] hover:bg-[#f0e5fa];
+}
+
+.currentGroup {
+	@apply border-t border-[#efe8f6] bg-[#fdfbff] px-4 py-3;
+}
+
+.description {
+	@apply mb-2 text-xs leading-relaxed text-[#796987];
+}
+
+.nav-list {
+	@apply flex min-w-0 flex-wrap gap-2;
+}
+
+.itemLink {
+	@apply inline-flex min-h-[44px] items-center justify-center rounded-lg px-3 py-2 text-sm font-semibold leading-snug text-[#6b527c] transition-colors hover:bg-[#eee5f7] focus-visible:outline-none focus-visible:ring-2 focus-visible:ring-[#8b44b6] focus-visible:ring-offset-2;
+}
+
 .active {
-	@apply inline-flex rounded-md px-3 py-1 text-white font-700 shadow-sm;
-	background: linear-gradient(
-		87.12deg,
-		#470b58 1.98%,
-		#c21b84 50.27%,
-		#fa595e 74.42%,
-		#f8bd31 98.56%
-	);
+	@apply bg-[#6b2d8f] text-white shadow-sm hover:bg-[#6b2d8f];
 }
