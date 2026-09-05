@@ -29,6 +29,7 @@ import AdminNavigation from '@/screens/admin/ui/common/admin-navigation/AdminNav
 import AdminSectionHeading from '@/screens/admin/ui/common/admin-section-heading/AdminSectionHeading'
 import AdminTooltip from '@/screens/admin/ui/common/admin-tooltip/AdminTooltip'
 import { errorCatch } from '@/shared/api'
+import { ADMIN_PAGES } from '@/shared/config/pages/admin.config'
 import Heading from '@/shared/ui/heading/Heading'
 import Pagination from '@/shared/ui/pagination/Pagination'
 import SkeletonLoader from '@/shared/ui/skeleton-loader/SkeletonLoader'
@@ -39,6 +40,7 @@ import {
 } from '@tanstack/react-query'
 import { isAxiosError } from 'axios'
 import { NextPage } from 'next'
+import Link from 'next/link'
 import {
 	type ChangeEvent,
 	useCallback,
@@ -48,6 +50,7 @@ import {
 } from 'react'
 import toast from 'react-hot-toast'
 import styles from './AdminDatabases.module.scss'
+import DatabaseSections from './DatabaseSections'
 
 const SETTINGS_QUERY_KEY = ['admin-telegram-bot-settings']
 const DATABASE_BACKUP_OVERVIEW_QUERY_KEY = [
@@ -103,6 +106,17 @@ const DATABASE_BACKUP_TARGET_OPTIONS: readonly TelegramDatabaseBackupTarget[] =
 		'support',
 		'operations'
 	]
+const DATABASE_BACKUP_SCHEDULE_FIELDS = {
+	'notification-delivery': 'notificationDeliveryDatabaseBackupTimeLabel',
+	campaigns: 'campaignsDatabaseBackupTimeLabel',
+	reporting: 'reportingDatabaseBackupTimeLabel',
+	widgets: 'widgetsDatabaseBackupTimeLabel',
+	billing: 'billingDatabaseBackupTimeLabel',
+	identity: 'identityDatabaseBackupTimeLabel',
+	platform: 'platformDatabaseBackupTimeLabel',
+	support: 'supportDatabaseBackupTimeLabel',
+	operations: 'operationsDatabaseBackupTimeLabel'
+} as const
 const DATABASE_BACKUP_TRIGGER_LABELS: Record<
 	TelegramDatabaseBackupJobTrigger,
 	string
@@ -853,6 +867,21 @@ const DatabaseBackupPanel = ({
 	userId
 }: DatabaseBackupPanelProps) => {
 	const backup = useDatabaseBackup(target, userId)
+	const disabledReason = !userId
+		? 'Проверяем доступ к резервным копиям.'
+		: !settings.databaseBackupEnabled
+			? 'Резервное копирование выключено. Включите его в настройках Telegram.'
+			: !settings.telegramBotTokenConfigured ||
+				  !settings.dailySummaryChatId.trim() ||
+				  !settings.databaseBackupThreadId
+				? 'Для отправки копии настройте Telegram-бота, чат и тему резервных копий.'
+				: backup.databaseBackupMutation.isPending
+					? 'Запрос на создание копии отправляется.'
+					: backup.isDatabaseBackupJobActive
+						? 'Для этой базы уже выполняется задание.'
+						: backup.isDatabaseBackupAvailabilityUnknown
+							? 'Не удалось подтвердить отсутствие активного задания. Дождитесь проверки статуса.'
+							: null
 
 	return (
 		<div className={styles.card}>
@@ -866,19 +895,20 @@ const DatabaseBackupPanel = ({
 						type="button"
 						className={styles.actionBtn}
 						onClick={backup.handleSendDatabaseBackup}
-						disabled={
-							backup.databaseBackupMutation.isPending ||
-							backup.isDatabaseBackupJobActive ||
-							backup.isDatabaseBackupAvailabilityUnknown ||
-							!userId ||
-							!settings.telegramBotTokenConfigured ||
-							!settings.dailySummaryChatId.trim() ||
-							!settings.databaseBackupThreadId
-						}
+						disabled={Boolean(disabledReason)}
+						aria-describedby={`backup-${target}-availability`}
 					>
-						Отправить
+						Создать копию
 					</button>
 				</div>
+				<p
+					id={`backup-${target}-availability`}
+					className={styles.hint}
+					role="status"
+				>
+					{disabledReason ??
+						'Копия будет создана в фоне и отправлена в настроенный чат Telegram.'}
+				</p>
 				<div className={styles.backupMetaGrid}>
 					<div className={styles.statusItem}>
 						<p className={styles.statusLabel}>Плановое время</p>
@@ -2234,53 +2264,56 @@ const DatabaseRestorePanel = ({
 	return (
 		<div className={styles.card}>
 			<div>
-				<p className={styles.label}>Восстановление БД из backup</p>
+				<h2 className={styles.panelTitle}>
+					Восстановление из резервной копии
+				</h2>
 				<p className={styles.hint}>
-					Файл загружается в защищённую очередь. Изолированный worker
-					создаёт страховочный backup, блокирует подключения только к
-					выбранной БД, восстанавливает и проверяет её перед снятием
-					блокировки. Запуск и отмена записываются в Журнал событий, а итог
-					сохраняется в статусе задания.
+					Восстановление заменяет данные только выбранной базы. Для запуска
+					нужны проверенная копия и подтверждение двух разных DEV. Все
+					действия и результат сохраняются в Журнале событий.
 				</p>
 			</div>
 
-			<div className={styles.restoreContractGrid}>
-				<div>
-					<p className={styles.statusLabel}>Release-gate</p>
-					<span
-						className={`${styles.badge} ${isRestoreEnabled ? styles.badgeOk : styles.badgeNeutral}`}
-					>
-						{isRestoreEnabled ? 'Включён' : 'Отключён'}
-					</span>
-				</div>
-				<div>
-					<p className={styles.statusLabel}>Services revision</p>
-					<code className={styles.hashValue}>
-						{databaseRestoreSettings.data.currentServicesSha}
-					</code>
-				</div>
-				<div>
-					<p className={styles.statusLabel}>Авторизация</p>
-					<p className={styles.statusValue}>Два разных DEV</p>
-				</div>
-			</div>
-
-			<div className={styles.restoreManifestList}>
-				{databaseRestoreSettings.data.targets.map(target => (
-					<div key={target.id}>
-						<p className={styles.statusLabel}>{target.label}</p>
+			<details className={styles.technicalDetails}>
+				<summary>Техническая готовность и проверяемые версии</summary>
+				<div className={styles.restoreContractGrid}>
+					<div>
+						<p className={styles.statusLabel}>Release-gate</p>
+						<span
+							className={`${styles.badge} ${isRestoreEnabled ? styles.badgeOk : styles.badgeNeutral}`}
+						>
+							{isRestoreEnabled ? 'Включён' : 'Отключён'}
+						</span>
+					</div>
+					<div>
+						<p className={styles.statusLabel}>Services revision</p>
 						<code className={styles.hashValue}>
-							{target.migrationManifestSha}
+							{databaseRestoreSettings.data.currentServicesSha}
 						</code>
 					</div>
-				))}
-			</div>
+					<div>
+						<p className={styles.statusLabel}>Авторизация</p>
+						<p className={styles.statusValue}>Два разных DEV</p>
+					</div>
+				</div>
+
+				<div className={styles.restoreManifestList}>
+					{databaseRestoreSettings.data.targets.map(target => (
+						<div key={target.id}>
+							<p className={styles.statusLabel}>{target.label}</p>
+							<code className={styles.hashValue}>
+								{target.migrationManifestSha}
+							</code>
+						</div>
+					))}
+				</div>
+			</details>
 
 			{!isRestoreEnabled && !canRetryRestorePublication && (
-				<p className={styles.restoreError} role="alert">
-					Запуск новых восстановлений отключён release-gate до завершения
-					production rehearsal и явного включения worker. Read-only
-					контракт и статус уже созданного задания остаются доступны.
+				<p className={styles.restoreAvailability} role="status">
+					Восстановление пока недоступно: сначала необходимо завершить
+					проверки безопасности. Уже созданные задания и их статусы
+					остаются доступны ниже.
 				</p>
 			)}
 			{canRetryRestorePublication && (
@@ -2304,50 +2337,53 @@ const DatabaseRestorePanel = ({
 						, действует до{' '}
 						<b>{formatRestoreJobDate(restoreApproval.expiresAt)}</b>.
 					</p>
-					<div className={styles.exactBindingGrid}>
-						<div>
-							<p className={styles.statusLabel}>jobId</p>
-							<code className={styles.hashValue}>
-								{restoreApproval.jobId}
-							</code>
+					<details className={styles.technicalDetails}>
+						<summary>Идентификаторы и контрольные суммы допуска</summary>
+						<div className={styles.exactBindingGrid}>
+							<div>
+								<p className={styles.statusLabel}>jobId</p>
+								<code className={styles.hashValue}>
+									{restoreApproval.jobId}
+								</code>
+							</div>
+							<div>
+								<p className={styles.statusLabel}>Source SHA-256</p>
+								<code className={styles.hashValue}>
+									{restoreApproval.sourceSha256}
+								</code>
+							</div>
+							<div>
+								<p className={styles.statusLabel}>Source size</p>
+								<p className={styles.statusValue}>
+									{formatFileSize(restoreApproval.sourceSize)}
+								</p>
+							</div>
+							<div>
+								<p className={styles.statusLabel}>Backup job ID</p>
+								<code className={styles.hashValue}>
+									{restoreApproval.sourceBackupJobId}
+								</code>
+							</div>
+							<div>
+								<p className={styles.statusLabel}>Provenance key</p>
+								<code className={styles.hashValue}>
+									{restoreApproval.backupProvenanceKeyId}
+								</code>
+							</div>
+							<div>
+								<p className={styles.statusLabel}>Provenance envelope</p>
+								<code className={styles.hashValue}>
+									{restoreApproval.backupProvenanceEnvelopeSha256}
+								</code>
+							</div>
+							<div>
+								<p className={styles.statusLabel}>Migration manifest</p>
+								<code className={styles.hashValue}>
+									{restoreApproval.migrationManifestSha}
+								</code>
+							</div>
 						</div>
-						<div>
-							<p className={styles.statusLabel}>Source SHA-256</p>
-							<code className={styles.hashValue}>
-								{restoreApproval.sourceSha256}
-							</code>
-						</div>
-						<div>
-							<p className={styles.statusLabel}>Source size</p>
-							<p className={styles.statusValue}>
-								{formatFileSize(restoreApproval.sourceSize)}
-							</p>
-						</div>
-						<div>
-							<p className={styles.statusLabel}>Backup job ID</p>
-							<code className={styles.hashValue}>
-								{restoreApproval.sourceBackupJobId}
-							</code>
-						</div>
-						<div>
-							<p className={styles.statusLabel}>Provenance key</p>
-							<code className={styles.hashValue}>
-								{restoreApproval.backupProvenanceKeyId}
-							</code>
-						</div>
-						<div>
-							<p className={styles.statusLabel}>Provenance envelope</p>
-							<code className={styles.hashValue}>
-								{restoreApproval.backupProvenanceEnvelopeSha256}
-							</code>
-						</div>
-						<div>
-							<p className={styles.statusLabel}>Migration manifest</p>
-							<code className={styles.hashValue}>
-								{restoreApproval.migrationManifestSha}
-							</code>
-						</div>
-					</div>
+					</details>
 					{isDev && !isRestorePermitOwner && (
 						<p className={styles.hint}>
 							Этот permit виден read-only. Загрузить dump может только DEV,
@@ -2360,12 +2396,13 @@ const DatabaseRestorePanel = ({
 			{isDev ? (
 				<div className={styles.restoreMutationPanel}>
 					<div>
-						<p className={styles.label}>1. Exact permit</p>
+						<p className={styles.label}>
+							1. Выберите копию и запросите допуск
+						</p>
 						<p className={styles.hint}>
-							Первый DEV выбирает target, dump и полученный вместе с ним
-							подписанный sidecar. SHA-256 вычисляется локально; backend
-							проверяет Ed25519-подпись и exact binding к migration
-							manifest.
+							Выберите базу, файл копии и файл подписи, полученный вместе с
+							ней. Система проверит контрольную сумму, подпись и
+							совместимость копии перед выдачей допуска.
 						</p>
 					</div>
 					<div className={styles.permitGrid}>
@@ -2441,7 +2478,7 @@ const DatabaseRestorePanel = ({
 						>
 							{databaseRestorePermitMutation.isPending
 								? 'Создаём...'
-								: 'Создать permit'}
+								: 'Запросить допуск'}
 						</button>
 					</div>
 					<p className={styles.hint}>
@@ -2452,29 +2489,35 @@ const DatabaseRestorePanel = ({
 							` Sidecar ${restoreBackupProvenance.fileName} совпадает.`}
 					</p>
 					{restoreFileSha256 && (
-						<code className={styles.hashValue}>{restoreFileSha256}</code>
+						<details className={styles.technicalDetails}>
+							<summary>Контрольная сумма выбранного файла</summary>
+							<code className={styles.hashValue}>{restoreFileSha256}</code>
+						</details>
 					)}
 					{restoreBackupProvenance && (
-						<div className={styles.exactBindingGrid}>
-							<div>
-								<p className={styles.statusLabel}>Backup job ID</p>
-								<code className={styles.hashValue}>
-									{restoreBackupProvenance.backupJobId}
-								</code>
+						<details className={styles.technicalDetails}>
+							<summary>Подпись и происхождение копии</summary>
+							<div className={styles.exactBindingGrid}>
+								<div>
+									<p className={styles.statusLabel}>Backup job ID</p>
+									<code className={styles.hashValue}>
+										{restoreBackupProvenance.backupJobId}
+									</code>
+								</div>
+								<div>
+									<p className={styles.statusLabel}>Provenance key</p>
+									<code className={styles.hashValue}>
+										{restoreBackupProvenance.keyId}
+									</code>
+								</div>
+								<div>
+									<p className={styles.statusLabel}>Envelope SHA-256</p>
+									<code className={styles.hashValue}>
+										{restoreBackupProvenance.envelopeSha256}
+									</code>
+								</div>
 							</div>
-							<div>
-								<p className={styles.statusLabel}>Provenance key</p>
-								<code className={styles.hashValue}>
-									{restoreBackupProvenance.keyId}
-								</code>
-							</div>
-							<div>
-								<p className={styles.statusLabel}>Envelope SHA-256</p>
-								<code className={styles.hashValue}>
-									{restoreBackupProvenance.envelopeSha256}
-								</code>
-							</div>
-						</div>
+						</details>
 					)}
 
 					{createdPermit && (
@@ -2532,15 +2575,16 @@ const DatabaseRestorePanel = ({
 						>
 							{databaseRestorePermitApprovalMutation.isPending
 								? 'Подтверждаем...'
-								: 'Подтвердить permit'}
+								: 'Подтвердить допуск'}
 						</button>
 					</div>
 
 					<div>
-						<p className={styles.label}>3. Запуск exact restore</p>
+						<p className={styles.label}>3. Подтвердите восстановление</p>
 						<p className={styles.hint}>
-							Запуск доступен только первому DEV для того же target, файла,
-							provenance sidecar, services revision и migration manifest.
+							Запуск доступен создателю допуска только для той же базы и
+							проверенной копии. Изменение файла или версии сервиса требует
+							нового допуска.
 						</p>
 					</div>
 					<div className={styles.restoreExecutionGrid}>
@@ -2615,7 +2659,7 @@ const DatabaseRestorePanel = ({
 						<span className={styles.lockedBadge}>Только для DEV</span>
 						<AdminTooltip
 							title="Изменяющие действия заблокированы"
-							description="ADMIN видит exact read-only контракт, но создание и подтверждение permit, загрузка dump, отмена и recovery-действия разрешены только DEV. Backend проверяет права отдельно."
+							description="ADMIN может просматривать настройки и задания. Запрос и подтверждение допуска, загрузка копии, отмена и восстановление после сбоя доступны только DEV. Сервер отдельно проверяет права."
 						/>
 					</div>
 				</div>
@@ -2623,10 +2667,10 @@ const DatabaseRestorePanel = ({
 
 			<div className={styles.restoreLookupPanel}>
 				<div>
-					<p className={styles.label}>Read-only статус задания</p>
+					<p className={styles.label}>Статус существующего задания</p>
 					<p className={styles.hint}>
-						ADMIN и DEV могут открыть exact job по UUID. Это действие не
-						меняет БД и не запускает worker.
+						Введите UUID задания, чтобы посмотреть его состояние. Проверка
+						не меняет данные и не запускает восстановление.
 					</p>
 				</div>
 				<div className={styles.approvalGrid}>
@@ -2695,26 +2739,31 @@ const DatabaseRestorePanel = ({
 									</p>
 								</div>
 							</div>
-							<div className={styles.exactBindingGrid}>
-								<div>
-									<p className={styles.statusLabel}>Backup job ID</p>
-									<code className={styles.hashValue}>
-										{restoreJob.sourceBackupJobId}
-									</code>
+							<details className={styles.technicalDetails}>
+								<summary>Технические данные задания</summary>
+								<div className={styles.exactBindingGrid}>
+									<div>
+										<p className={styles.statusLabel}>Backup job ID</p>
+										<code className={styles.hashValue}>
+											{restoreJob.sourceBackupJobId}
+										</code>
+									</div>
+									<div>
+										<p className={styles.statusLabel}>Provenance key</p>
+										<code className={styles.hashValue}>
+											{restoreJob.backupProvenanceKeyId}
+										</code>
+									</div>
+									<div>
+										<p className={styles.statusLabel}>
+											Provenance envelope
+										</p>
+										<code className={styles.hashValue}>
+											{restoreJob.backupProvenanceEnvelopeSha256}
+										</code>
+									</div>
 								</div>
-								<div>
-									<p className={styles.statusLabel}>Provenance key</p>
-									<code className={styles.hashValue}>
-										{restoreJob.backupProvenanceKeyId}
-									</code>
-								</div>
-								<div>
-									<p className={styles.statusLabel}>Provenance envelope</p>
-									<code className={styles.hashValue}>
-										{restoreJob.backupProvenanceEnvelopeSha256}
-									</code>
-								</div>
-							</div>
+							</details>
 							{restoreJob.error && (
 								<p className={styles.restoreError}>
 									{restoreJob.error.code}: {restoreJob.error.message}
@@ -2743,65 +2792,76 @@ const DatabaseRestorePanel = ({
 									</div>
 
 									{restoreJob.terminalReceipt && (
-										<div className={styles.receiptGrid}>
-											<div>
-												<p className={styles.statusLabel}>
-													Terminal receipt
-												</p>
-												<code className={styles.hashValue}>
-													{restoreJob.terminalReceipt.payloadSha256}
-												</code>
+										<details className={styles.technicalDetails}>
+											<summary>
+												Проверки результата и страховочной копии
+											</summary>
+											<div className={styles.receiptGrid}>
+												<div>
+													<p className={styles.statusLabel}>
+														Terminal receipt
+													</p>
+													<code className={styles.hashValue}>
+														{restoreJob.terminalReceipt.payloadSha256}
+													</code>
+												</div>
+												<div>
+													<p className={styles.statusLabel}>
+														Safety backup
+													</p>
+													<code className={styles.hashValue}>
+														{restoreJob.terminalReceipt
+															.safetyBackupSha256 ?? 'не создан'}
+													</code>
+												</div>
+												<div>
+													<p className={styles.statusLabel}>Source size</p>
+													<p className={styles.statusValue}>
+														{formatFileSize(
+															restoreJob.terminalReceipt.sourceSize
+														)}
+													</p>
+												</div>
+												<div>
+													<p className={styles.statusLabel}>
+														Backup job ID
+													</p>
+													<code className={styles.hashValue}>
+														{restoreJob.terminalReceipt.sourceBackupJobId}
+													</code>
+												</div>
+												<div>
+													<p className={styles.statusLabel}>
+														Provenance key
+													</p>
+													<code className={styles.hashValue}>
+														{
+															restoreJob.terminalReceipt
+																.backupProvenanceKeyId
+														}
+													</code>
+												</div>
+												<div>
+													<p className={styles.statusLabel}>
+														Provenance envelope
+													</p>
+													<code className={styles.hashValue}>
+														{
+															restoreJob.terminalReceipt
+																.backupProvenanceEnvelopeSha256
+														}
+													</code>
+												</div>
+												<div>
+													<p className={styles.statusLabel}>
+														Signature key
+													</p>
+													<code className={styles.hashValue}>
+														{restoreJob.terminalReceipt.signatureKeyId}
+													</code>
+												</div>
 											</div>
-											<div>
-												<p className={styles.statusLabel}>Safety backup</p>
-												<code className={styles.hashValue}>
-													{restoreJob.terminalReceipt.safetyBackupSha256 ??
-														'не создан'}
-												</code>
-											</div>
-											<div>
-												<p className={styles.statusLabel}>Source size</p>
-												<p className={styles.statusValue}>
-													{formatFileSize(
-														restoreJob.terminalReceipt.sourceSize
-													)}
-												</p>
-											</div>
-											<div>
-												<p className={styles.statusLabel}>Backup job ID</p>
-												<code className={styles.hashValue}>
-													{restoreJob.terminalReceipt.sourceBackupJobId}
-												</code>
-											</div>
-											<div>
-												<p className={styles.statusLabel}>
-													Provenance key
-												</p>
-												<code className={styles.hashValue}>
-													{
-														restoreJob.terminalReceipt
-															.backupProvenanceKeyId
-													}
-												</code>
-											</div>
-											<div>
-												<p className={styles.statusLabel}>
-													Provenance envelope
-												</p>
-												<code className={styles.hashValue}>
-													{
-														restoreJob.terminalReceipt
-															.backupProvenanceEnvelopeSha256
-													}
-												</code>
-											</div>
-											<div>
-												<p className={styles.statusLabel}>Signature key</p>
-												<code className={styles.hashValue}>
-													{restoreJob.terminalReceipt.signatureKeyId}
-												</code>
-											</div>
-										</div>
+										</details>
 									)}
 
 									{restoreJob.recoveryActions.map(action => (
@@ -2885,26 +2945,31 @@ const DatabaseRestorePanel = ({
 									))}
 
 									{restoreJob.recoveryResolutionReceipt && (
-										<div className={styles.resolutionReceipt}>
-											<p className={styles.label}>Resolution receipt</p>
-											<code className={styles.hashValue}>
-												{
-													restoreJob.recoveryResolutionReceipt
-														.payloadSha256
-												}
-											</code>
-											<p className={styles.hint}>
-												Разрешено:{' '}
-												{formatRestoreJobDate(
-													restoreJob.recoveryResolvedAt
-												)}
-												; artifacts хранятся до{' '}
-												{formatRestoreJobDate(
-													restoreJob.artifactRetainUntil
-												)}
-												.
-											</p>
-										</div>
+										<details className={styles.technicalDetails}>
+											<summary>
+												Подтверждение завершённого восстановления
+											</summary>
+											<div className={styles.resolutionReceipt}>
+												<p className={styles.label}>Resolution receipt</p>
+												<code className={styles.hashValue}>
+													{
+														restoreJob.recoveryResolutionReceipt
+															.payloadSha256
+													}
+												</code>
+												<p className={styles.hint}>
+													Разрешено:{' '}
+													{formatRestoreJobDate(
+														restoreJob.recoveryResolvedAt
+													)}
+													; artifacts хранятся до{' '}
+													{formatRestoreJobDate(
+														restoreJob.artifactRetainUntil
+													)}
+													.
+												</p>
+											</div>
+										</details>
 									)}
 
 									{!restoreJob.recoveryResolvedAt &&
@@ -3025,11 +3090,13 @@ const DatabaseRestorePanel = ({
 const AdminDatabases: NextPage = () => {
 	const { user, isLoading: isUserLoading } = useUser()
 	const isDev = Boolean(user?.rights?.includes(UserRole.DEV))
-
-	const { data: settings, isLoading } = useQuery({
+	const [selectedTarget, setSelectedTarget] =
+		useState<TelegramDatabaseBackupTarget>('notification-delivery')
+	const settingsQuery = useQuery({
 		queryKey: SETTINGS_QUERY_KEY,
 		queryFn: adminTelegramBotService.get
 	})
+	const { data: settings, isLoading } = settingsQuery
 	const databaseBackupOverview = useQuery({
 		queryKey: DATABASE_BACKUP_OVERVIEW_QUERY_KEY,
 		queryFn: adminTelegramBotService.getDatabaseBackupOverview,
@@ -3039,148 +3106,210 @@ const AdminDatabases: NextPage = () => {
 		databaseBackupOverview.data?.items.map(item => [item.target, item]) ??
 			[]
 	)
-	const getDatabaseBackupOverviewProps = (
-		target: TelegramDatabaseBackupTarget
-	) => ({
-		overviewError: databaseBackupOverview.error,
-		overviewItem: databaseBackupOverviewByTarget.get(target) ?? null,
-		overviewLoading: databaseBackupOverview.isLoading
-	})
+	const activeBackups =
+		databaseBackupOverview.data?.items.filter(
+			item =>
+				item.latest &&
+				['QUEUED', 'PROCESSING'].includes(item.latest.status)
+		) ?? []
+	const selectTarget = (target: TelegramDatabaseBackupTarget) => {
+		setSelectedTarget(target)
+		toast.success('Выбрана ' + getDatabaseBackupTargetLabel(target), {
+			id: 'database-backup-target',
+			duration: 1800
+		})
+	}
+	const settingsUnavailable = isLoading ? (
+		<div className={styles.card}>
+			<SkeletonLoader count={1} className="h-[64px]" />
+			<SkeletonLoader count={1} className="h-[100px]" />
+		</div>
+	) : (
+		<div className={styles.card} role="alert">
+			<p className={styles.label}>
+				Не удалось загрузить настройки резервных копий
+			</p>
+			<p className={styles.hint}>
+				Создание копий недоступно до получения актуальных настроек. История
+				и уже созданные задания остаются в своих разделах.
+			</p>
+			<button
+				type="button"
+				className={styles.secondaryBtn}
+				disabled={settingsQuery.isFetching}
+				onClick={() => {
+					toast.success('Повторно проверяем настройки', {
+						id: 'database-settings-retry'
+					})
+					void settingsQuery.refetch()
+				}}
+			>
+				Повторить загрузку
+			</button>
+		</div>
+	)
 
 	return (
 		<section className={styles.wrapper}>
 			<Heading text="Панель администратора" />
 			<AdminNavigation />
-
 			<AdminSectionHeading
 				text="Базы данных"
-				title="Backup и восстановление PostgreSQL"
-				description={
-					isDev
-						? 'Здесь можно отдельно поставить backup каждой БД в очередь и контролировать подготовленный, но выключенный release-gate восстановления из PostgreSQL .dump.'
-						: 'Здесь можно отдельно поставить backup каждой базы PostgreSQL в очередь и следить за их выполнением.'
-				}
-				risk={isDev ? 'high' : 'medium'}
-				riskText={
-					isDev
-						? 'DEV restore заменяет данные только явно выбранной БД и оставляет подключения заблокированными, если обязательная проверка результата не пройдена.'
-						: 'Перед ручным запуском проверь настройки Telegram и статус выбранной БД.'
-				}
+				title="Резервные копии и восстановление"
+				description="Создавайте копии отдельных баз, проверяйте историю и расписание. Восстановление вынесено в отдельный защищённый раздел."
+				risk="medium"
+				riskText="Копии отправляются в настроенный чат Telegram. Создание копии не изменяет рабочую базу."
 			/>
-
-			{isLoading ? (
-				Array.from({ length: 9 }, (_, cardIndex) => (
-					<div key={cardIndex} className={styles.card}>
-						<SkeletonLoader count={1} className="h-[64px]" />
-						<div className={styles.backupMetaGrid}>
-							{Array.from({ length: 3 }, (_, index) => (
-								<SkeletonLoader
-									key={index}
-									count={1}
-									className="h-[76px]"
-								/>
-							))}
+			<DatabaseSections
+				panels={{
+					overview: (
+						<>
+							<div className={styles.card}>
+								<div className={styles.overviewHeading}>
+									<div>
+										<h2 className={styles.panelTitle}>Резервные копии</h2>
+										<p className={styles.hint}>
+											Выберите базу для проверки состояния или создания
+											копии. История объединяет задания всех баз.
+										</p>
+									</div>
+									<span className={styles.summaryCount}>
+										{DATABASE_BACKUP_TARGET_OPTIONS.length} баз
+									</span>
+								</div>
+								<label className={styles.fieldLabel}>
+									<span>База данных</span>
+									<select
+										className={styles.select}
+										value={selectedTarget}
+										onChange={event =>
+											selectTarget(
+												event.target.value as TelegramDatabaseBackupTarget
+											)
+										}
+									>
+										{DATABASE_BACKUP_TARGET_OPTIONS.map(target => (
+											<option key={target} value={target}>
+												{getDatabaseBackupTargetLabel(target)}
+											</option>
+										))}
+									</select>
+								</label>
+								{activeBackups.length > 0 && (
+									<div className={styles.activeBackups} role="status">
+										<p className={styles.label}>Незавершённые задания</p>
+										<div className={styles.activeBackupLinks}>
+											{activeBackups.map(item => (
+												<button
+													key={item.target}
+													type="button"
+													className={styles.secondaryBtn}
+													onClick={() => selectTarget(item.target)}
+												>
+													{getDatabaseBackupTargetLabel(item.target)} ·{' '}
+													{
+														DATABASE_BACKUP_JOB_STATUS_LABELS[
+															item.latest!.status
+														]
+													}
+												</button>
+											))}
+										</div>
+									</div>
+								)}
+							</div>
+							{settings
+								? DATABASE_BACKUP_TARGET_OPTIONS.map(target => (
+										<div
+											key={target}
+											className={styles.targetPanel}
+											hidden={selectedTarget !== target}
+										>
+											<DatabaseBackupPanel
+												target={target}
+												overviewError={databaseBackupOverview.error}
+												overviewItem={
+													databaseBackupOverviewByTarget.get(target) ??
+													null
+												}
+												overviewLoading={databaseBackupOverview.isLoading}
+												title={getDatabaseBackupTargetLabel(target)}
+												description="Отдельная резервная копия базы выбранного сервиса."
+												scheduleTimeLabel={
+													settings[DATABASE_BACKUP_SCHEDULE_FIELDS[target]]
+												}
+												settings={settings}
+												userId={user?.id}
+											/>
+										</div>
+									))
+								: settingsUnavailable}
+						</>
+					),
+					history: <DatabaseBackupHistory />,
+					schedule: settings ? (
+						<div className={styles.card}>
+							<div className={styles.overviewHeading}>
+								<div>
+									<h2 className={styles.panelTitle}>
+										Расписание копирования
+									</h2>
+									<p className={styles.hint}>
+										Время указано по Москве. Копии создаются отдельно для
+										каждой базы и отправляются в Telegram.
+									</p>
+								</div>
+								<span
+									className={
+										styles.badge +
+										' ' +
+										(settings.databaseBackupEnabled
+											? styles.badgeOk
+											: styles.badgeNeutral)
+									}
+								>
+									{settings.databaseBackupEnabled
+										? 'Включено'
+										: 'Выключено'}
+								</span>
+							</div>
+							<ul className={styles.scheduleList}>
+								{DATABASE_BACKUP_TARGET_OPTIONS.map(target => (
+									<li key={target}>
+										<span>{getDatabaseBackupTargetLabel(target)}</span>
+										<span className={styles.scheduleTime}>
+											{settings[DATABASE_BACKUP_SCHEDULE_FIELDS[target]]}
+										</span>
+									</li>
+								))}
+							</ul>
+							<p className={styles.hint}>
+								Общее время запуска, интервалы между базами и получатель
+								настраиваются в разделе Telegram-ботов.
+							</p>
+							<Link
+								className={styles.secondaryBtn}
+								href={ADMIN_PAGES.TELEGRAM_BOT}
+								onClick={() =>
+									toast.success(
+										'Открываем настройки расписания и Telegram'
+									)
+								}
+							>
+								Настроить расписание
+							</Link>
 						</div>
-					</div>
-				))
-			) : settings ? (
-				<>
-					<DatabaseBackupPanel
-						target="notification-delivery"
-						{...getDatabaseBackupOverviewProps('notification-delivery')}
-						title="Backup базы Notification Delivery"
-						description="Локальная БД микросервиса Notification Delivery Service"
-						scheduleTimeLabel={
-							settings.notificationDeliveryDatabaseBackupTimeLabel
-						}
-						settings={settings}
-						userId={user.id}
-					/>
-					<DatabaseBackupPanel
-						target="campaigns"
-						{...getDatabaseBackupOverviewProps('campaigns')}
-						title="Backup базы Campaigns"
-						description="Локальная БД микросервиса Campaigns Service"
-						scheduleTimeLabel={settings.campaignsDatabaseBackupTimeLabel}
-						settings={settings}
-						userId={user.id}
-					/>
-					<DatabaseBackupPanel
-						target="reporting"
-						{...getDatabaseBackupOverviewProps('reporting')}
-						title="Backup базы Reporting"
-						description="Локальная БД микросервиса Reporting Service"
-						scheduleTimeLabel={settings.reportingDatabaseBackupTimeLabel}
-						settings={settings}
-						userId={user.id}
-					/>
-					<DatabaseBackupPanel
-						target="widgets"
-						{...getDatabaseBackupOverviewProps('widgets')}
-						title="Backup базы Widgets"
-						description="Локальная БД микросервиса Widgets Service"
-						scheduleTimeLabel={settings.widgetsDatabaseBackupTimeLabel}
-						settings={settings}
-						userId={user.id}
-					/>
-					<DatabaseBackupPanel
-						target="billing"
-						{...getDatabaseBackupOverviewProps('billing')}
-						title="Backup базы Billing"
-						description="Локальная БД микросервиса Billing Service"
-						scheduleTimeLabel={settings.billingDatabaseBackupTimeLabel}
-						settings={settings}
-						userId={user.id}
-					/>
-					<DatabaseBackupPanel
-						target="identity"
-						{...getDatabaseBackupOverviewProps('identity')}
-						title="Backup базы Identity"
-						description="Локальная БД микросервиса Identity Service"
-						scheduleTimeLabel={settings.identityDatabaseBackupTimeLabel}
-						settings={settings}
-						userId={user.id}
-					/>
-					<DatabaseBackupPanel
-						target="platform"
-						{...getDatabaseBackupOverviewProps('platform')}
-						title="Backup базы Platform"
-						description="Локальная БД микросервиса Platform Service"
-						scheduleTimeLabel={settings.platformDatabaseBackupTimeLabel}
-						settings={settings}
-						userId={user.id}
-					/>
-					<DatabaseBackupPanel
-						target="support"
-						{...getDatabaseBackupOverviewProps('support')}
-						title="Backup базы Support"
-						description="Локальная БД микросервиса Support Service"
-						scheduleTimeLabel={settings.supportDatabaseBackupTimeLabel}
-						settings={settings}
-						userId={user.id}
-					/>
-					<DatabaseBackupPanel
-						target="operations"
-						{...getDatabaseBackupOverviewProps('operations')}
-						title="Backup базы Operations"
-						description="Локальная БД микросервиса Operations Service"
-						scheduleTimeLabel={settings.operationsDatabaseBackupTimeLabel}
-						settings={settings}
-						userId={user.id}
-					/>
-				</>
-			) : (
-				<div className={styles.card}>
-					<p className={styles.empty}>Не удалось загрузить настройки</p>
-				</div>
-			)}
-
-			<DatabaseBackupHistory />
-
-			<DatabaseRestorePanel
-				isDev={isDev}
-				isUserLoading={isUserLoading}
-				userId={user?.id}
+					) : (
+						settingsUnavailable
+					),
+					restore: (
+						<DatabaseRestorePanel
+							isDev={isDev}
+							isUserLoading={isUserLoading}
+							userId={user?.id}
+						/>
+					)
+				}}
 			/>
 		</section>
 	)
