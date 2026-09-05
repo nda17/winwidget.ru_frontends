@@ -131,7 +131,13 @@ const useAuthForm = (
 	const router = useRouter()
 	const [isPending, startTransition] = useTransition()
 	const queryClient = useQueryClient()
-	const { executeRecaptcha, isRecaptchaEnabled } = useRecaptchaV3()
+	const {
+		executeRecaptcha,
+		isRecaptchaEnabled,
+		isRecaptchaUnavailable,
+		markRecaptchaUnavailable,
+		retryRecaptcha
+	} = useRecaptchaV3()
 	const emailValue = watch('email')
 	const phoneValue = watch('phone')
 	const telegramAuthPollRef = useRef<ReturnType<
@@ -190,6 +196,13 @@ const useAuthForm = (
 	}
 
 	const handleLoginError = (error: unknown) => {
+		if (
+			axios.isAxiosError(error) &&
+			error.response?.status === 503 &&
+			error.response.data?.code === 'recaptcha_unavailable'
+		) {
+			markRecaptchaUnavailable()
+		}
 		const message = axios.isAxiosError(error)
 			? error.response?.data?.message || 'Не удалось войти'
 			: 'Не удалось войти'
@@ -728,6 +741,15 @@ const useAuthForm = (
 		isTelegramStartPending
 
 	return {
+		isRecaptchaUnavailable,
+		retryRecaptcha,
+		completeCodeLogin: () => {
+			setAuth(true)
+			setAuthResolved(true)
+			reset()
+			void queryClient.invalidateQueries({ queryKey: ['get-profile'] })
+			navigateAfterAuth(loginDestination)
+		},
 		register,
 		control,
 		handleSubmit,

@@ -3,6 +3,7 @@ import styles from '@/features/auth/ui/AuthForm.module.scss'
 import { IAuthFormProps } from '@/features/auth/ui/auth-form/auth-form.interface'
 import AuthToggle from '@/features/auth/ui/auth-form/auth-toggle/AuthToggle'
 import SocialMediaButtons from '@/features/auth/ui/auth-form/social-media-buttons/SocialMediaButtons'
+import LoginCodeFallback from './LoginCodeFallback'
 import useAuthForm from '@/features/auth/model/useAuthForm'
 import useAuthReturnUrl from '@/features/auth/model/useAuthReturnUrl'
 import FieldEmail from '@/shared/ui/form-elements/auth-page/field-email/FieldEmail'
@@ -27,6 +28,9 @@ const AuthForm: NextPage<IAuthFormProps> = ({
 }) => {
 	const authReturnUrl = useAuthReturnUrl(initialAuthReturnUrl)
 	const {
+		isRecaptchaUnavailable,
+		retryRecaptcha,
+		completeCodeLogin,
 		handleSubmit,
 		isLoading,
 		onSubmit,
@@ -49,6 +53,16 @@ const AuthForm: NextPage<IAuthFormProps> = ({
 		resetPhoneCodeStep,
 		resetTelegramAuthStep
 	} = useAuthForm(isLogin, authMessage, authReturnUrl)
+
+	if (isLogin && isRecaptchaUnavailable) {
+		return (
+			<LoginCodeFallback
+				authReturnUrl={authReturnUrl}
+				onAuthenticated={completeCodeLogin}
+				onRetryCaptcha={retryRecaptcha}
+			/>
+		)
+	}
 
 	return (
 		<form onSubmit={handleSubmit(onSubmit)} className={styles.form}>

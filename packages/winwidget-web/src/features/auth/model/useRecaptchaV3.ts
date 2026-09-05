@@ -2,90 +2,19 @@
 import { authSettingsService } from '@/features/auth/api/auth.api'
 import { useQuery } from '@tanstack/react-query'
 import { useEffect, useState } from 'react'
-
-declare global {
-	interface Window {
-		grecaptcha?: {
-			ready: (callback: () => void) => void
-			execute: (
-				siteKey: string,
-				options: { action: string }
-			) => Promise<string>
-		}
-	}
-}
-
-let recaptchaScriptPromise: Promise<void> | null = null
-
-const resolveRecaptchaHost = () =>
-	process.env.NEXT_PUBLIC_RECAPTCHA_HOST || 'https://www.recaptcha.net'
-
-const loadRecaptchaScript = (siteKey: string) => {
-	if (typeof window === 'undefined') {
-		return Promise.resolve()
-	}
-
-	const recaptchaHost = resolveRecaptchaHost()
-
-	if (window.grecaptcha) {
-		return Promise.resolve()
-	}
-
-	if (!recaptchaScriptPromise) {
-		recaptchaScriptPromise = new Promise<void>((resolve, reject) => {
-			const existingScript = document.querySelector<HTMLScriptElement>(
-				`script[src^="${recaptchaHost}/recaptcha/api.js?render="], script[src^="https://www.google.com/recaptcha/api.js?render="], script[src^="https://www.recaptcha.net/recaptcha/api.js?render="]`
-			)
-
-			if (existingScript) {
-				existingScript.addEventListener('load', () => resolve(), {
-					once: true
-				})
-				existingScript.addEventListener(
-					'error',
-					() => reject(new Error('Не удалось загрузить reCAPTCHA')),
-					{ once: true }
-				)
-				return
-			}
-
-			const script = document.createElement('script')
-			script.src = `${recaptchaHost}/recaptcha/api.js?render=${siteKey}&hl=ru`
-			script.async = true
-			script.defer = true
-			script.onload = () => resolve()
-			script.onerror = () => {
-				recaptchaScriptPromise = null
-				reject(new Error('Не удалось загрузить reCAPTCHA'))
-			}
-			document.head.appendChild(script)
-		})
-	}
-
-	return recaptchaScriptPromise
-}
-
-const waitForRecaptchaReady = () => {
-	if (!window.grecaptcha) {
-		return Promise.reject(new Error('reCAPTCHA не инициализирована'))
-	}
-
-	return new Promise<void>((resolve, reject) => {
-		const timeout = window.setTimeout(() => {
-			reject(new Error('reCAPTCHA не готова'))
-		}, 5000)
-
-		window.grecaptcha?.ready(() => {
-			window.clearTimeout(timeout)
-			resolve()
-		})
-	})
-}
+import {
+	executeRecaptchaToken,
+	loadRecaptchaScript,
+	RecaptchaUnavailableError,
+	waitForRecaptchaReady
+} from './recaptcha-client'
 
 export const useRecaptchaV3 = () => {
 	const siteKey = process.env.NEXT_PUBLIC_RECAPTCHA_SITE_KEY
 	const isProductionMode = process.env.NEXT_PUBLIC_MODE === 'production'
 	const [isReady, setIsReady] = useState(false)
+	const [isUnavailable, setIsUnavailable] = useState(false)
+	const [retry, setRetry] = useState(0)
 	const { data: authSettings } = useQuery({
 		queryKey: ['auth-settings'],
 		queryFn: authSettingsService.get,
@@ -95,56 +24,53 @@ export const useRecaptchaV3 = () => {
 		isProductionMode && (authSettings?.recaptchaEnabled ?? true)
 
 	useEffect(() => {
-		if (!siteKey || !isRecaptchaEnabled) {
-			return
-		}
-
+		if (!isRecaptchaEnabled) return
 		let ignore = false
-
-		void loadRecaptchaScript(siteKey)
+		setIsReady(false)
+		setIsUnavailable(false)
+		const initialize = async () => {
+			if (!siteKey) throw new RecaptchaUnavailableError()
+			await loadRecaptchaScript(siteKey)
+			await waitForRecaptchaReady()
+		}
+		void initialize()
 			.then(() => {
-				if (!window.grecaptcha || ignore) {
-					return
-				}
-
-				window.grecaptcha.ready(() => {
-					if (!ignore) {
-						setIsReady(true)
-					}
-				})
+				if (!ignore) setIsReady(true)
 			})
 			.catch(() => {
-				if (!ignore) {
-					setIsReady(false)
-				}
+				if (!ignore) setIsUnavailable(true)
 			})
-
 		return () => {
 			ignore = true
 		}
-	}, [siteKey, isRecaptchaEnabled])
+	}, [siteKey, isRecaptchaEnabled, retry])
 
 	const executeRecaptcha = async (action: string) => {
 		if (!isRecaptchaEnabled) return null
-
-		if (!siteKey) {
-			throw new Error('Не задан NEXT_PUBLIC_RECAPTCHA_SITE_KEY')
+		try {
+			if (!siteKey) throw new RecaptchaUnavailableError()
+			await loadRecaptchaScript(siteKey)
+			await waitForRecaptchaReady()
+			const token = await executeRecaptchaToken(siteKey, action)
+			setIsUnavailable(false)
+			setIsReady(true)
+			return token
+		} catch (error) {
+			setIsUnavailable(true)
+			setIsReady(false)
+			throw error
 		}
-
-		await loadRecaptchaScript(siteKey)
-		await waitForRecaptchaReady()
-
-		return new Promise<string>((resolve, reject) => {
-			window.grecaptcha
-				?.execute(siteKey, { action })
-				.then(resolve)
-				.catch(reject)
-		})
 	}
 
 	return {
 		executeRecaptcha,
 		isRecaptchaEnabled,
-		isRecaptchaReady: !isRecaptchaEnabled || isReady
+		isRecaptchaReady: !isRecaptchaEnabled || isReady,
+		isRecaptchaUnavailable: isRecaptchaEnabled && isUnavailable,
+		markRecaptchaUnavailable: () => setIsUnavailable(true),
+		retryRecaptcha: () => {
+			setIsUnavailable(false)
+			setRetry(value => value + 1)
+		}
 	}
 }

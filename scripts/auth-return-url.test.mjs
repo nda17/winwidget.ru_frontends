@@ -211,13 +211,103 @@ test('all interactive auth completions use the guarded navigation helper', async
 		authFormSource.match(/navigateAfterAuth\(PUBLIC_PAGES\.CABINET\)/g) ??
 		[]
 
-	assert.equal(navigationCalls.length, 5)
-	assert.equal(loginFallbackCalls.length, 2)
+	assert.equal(navigationCalls.length, 6)
+	assert.equal(loginFallbackCalls.length, 3)
 	assert.equal(registrationFallbackCalls.length, 2)
 	assert.match(
 		authFormSource,
 		/isLogin \? loginDestination : PUBLIC_PAGES\.CABINET/
 	)
+})
+
+test('OTP completion executes the same safe auth-return helper and synchronizes auth before navigation', async () => {
+	const source = await readFile(
+		resolveWorkspaceSource('src/features/auth/model/useAuthForm.ts'),
+		'utf8'
+	)
+	const ast = ts.createSourceFile(
+		'useAuthForm.ts',
+		source,
+		ts.ScriptTarget.Latest,
+		true,
+		ts.ScriptKind.TS
+	)
+	let navigation, completion
+	const visit = node => {
+		if (
+			ts.isVariableDeclaration(node) &&
+			node.name.getText(ast) === 'navigateAfterAuth'
+		)
+			navigation = node.initializer
+		if (
+			ts.isPropertyAssignment(node) &&
+			node.name.getText(ast) === 'completeCodeLogin'
+		)
+			completion = node.initializer
+		ts.forEachChild(node, visit)
+	}
+	visit(ast)
+	assert.ok(navigation && completion)
+	const compiled = ts.transpileModule(
+		`const navigateAfterAuth = ${navigation.getText(ast)}; const completeCodeLogin = ${completion.getText(ast)}; completeCodeLogin();`,
+		{
+			compilerOptions: {
+				target: ts.ScriptTarget.ES2022,
+				module: ts.ModuleKind.CommonJS
+			}
+		}
+	).outputText
+	const run = new Function(
+		'getSafeAuthReturnUrl',
+		'authReturnUrl',
+		'clearAuthReturnIntent',
+		'window',
+		'router',
+		'setAuth',
+		'setAuthResolved',
+		'reset',
+		'queryClient',
+		'loginDestination',
+		compiled
+	)
+	for (const destination of [
+		'https://crm.winwidget.ru/deals',
+		'https://crm.winwidget.ru.evil.test/deals'
+	]) {
+		const events = []
+		const storage = createStorage()
+		run(
+			value => authReturn.getSafeAuthReturnUrl(value, productionOptions),
+			destination,
+			() => events.push('clear-intent'),
+			{
+				sessionStorage: storage,
+				location: { replace: value => events.push(['document', value]) }
+			},
+			{ replace: value => events.push(['router', value]) },
+			value => events.push(['auth', value]),
+			value => events.push(['resolved', value]),
+			() => events.push('reset'),
+			{
+				invalidateQueries: value =>
+					events.push(['invalidate', value.queryKey])
+			},
+			'/'
+		)
+		assert.deepEqual(events.slice(0, 5), [
+			['auth', true],
+			['resolved', true],
+			'reset',
+			['invalidate', ['get-profile']],
+			'clear-intent'
+		])
+		assert.deepEqual(
+			events[5],
+			destination === 'https://crm.winwidget.ru/deals'
+				? ['document', destination]
+				: ['router', '/']
+		)
+	}
 })
 
 test('auth page toggles keep only a validated returnUrl', async () => {

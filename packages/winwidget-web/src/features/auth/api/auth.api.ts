@@ -6,6 +6,12 @@ import {
 } from '@/shared/api'
 import { IFormData } from '@/features/auth/model/form.types'
 import type { IUser } from '@/entities/user'
+import {
+	LoginOtpChannel,
+	LoginOtpChallenge,
+	parseLoginOtpCapabilities,
+	parseLoginOtpChallenge
+} from '../model/login-otp.contract'
 
 interface IAuthResponse {
 	accessToken: string
@@ -110,6 +116,39 @@ export const authSettingsService = {
 }
 
 class AuthService {
+	async loginOtpCapabilities() {
+		const { data } = await axiosClassicRequest.get<unknown>(
+			'/auth/login-otp/capabilities',
+			{ timeout: 10000 }
+		)
+		return parseLoginOtpCapabilities(data)
+	}
+
+	async requestLoginOtp(channel: LoginOtpChannel, destination: string) {
+		const { data } = await axiosClassicRequest.post<unknown>(
+			'/auth/login-otp/request',
+			{ channel, destination },
+			{ timeout: 20000 }
+		)
+		return parseLoginOtpChallenge(data)
+	}
+
+	async verifyLoginOtp(challenge: LoginOtpChallenge, code: string) {
+		const response = await axiosClassicRequest.post<IAuthResponse>(
+			'/auth/login-otp/verify',
+			{
+				challengeId: challenge.challengeId,
+				browserToken: challenge.browserToken,
+				code
+			},
+			{ timeout: 20000 }
+		)
+		if (!response.data.accessToken)
+			throw new Error('Не удалось завершить вход')
+		saveTokenStorage(response.data.accessToken)
+		return response
+	}
+
 	async main(type: 'login', data: IFormData, token?: string | null) {
 		const response = await axiosClassicRequest.post<IAuthResponse>(
 			`/auth/${type}`,
