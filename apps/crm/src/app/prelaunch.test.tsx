@@ -43,6 +43,8 @@ describe('server prelaunch boundary', () => {
 			</RootLayout>
 		)
 		expect(html).toContain('WinCRM')
+		expect(html).toContain('viewBox="0 0 86800 10622.79"')
+		expect(html).toContain('fill="currentColor"')
 		expect(html).toContain('Скоро')
 		expect(html).toContain('Перейти в WinWidget')
 		expect(html).toContain('href="https://winwidget.ru"')

@@ -182,7 +182,7 @@ test('zone comes only from the compile-time app identity', () => {
 	}
 })
 
-test('fragment/query-only navigation stays local, including disabled CRM #0', () => {
+test('fragment/query-only navigation stays local', () => {
 	for (const zone of zoneNames) {
 		for (const href of [
 			'#0',
@@ -191,6 +191,75 @@ test('fragment/query-only navigation stays local, including disabled CRM #0', ()
 			'?returnUrl=%2Fadmin#result'
 		]) {
 			assert.equal(zones.needsDocumentNavigation(href, zone), false)
+		}
+	}
+})
+
+test('desktop and mobile CRM links open the public app even before backend release', () => {
+	const menuRoot = 'packages/winwidget-web/src/app/_ui/layout/nav-menu/'
+	const release = compile(
+		'packages/winwidget-web/src/shared/config/crm-release.config.ts'
+	)
+	assert.equal(release.CRM_RELEASE.apiEnabled, false)
+	const { staticMenu } = compile(`${menuRoot}data/menu.data.ts`, {
+		'@/shared/config/pages/public.config': { PUBLIC_PAGES: { HOME: '/' } },
+		'@/shared/config/crm-release.config': release
+	})
+	const crm = staticMenu.items.find(item => item.title === 'CRM')
+	assert.ok(crm)
+	assert.equal(crm.link, 'https://crm.winwidget.ru')
+	assert.equal(crm.disabled, undefined)
+	assert.equal(crm.tooltip, undefined)
+	for (const platform of ['desktop', 'mobile']) {
+		const closed = []
+		const notifications = []
+		const modulePath = `${menuRoot}${platform}/menu/menu-item/MenuItem`
+		const MenuItem = compile(`${modulePath}.tsx`, {
+			[`@/app/_ui/layout/nav-menu/${platform}/menu/menu-item/MenuItem.module.scss`]:
+				{},
+			'@/shared/ui/icons/AppIcon': () => null,
+			clsx: require('clsx'),
+			'react/jsx-runtime': jsxRuntime,
+			'@/shared/lib/navigation/ZoneLink': linkForZone('landing'),
+			'next/navigation': { usePathname: () => '/' },
+			'react-hot-toast': message => notifications.push(message),
+			'@/features/mobile-navigation': {
+				useHamburgerStore: selector =>
+					selector({
+						setVisible: visible => closed.push(['menu', visible])
+					})
+			},
+			'@/shared/lib/veil-background': {
+				useVeilBackgroundStore: selector =>
+					selector({
+						setVisible: visible => closed.push(['veil', visible])
+					})
+			}
+		}).default
+		const item = MenuItem({ item: crm })
+		const link = item.props.children
+		assert.equal(link.props.href, crm.link)
+		assert.equal(link.props['aria-disabled'], undefined)
+		assert.equal(link.props.title, undefined)
+		assert.equal(link.props.children.filter(Boolean).length, 2)
+		let prevented = false
+		link.props.onClick({ preventDefault: () => (prevented = true) })
+		assert.equal(prevented, false)
+		assert.deepEqual(notifications, [])
+		assert.deepEqual(
+			closed,
+			platform === 'mobile'
+				? [
+						['menu', false],
+						['veil', false]
+					]
+				: []
+		)
+		for (const zone of zoneNames) {
+			const anchor = linkForZone(zone)(link.props, null)
+			assert.equal(anchor.type, 'a')
+			assert.equal(anchor.props.href, crm.link)
+			assert.equal(Object.hasOwn(anchor.props, 'prefetch'), false)
 		}
 	}
 })

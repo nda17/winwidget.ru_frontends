@@ -1,29 +1,13 @@
 .logo {
-	@apply inline-flex items-center gap-3 text-crm-text no-underline;
+	@apply inline-flex max-w-full shrink-0 items-center text-primary no-underline;
 }
 
 .logo:focus-visible {
 	@apply rounded-xl outline-none ring-2 ring-primary/40 ring-offset-2;
 }
 
-.mark {
-	@apply h-9 w-9 shrink-0 fill-primary;
-}
-
-.mark path {
-	@apply fill-white;
-}
-
 .wordmark {
-	@apply inline-flex items-center text-base font-bold tracking-tight;
-}
-
-.compact {
-	@apply gap-0;
-}
-
-.compactWordmark {
-	@apply hidden;
+	@apply block h-auto w-[168px] max-w-full sm:w-48;
 }
 
 .srOnly {

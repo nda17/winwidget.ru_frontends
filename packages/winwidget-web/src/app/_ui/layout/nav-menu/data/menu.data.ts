@@ -1,5 +1,6 @@
 import { IMenu } from '@/app/_ui/layout/nav-menu/desktop/menu/menu.interface'
 import { PUBLIC_PAGES } from '@/shared/config/pages/public.config'
+import { CRM_RELEASE } from '@/shared/config/crm-release.config'
 
 export const staticMenu: IMenu = {
 	items: [
@@ -10,10 +11,8 @@ export const staticMenu: IMenu = {
 		},
 		{
 			icon: 'dashboard',
-			link: '#0',
-			title: 'CRM',
-			disabled: true,
-			tooltip: 'Скоро'
+			link: CRM_RELEASE.appUrl,
+			title: 'CRM'
 		}
 	]
 }
