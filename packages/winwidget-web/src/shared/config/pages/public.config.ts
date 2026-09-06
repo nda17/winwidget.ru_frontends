@@ -20,6 +20,12 @@ class PublicPages {
 
 export const PUBLIC_PAGES = new PublicPages()
 
+// UI navigation only. API authorization and server-side route guards remain authoritative.
+export const isSessionProtectedPath = (pathname: string) =>
+	[PUBLIC_PAGES.USER_PROFILE, '/admin'].some(
+		prefix => pathname === prefix || pathname.startsWith(`${prefix}/`)
+	)
+
 export const isMarketingPage = (pathname: string) =>
 	[
 		PUBLIC_PAGES.HOME,

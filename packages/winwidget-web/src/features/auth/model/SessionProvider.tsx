@@ -1,5 +1,5 @@
 'use client'
-import { PUBLIC_PAGES } from '@/shared/config/pages/public.config'
+import { isSessionProtectedPath } from '@/shared/config/pages/public.config'
 import {
 	clearBrowserSession,
 	getAccessToken,
@@ -33,10 +33,7 @@ const SessionProvider = ({
 	const hasSessionHintRef = useRef(hasSessionHint)
 	const isSessionValidatedRef = useRef(false)
 	const isLogoutPath = pathname === '/logout'
-	const isProtectedPath =
-		pathname === PUBLIC_PAGES.USER_PROFILE ||
-		pathname.startsWith(`${PUBLIC_PAGES.USER_PROFILE}/`) ||
-		pathname.startsWith('/admin')
+	const isProtectedPath = isSessionProtectedPath(pathname)
 
 	const syncSession = useCallback(async () => {
 		if (isLogoutPath) {
@@ -93,7 +90,7 @@ const SessionProvider = ({
 			}
 		} catch {
 			clearBrowserSession({
-				redirectToLogin: pathnameRef.current !== '/logout'
+				redirectToLogin: isSessionProtectedPath(pathnameRef.current)
 			})
 		}
 	}, [
