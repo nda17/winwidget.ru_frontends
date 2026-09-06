@@ -4,6 +4,10 @@ import { createRequire } from 'node:module'
 import path from 'node:path'
 import test from 'node:test'
 import { fileURLToPath } from 'node:url'
+import autoprefixer from 'autoprefixer'
+import postcss from 'postcss'
+import * as sass from 'sass'
+import tailwindcss from 'tailwindcss'
 import ts from 'typescript'
 
 const sourceRoot = fileURLToPath(new URL('../../', import.meta.url))
@@ -524,4 +528,104 @@ test('marketing styling is local, responsive, reduced-motion aware and leaves no
 			components.includes(`styles.${match[1]}`),
 			`Unused style ${match[1]}`
 		)
+})
+
+// Use the actual app config, including its shared preset, through the same
+// Sass -> Tailwind -> Autoprefixer pipeline as Next. Default Tailwind alone
+// would miss the project's intentional legacy leading-5 = 5rem override.
+async function compiledStyle(app, relative) {
+	const filename = path.join(repositoryRoot, relative)
+	const scss = readFileSync(filename, 'utf8')
+	return (
+		await postcss([
+			tailwindcss(
+				path.join(repositoryRoot, `apps/${app}/tailwind.config.ts`)
+			),
+			autoprefixer
+		]).process(
+			sass.compileString(
+				`${scss}\n.legacyLeadingControl { @apply text-xs leading-5; }`
+			).css,
+			{ from: filename }
+		)
+	).root
+}
+
+function declarationsFor(root, selector) {
+	const declarations = {}
+	root.walkRules(rule => {
+		if (rule.selectors.includes(selector))
+			rule.walkDecls(declaration => {
+				declarations[declaration.prop] = declaration.value
+			})
+	})
+	assert.ok(Object.keys(declarations).length, `Missing CSS: ${selector}`)
+	return declarations
+}
+
+function cssPixels(value) {
+	assert.match(value, /^\d+(?:\.\d+)?(?:px|rem)$/)
+	return Number.parseFloat(value) * (value.endsWith('rem') ? 16 : 1)
+}
+
+test('compiled Soon badge keeps a 20px line box and 34px outer height under the real landing preset', async () => {
+	const css = await compiledStyle(
+		'landing',
+		'apps/landing/src/shared/ui/product-marketing/ui/ProductMarketing.module.scss'
+	)
+	assert.equal(
+		declarationsFor(css, '.legacyLeadingControl')['line-height'],
+		'5rem'
+	)
+	const badge = declarationsFor(css, '.releaseBadge')
+	assert.equal(badge.display, 'inline-flex')
+	assert.equal(cssPixels(badge['font-size']), 12)
+	assert.equal(cssPixels(badge['line-height']), 20)
+	assert.equal(
+		['line-height', 'padding-top', 'padding-bottom'].reduce(
+			(sum, property) => sum + cssPixels(badge[property]),
+			2 * cssPixels(badge['border-width'])
+		),
+		34
+	)
+})
+
+test('compiled product switch caption stays compact in all three shared-preset apps', async () => {
+	for (const app of ['landing', 'widgets', 'admin-panel']) {
+		const css = await compiledStyle(
+			app,
+			'packages/winwidget-web/src/app/_ui/layout/nav-menu/product-switch/ProductSwitch.module.scss'
+		)
+		assert.equal(
+			declarationsFor(css, '.legacyLeadingControl')['line-height'],
+			'5rem'
+		)
+		const caption = declarationsFor(css, '.caption')
+		assert.equal(cssPixels(caption['font-size']), 12, app)
+		assert.equal(cssPixels(caption['line-height']), 20, app)
+		assert.equal(
+			['line-height', 'padding-top', 'padding-bottom'].reduce(
+				(sum, property) => sum + cssPixels(caption[property]),
+				0
+			),
+			36,
+			app
+		)
+	}
+})
+
+test('compiled new CMS controls retain normal text metrics without changing the legacy scale', async () => {
+	const css = await compiledStyle(
+		'admin-panel',
+		'apps/admin-panel/src/screens/admin/ui/content-settings/home-content-editor/HomeContentEditor.module.scss'
+	)
+	assert.equal(
+		declarationsFor(css, '.legacyLeadingControl')['line-height'],
+		'5rem'
+	)
+	for (const selector of ['.marketingToggle', '.textarea', '.addBtn']) {
+		const control = declarationsFor(css, selector)
+		assert.equal(cssPixels(control['font-size']), 14, selector)
+		assert.equal(cssPixels(control['line-height']), 20, selector)
+	}
 })

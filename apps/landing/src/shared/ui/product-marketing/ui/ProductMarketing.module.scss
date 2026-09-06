@@ -79,7 +79,7 @@
 }
 
 .releaseBadge {
-	@apply inline-flex max-w-full shrink-0 items-center gap-2 rounded-full border border-[#d6c5ee] bg-[#f2e9ff] px-3 py-1.5 text-xs font-semibold leading-5 text-[#563579];
+	@apply inline-flex max-w-full shrink-0 items-center gap-2 rounded-full border border-[#d6c5ee] bg-[#f2e9ff] px-3 py-1.5 text-xs font-semibold leading-[1.25rem] text-[#563579];
 
 	> span {
 		@apply h-1.5 w-1.5 rounded-full bg-[#7e54a8];
