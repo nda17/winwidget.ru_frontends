@@ -38,9 +38,7 @@ type Slug = (typeof PAGES)[number]['slug']
 type ContentArea = HomeContentEditorArea
 
 const AREAS: Array<{ key: ContentArea; label: string }> = [
-	{ key: 'ecosystem', label: 'Главная экосистемы' },
-	{ key: 'home', label: 'Виджеты' },
-	{ key: 'crmProduct', label: 'WinCRM' },
+	{ key: 'home', label: 'Главная страница' },
 	{ key: 'demo', label: 'Демо-виджеты' },
 	{ key: 'footer', label: 'Footer' },
 	{ key: 'head', label: 'Head' },
@@ -52,7 +50,7 @@ const AdminContentSettings: NextPage = () => {
 	const auth = useAuthStore(state => state.auth)
 	const { user } = useUser()
 	const isDev = Boolean(user?.rights?.includes(UserRole.DEV))
-	const [activeArea, setActiveArea] = useState<ContentArea>('ecosystem')
+	const [activeArea, setActiveArea] = useState<ContentArea>('home')
 	const [activeSlug, setActiveSlug] = useState<Slug>('personal-policy')
 	const [drafts, setDrafts] = useState<Record<string, string>>({})
 	const queryClient = useQueryClient()
@@ -166,9 +164,6 @@ const AdminContentSettings: NextPage = () => {
 
 	const renderAreaContent = () => {
 		switch (activeArea) {
-			case 'ecosystem':
-			case 'crmProduct':
-				return <HomeContentEditor area={activeArea} />
 			case 'footer':
 				return (
 					<>
@@ -189,7 +184,7 @@ const AdminContentSettings: NextPage = () => {
 						<AdminSectionHeading
 							text="Редактирование SEO"
 							title="SEO-настройки"
-							description="SEO главной экосистемы, страниц Widgets и WinCRM, оплаты, robots.txt и sitemap.xml."
+							description="Управляет SEO главной страницы, страницы оплаты, robots.txt и sitemap.xml."
 							risk="high"
 							riskText="Ошибки в robots или sitemap могут повлиять на индексацию сайта. Не добавляйте служебные страницы в sitemap."
 						/>
@@ -202,7 +197,7 @@ const AdminContentSettings: NextPage = () => {
 						<AdminSectionHeading
 							text="Редактирование демо-виджетов"
 							title="Демо-виджеты"
-							description="Управляет плавающими демо-виджетами на странице /products/widgets."
+							description="Управляет контентом плавающих демо-виджетов на главной странице."
 							risk="medium"
 							riskText="Короткие тексты демо-блока видны посетителю сразу. Проверьте их на понятность и длину."
 						/>
@@ -257,9 +252,9 @@ const AdminContentSettings: NextPage = () => {
 				return (
 					<>
 						<AdminSectionHeading
-							text="Редактирование страницы виджетов"
-							title="Контент Widgets"
-							description="Редактирует публичные тексты, карточки, тарифы и блоки /products/widgets."
+							text="Редактирование главной страницы"
+							title="Контент главной страницы"
+							description="Редактирует публичные тексты, карточки, тарифы, интеграции и блоки главной страницы."
 							risk="high"
 							riskText="Изменения увидят посетители сайта. Ошибка в тексте, тарифе или порядке блоков может повлиять на продажи и доверие."
 						/>

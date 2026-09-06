@@ -12,13 +12,13 @@ import type { PropsWithChildren } from 'react'
 export const metadata: Metadata = {
 	metadataBase: new URL('https://winwidget.ru'),
 	title: {
-		default: 'WinWidget — продукты для привлечения и работы с клиентами',
-		template: '%s — WinWidget'
+		default: 'Winwidget — виджеты для увеличения конверсии',
+		template: '%s — Winwidget'
 	},
 	description:
-		'Widgets для привлечения заявок и WinCRM для работы с клиентами. Самостоятельные продукты экосистемы WinWidget с подключением по вашему выбору.',
+		'Колесо фортуны и другие виджеты для сайта. Собирайте контакты посетителей через игровую механику. Простая установка за 10 минут.',
 	openGraph: {
-		siteName: 'WinWidget',
+		siteName: 'Winwidget',
 		locale: 'ru_RU',
 		type: 'website',
 		images: [{ url: '/og-image.png', width: 1200, height: 630 }]

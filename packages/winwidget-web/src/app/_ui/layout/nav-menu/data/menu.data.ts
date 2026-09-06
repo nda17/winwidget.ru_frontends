@@ -1,4 +1,5 @@
 import { IMenu } from '@/app/_ui/layout/nav-menu/desktop/menu/menu.interface'
+import { CRM_RELEASE } from '@/shared/config/crm-release.config'
 import { PUBLIC_PAGES } from '@/shared/config/pages/public.config'
 import type { FrontendZone } from '@/shared/lib/navigation/frontend-zones'
 
@@ -14,24 +15,14 @@ export const usesApplicationMenu = (
 export const staticMenu: IMenu = {
 	items: [
 		{
-			icon: 'apps',
-			link: PUBLIC_PAGES.WIDGETS_PRODUCT,
-			title: 'Виджеты'
+			icon: 'home',
+			link: PUBLIC_PAGES.HOME,
+			title: 'Главная'
 		},
 		{
 			icon: 'dashboard',
-			link: PUBLIC_PAGES.CRM_PRODUCT,
-			title: 'WinCRM'
-		},
-		{
-			icon: 'diamond',
-			link: PUBLIC_PAGES.PLANS,
-			title: 'Тарифы'
-		},
-		{
-			icon: 'help',
-			link: PUBLIC_PAGES.HELP,
-			title: 'Помощь'
+			link: CRM_RELEASE.appUrl,
+			title: 'CRM'
 		}
 	]
 }

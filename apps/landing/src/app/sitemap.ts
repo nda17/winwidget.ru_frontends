@@ -19,7 +19,10 @@ const sitemap = async (): Promise<MetadataRoute.Sitemap> => {
 	// Missing or unavailable content is already normalized to trusted defaults.
 	// An explicitly disabled sitemap must not publish those URLs again.
 	const items = content.technicalSeo.sitemapItems.filter(
-		item => item.enabled
+		item =>
+			item.enabled &&
+			// Stored CMS content is preserved, but withdrawn pages are not public.
+			!/^\/products\/(widgets|crm)\/?$/.test(item.path)
 	)
 	const lastModified = new Date()
 

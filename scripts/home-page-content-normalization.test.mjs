@@ -119,7 +119,7 @@ test('admin save preparation canonicalizes demo widgets at the PATCH boundary', 
 	)
 })
 
-test('old stored content receives independent editable product pages without changing Widgets', () => {
+test('legacy CMS payload keeps the compatible stored product fields without changing Widgets', () => {
 	const old = structuredClone(DEFAULT_HOME_PAGE_CONTENT)
 	delete old.ecosystem
 	delete old.crmProduct
@@ -169,7 +169,7 @@ test('marketing normalization preserves deliberate empty and disabled values, bo
 	assert.equal('appUrl' in result.ecosystem, false)
 })
 
-test('sitemap appends new product URLs once and respects existing disabled custom entries', () => {
+test('sitemap preserves stored entries without adding withdrawn product URLs', () => {
 	const stored = {
 		technicalSeo: {
 			sitemapItems: [
@@ -201,14 +201,14 @@ test('sitemap appends new product URLs once and respects existing disabled custo
 		once.technicalSeo.sitemapItems
 	)
 	assert.deepEqual(
-		once.technicalSeo.sitemapItems.slice(0, 3),
+		once.technicalSeo.sitemapItems,
 		stored.technicalSeo.sitemapItems
 	)
 	assert.equal(
 		once.technicalSeo.sitemapItems.filter(
 			item => item.path === '/products/widgets'
 		).length,
-		1
+		0
 	)
 	assert.equal(
 		once.technicalSeo.sitemapItems.filter(
@@ -218,25 +218,21 @@ test('sitemap appends new product URLs once and respects existing disabled custo
 	)
 })
 
-test('CMS areas have separate editors and SEO without opening raw-code access', async () => {
-	const productEditor = await readFile(
-		new URL('ProductContentFields.tsx', editorPath),
+test('CMS opens the original home editor and keeps raw-code access protected', async () => {
+	const settings = await readFile(
+		new URL('../AdminContentSettings.tsx', editorPath),
 		'utf8'
 	)
-	assert.match(editorSource, /area === 'ecosystem'/)
-	assert.match(editorSource, /area === 'crmProduct'/)
-	assert.ok(/ProductContentFields\s+area="ecosystem"/.test(editorSource))
-	assert.ok(/ProductContentFields\s+area="crmProduct"/.test(editorSource))
+	assert.match(settings, /key: 'home', label: 'Главная страница'/)
+	assert.match(settings, /useState<ContentArea>\('home'\)/)
+	assert.doesNotMatch(settings, /Главная экосистемы|products\//)
+	assert.doesNotMatch(editorSource, /ProductContentFields|products\//)
+	assert.match(editorSource, /Сохранить главную/)
 	assert.match(editorSource, /isRawArea && !canEditRawCode/)
-	assert.doesNotMatch(
-		productEditor,
-		/dangerouslySetInnerHTML|TiptapEditor|apiEnabled|updateRaw/
-	)
-	assert.match(productEditor, /Object\.entries\(record\(template\)\)/)
 })
 
-test('new sitemap paths respect the existing backend limit without dropping custom entries', () => {
-	for (const length of [98, 99, 100]) {
+test('sitemap keeps custom entries and explicit empty lists without filling spare slots', () => {
+	for (const length of [0, 98, 99, 100]) {
 		const sitemapItems = Array.from({ length }, (_, index) => ({
 			path: `/existing-${index}`,
 			enabled: index % 2 === 0,
@@ -246,10 +242,7 @@ test('new sitemap paths respect the existing backend limit without dropping cust
 		const normalized = normalizeHomePageContent({
 			technicalSeo: { sitemapItems }
 		})
-		assert.equal(normalized.technicalSeo.sitemapItems.length, 100)
-		assert.deepEqual(
-			normalized.technicalSeo.sitemapItems.slice(0, length),
-			sitemapItems
-		)
+		assert.equal(normalized.technicalSeo.sitemapItems.length, length)
+		assert.deepEqual(normalized.technicalSeo.sitemapItems, sitemapItems)
 	}
 })

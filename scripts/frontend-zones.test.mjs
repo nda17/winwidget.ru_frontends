@@ -195,32 +195,35 @@ test('fragment/query-only navigation stays local', () => {
 	}
 })
 
-test('ecosystem pages and anchors stay public without widening overlay layout or application routing', () => {
+test('widget landing is the only marketing layout without changing application routing', () => {
 	const pages = compile(
 		'packages/winwidget-web/src/shared/config/pages/public.config.ts'
 	)
 	const { staticMenu, usesApplicationMenu } = compile(
 		'packages/winwidget-web/src/app/_ui/layout/nav-menu/data/menu.data.ts',
 		{
-			'@/shared/config/pages/public.config': pages
+			'@/shared/config/pages/public.config': pages,
+			'@/shared/config/crm-release.config': compile(
+				'packages/winwidget-web/src/shared/config/crm-release.config.ts'
+			)
 		}
 	)
 	assert.deepEqual(
 		staticMenu.items.map(({ title, link }) => [title, link]),
 		[
-			['Виджеты', '/products/widgets'],
-			['WinCRM', '/products/crm'],
-			['Тарифы', '/#plans'],
-			['Помощь', '/#help']
+			['Главная', '/'],
+			['CRM', 'https://crm.winwidget.ru']
 		]
 	)
-	for (const pathname of ['/', '/products/widgets', '/products/crm']) {
+	for (const pathname of ['/']) {
 		assert.equal(pages.isMarketingPage(pathname), true)
 		assert.equal(zones.zoneForPath(pathname), 'landing')
 		assert.equal(usesApplicationMenu(pathname, 'landing'), false)
 	}
 	for (const pathname of [
 		'/products',
+		'/products/widgets',
+		'/products/crm',
 		'/products/crm/',
 		'/products/crm/private',
 		'/products/widgets/extra',
@@ -416,7 +419,7 @@ test('desktop and mobile auth menus preserve existing cabinet, payment, admin an
 	}
 })
 
-test('desktop and mobile WinCRM marketing links remain active before backend release', () => {
+test('desktop and mobile CRM links open the CRM domain before backend release', () => {
 	const menuRoot = 'packages/winwidget-web/src/app/_ui/layout/nav-menu/'
 	const release = compile(
 		'packages/winwidget-web/src/shared/config/crm-release.config.ts'
@@ -425,11 +428,12 @@ test('desktop and mobile WinCRM marketing links remain active before backend rel
 	const { staticMenu } = compile(`${menuRoot}data/menu.data.ts`, {
 		'@/shared/config/pages/public.config': compile(
 			'packages/winwidget-web/src/shared/config/pages/public.config.ts'
-		)
+		),
+		'@/shared/config/crm-release.config': release
 	})
-	const crm = staticMenu.items.find(item => item.title === 'WinCRM')
+	const crm = staticMenu.items.find(item => item.title === 'CRM')
 	assert.ok(crm)
-	assert.equal(crm.link, '/products/crm')
+	assert.equal(crm.link, 'https://crm.winwidget.ru')
 	assert.equal(crm.disabled, undefined)
 	assert.equal(crm.tooltip, undefined)
 	for (const platform of ['desktop', 'mobile']) {
@@ -479,7 +483,7 @@ test('desktop and mobile WinCRM marketing links remain active before backend rel
 		)
 		for (const zone of zoneNames) {
 			const anchor = linkForZone(zone)(link.props, null)
-			assert.equal(anchor.type, zone === 'landing' ? NextLink : 'a')
+			assert.equal(anchor.type, 'a')
 			assert.equal(anchor.props.href, crm.link)
 			assert.equal(Object.hasOwn(anchor.props, 'prefetch'), false)
 		}

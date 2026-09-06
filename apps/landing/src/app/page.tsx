@@ -1,17 +1,50 @@
-import { Ecosystem } from '@/screens/ecosystem'
+import { Home } from '@/screens/home'
+import { getAffiliatePublicSettings } from '@/entities/affiliate/server'
 import { getHomePageContent } from '@/entities/home-page-content/server'
-import { productMetadata } from '@/app/_lib/product-metadata'
-import type { Metadata } from 'next'
+import { getTariffPrices } from '@/entities/subscription/server'
+import { Metadata } from 'next'
 
 export const generateMetadata = async (): Promise<Metadata> => {
 	const content = await getHomePageContent()
 
-	return productMetadata(content.ecosystem.seo, '/')
+	return {
+		title: content.seo.title,
+		description: content.seo.description,
+		keywords: content.seo.keywords,
+		openGraph: {
+			title: content.seo.ogTitle,
+			description: content.seo.ogDescription,
+			url: 'https://winwidget.ru',
+			type: 'website',
+			images: [
+				{
+					url: '/og-image.png',
+					width: 1200,
+					height: 630,
+					alt: 'Winwidget'
+				}
+			]
+		},
+		alternates: {
+			canonical: 'https://winwidget.ru'
+		}
+	}
 }
 
 const HomePage = async () => {
-	const content = await getHomePageContent()
-	return <Ecosystem content={content.ecosystem} />
+	const [content, tariffPrices, affiliateSettings] = await Promise.all([
+		getHomePageContent(),
+		getTariffPrices(),
+		getAffiliatePublicSettings()
+	])
+
+	return (
+		<Home
+			content={content}
+			tariffPrices={tariffPrices}
+			affiliateSettings={affiliateSettings}
+		/>
+	)
 }
 
 export default HomePage

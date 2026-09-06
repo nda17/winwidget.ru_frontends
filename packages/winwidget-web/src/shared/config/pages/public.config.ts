@@ -1,9 +1,5 @@
 class PublicPages {
 	HOME = '/'
-	WIDGETS_PRODUCT = '/products/widgets'
-	CRM_PRODUCT = '/products/crm'
-	PLANS = '/#plans'
-	HELP = '/#help'
 	LOGIN = '/login'
 	REGISTER = '/register'
 	RESTORE_PASSWORD = '/restore-password'
@@ -31,8 +27,4 @@ export const isSessionProtectedPath = (pathname: string) =>
 	)
 
 export const isMarketingPage = (pathname: string) =>
-	[
-		PUBLIC_PAGES.HOME,
-		PUBLIC_PAGES.WIDGETS_PRODUCT,
-		PUBLIC_PAGES.CRM_PRODUCT
-	].includes(pathname)
+	pathname === PUBLIC_PAGES.HOME

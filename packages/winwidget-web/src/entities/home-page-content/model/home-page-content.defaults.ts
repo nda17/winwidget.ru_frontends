@@ -260,7 +260,7 @@ const mergeSitemapItems = (
 ): HomePageContent['technicalSeo']['sitemapItems'] => {
 	if (!Array.isArray(value)) return clone(fallback)
 
-	const items = value.map((item, index) => {
+	return value.map((item, index) => {
 		const base = clone(fallback[index] ?? fallback[fallback.length - 1])
 		if (!isRecord(item)) return base
 
@@ -277,19 +277,6 @@ const mergeSitemapItems = (
 				typeof item.enabled === 'boolean' ? item.enabled : base.enabled
 		}
 	})
-	// Preserve every existing path and explicit disabled setting. Only append
-	// the new product paths missing from pre-ecosystem stored documents.
-	return [
-		...items,
-		...fallback
-			.filter(
-				item =>
-					['/products/widgets', '/products/crm'].includes(item.path) &&
-					!items.some(existing => existing.path === item.path)
-			)
-			.slice(0, Math.max(0, 100 - items.length))
-			.map(item => clone(item))
-	]
 }
 
 export const DEFAULT_HOME_PAGE_FOOTER_CONTENT: HomePageContent['footer'] =
@@ -348,18 +335,6 @@ export const DEFAULT_HOME_PAGE_TECHNICAL_SEO_CONTENT: HomePageContent['technical
 				path: '/',
 				changeFrequency: 'weekly',
 				priority: 1,
-				enabled: true
-			},
-			{
-				path: '/products/widgets',
-				changeFrequency: 'weekly',
-				priority: 0.9,
-				enabled: true
-			},
-			{
-				path: '/products/crm',
-				changeFrequency: 'weekly',
-				priority: 0.9,
 				enabled: true
 			},
 			{

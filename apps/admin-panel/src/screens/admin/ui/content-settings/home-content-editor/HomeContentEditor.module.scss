@@ -2,23 +2,6 @@
 	@apply max-w-[1100px] mx-auto w-full flex flex-col gap-4 mb-8;
 }
 
-.marketingFields,
-.marketingGroup {
-	@apply flex min-w-0 flex-col gap-4;
-}
-
-.marketingGroup > legend {
-	@apply mb-3;
-}
-
-.marketingToggle {
-	@apply flex items-center gap-3 text-sm font-semibold;
-
-	input {
-		@apply h-5 w-5 accent-[#7b3fa0] focus-visible:outline focus-visible:outline-2 focus-visible:outline-offset-2 focus-visible:outline-[#7b3fa0];
-	}
-}
-
 .loading {
 	@apply text-[#bbb] text-[0.9rem] text-center py-10;
 }
