@@ -24,6 +24,10 @@ export const PUBLIC_PAGES = new PublicPages()
 export const isSessionProtectedPath = (pathname: string) =>
 	[PUBLIC_PAGES.USER_PROFILE, '/admin'].some(
 		prefix => pathname === prefix || pathname.startsWith(`${prefix}/`)
+	) ||
+	pathname === '/payment/success' ||
+	/^\/(wheels|quizzes|callbacks|timers|stop-offers|calculators)\/[^/]+\/leads\/?$/.test(
+		pathname
 	)
 
 export const isMarketingPage = (pathname: string) =>

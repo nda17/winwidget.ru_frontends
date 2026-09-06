@@ -82,7 +82,14 @@ for (const path of [
 	'/legal-documentation/oferta',
 	'/logout',
 	'/administrator',
-	'/cabinet-public'
+	'/cabinet-public',
+	'/page-wheel/public-demo',
+	'/page-quiz/public-demo',
+	'/page-callback/public-demo',
+	'/page-timer/public-demo',
+	'/page-stop-offer/public-demo',
+	'/page-calculator/public-demo',
+	'/page-ai-consultant/public-demo'
 ]) {
 	test(`expired session clears private state without redirecting public path ${path}`, () => {
 		const state = fixture(path)
@@ -97,7 +104,16 @@ for (const path of [
 	'/cabinet/sessions',
 	'/admin',
 	'/admin/content',
-	'/admin/crm'
+	'/admin/crm',
+	'/payment/success',
+	...[
+		'wheels',
+		'quizzes',
+		'callbacks',
+		'timers',
+		'stop-offers',
+		'calculators'
+	].map(kind => `/${kind}/widget-id/leads`)
 ]) {
 	test(`expired session still redirects protected path ${path}`, () => {
 		const state = fixture(path)
