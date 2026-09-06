@@ -38,6 +38,41 @@ interface CrmOnboardingProps {
 const templateRevisionId = (template: PipelineTemplate) =>
 	`${template.key}@${template.version}`
 
+// Display labels only: catalog keys, versions and installation commands stay intact.
+const industryLabels: Readonly<Record<string, string>> = {
+	sales: 'Продажи',
+	services: 'Услуги',
+	b2b: 'Для бизнеса',
+	b2c: 'Для частных клиентов',
+	appointments: 'Запись клиентов',
+	beauty: 'Красота',
+	healthcare: 'Медицина',
+	retail: 'Розничная торговля',
+	ecommerce: 'Интернет-торговля',
+	orders: 'Заказы',
+	wholesale: 'Оптовая торговля',
+	manufacturing: 'Производство',
+	agency: 'Агентства',
+	consulting: 'Консалтинг',
+	it: 'ИТ-услуги',
+	projects: 'Проекты',
+	education: 'Образование',
+	courses: 'Курсы',
+	schools: 'Школы',
+	fitness: 'Фитнес',
+	memberships: 'Абонементы',
+	wellness: 'Оздоровление',
+	construction: 'Строительство',
+	repair: 'Ремонт',
+	'home-services': 'Услуги для дома',
+	logistics: 'Логистика',
+	delivery: 'Доставка',
+	transportation: 'Перевозки'
+}
+
+const industryLabel = (tag: string) =>
+	Object.hasOwn(industryLabels, tag) ? industryLabels[tag] : 'Другая сфера'
+
 export const CrmOnboarding = ({
 	access,
 	accessRevalidating,
@@ -415,7 +450,7 @@ export const CrmOnboarding = ({
 										>
 											{template.industryTags.map(tag => (
 												<li className={styles.tag} key={tag}>
-													{tag}
+													{industryLabel(tag)}
 												</li>
 											))}
 										</ul>

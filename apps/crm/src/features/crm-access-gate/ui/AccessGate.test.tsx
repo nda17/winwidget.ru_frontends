@@ -5,7 +5,8 @@ import {
 	fireEvent,
 	render,
 	screen,
-	waitFor
+	waitFor,
+	within
 } from '@testing-library/react'
 import type { PropsWithChildren } from 'react'
 import toast from 'react-hot-toast'
@@ -1131,6 +1132,143 @@ describe('AccessGate', () => {
 		).toHaveProperty('disabled', true)
 		expect(installCrmTemplate).not.toHaveBeenCalled()
 	})
+
+	it.each([
+		[
+			'universal-sales',
+			[
+				['sales', 'Продажи'],
+				['services', 'Услуги'],
+				['b2b', 'Для бизнеса'],
+				['b2c', 'Для частных клиентов']
+			]
+		],
+		[
+			'appointment-services',
+			[
+				['appointments', 'Запись клиентов'],
+				['beauty', 'Красота'],
+				['healthcare', 'Медицина'],
+				['services', 'Услуги']
+			]
+		],
+		[
+			'retail-orders',
+			[
+				['retail', 'Розничная торговля'],
+				['ecommerce', 'Интернет-торговля'],
+				['orders', 'Заказы']
+			]
+		],
+		[
+			'wholesale-manufacturing',
+			[
+				['wholesale', 'Оптовая торговля'],
+				['manufacturing', 'Производство'],
+				['b2b', 'Для бизнеса']
+			]
+		],
+		[
+			'custom-projects',
+			[
+				['agency', 'Агентства'],
+				['consulting', 'Консалтинг'],
+				['it', 'ИТ-услуги'],
+				['projects', 'Проекты']
+			]
+		],
+		[
+			'education-courses',
+			[
+				['education', 'Образование'],
+				['courses', 'Курсы'],
+				['schools', 'Школы']
+			]
+		],
+		[
+			'memberships-fitness',
+			[
+				['fitness', 'Фитнес'],
+				['memberships', 'Абонементы'],
+				['wellness', 'Оздоровление']
+			]
+		],
+		[
+			'construction-repair',
+			[
+				['construction', 'Строительство'],
+				['repair', 'Ремонт'],
+				['home-services', 'Услуги для дома']
+			]
+		],
+		[
+			'logistics',
+			[
+				['logistics', 'Логистика'],
+				['delivery', 'Доставка'],
+				['transportation', 'Перевозки']
+			]
+		],
+		['blank', []]
+	] as const)(
+		'localizes the v1 %s industry tags without changing the catalog',
+		async (key, tags) => {
+			const item = {
+				...template,
+				key,
+				industryTags: Object.freeze(tags.map(([tag]) => tag)),
+				isBlank: key === 'blank'
+			}
+			vi.mocked(getCrmAccessBootstrap).mockResolvedValue(onboardingAccess)
+			vi.mocked(getPipelineTemplates).mockResolvedValue({
+				...catalog,
+				templates: [item]
+			})
+			render(
+				<AccessGate>
+					<div>hidden</div>
+				</AccessGate>,
+				{ wrapper: Wrapper }
+			)
+			const industries = await screen.findByRole('list', {
+				name: 'Сферы применения'
+			})
+			expect(
+				within(industries)
+					.queryAllByRole('listitem')
+					.map(node => node.textContent)
+			).toEqual(tags.map(([, label]) => label))
+			expect(item.industryTags).toEqual(tags.map(([tag]) => tag))
+			expect(item.key).toBe(key)
+			expect(item.version).toBe(1)
+			expect(installCrmTemplate).not.toHaveBeenCalled()
+		}
+	)
+
+	it.each(['future-industry', 'constructor', '__proto__'])(
+		'shows a neutral label for an unknown industry %s',
+		async tag => {
+			vi.mocked(getCrmAccessBootstrap).mockResolvedValue(onboardingAccess)
+			vi.mocked(getPipelineTemplates).mockResolvedValue({
+				...catalog,
+				templates: [{ ...template, industryTags: [tag] }]
+			})
+			render(
+				<AccessGate>
+					<div>hidden</div>
+				</AccessGate>,
+				{ wrapper: Wrapper }
+			)
+			const industries = await screen.findByRole('list', {
+				name: 'Сферы применения'
+			})
+			expect(within(industries).getByRole('listitem').textContent).toBe(
+				'Другая сфера'
+			)
+			expect(industries.textContent).not.toContain(tag)
+			expect(installCrmTemplate).not.toHaveBeenCalled()
+		}
+	)
 
 	it('installs the selected exact revision and opens only confirmed active access', async () => {
 		vi.mocked(getCrmAccessBootstrap).mockResolvedValue(onboardingAccess)

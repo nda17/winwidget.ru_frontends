@@ -18,7 +18,7 @@ const SignIn: NextPage<ISignInProps> = ({
 					Вход
 				</h1>
 				<p className={styles.subtitle}>
-					Войдите в личный кабинет и управляйте виджетами в одной панели.
+					Войдите в единый аккаунт WinWidget и WinCRM.
 				</p>
 				<AuthForm
 					isLogin

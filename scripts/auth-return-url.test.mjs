@@ -198,6 +198,20 @@ test('OAuth completion uses validated same-tab intent, not callback query', asyn
 	)
 })
 
+test('the shared login welcomes Widgets and WinCRM without changing auth inputs', async () => {
+	const signInSource = await readFile(
+		resolveWorkspaceSource('src/screens/auth/ui/login/SignIn.tsx'),
+		'utf8'
+	)
+	assert.match(
+		signInSource,
+		/Войдите в единый аккаунт WinWidget и WinCRM\./
+	)
+	assert.doesNotMatch(signInSource, /управляйте виджетами в одной панели/)
+	assert.match(signInSource, /authMessage=\{authMessage\}/)
+	assert.match(signInSource, /authReturnUrl=\{authReturnUrl\}/)
+})
+
 test('all interactive auth completions use the guarded navigation helper', async () => {
 	const authFormSource = await readFile(
 		resolveWorkspaceSource('src/features/auth/model/useAuthForm.ts'),
