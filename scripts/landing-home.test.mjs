@@ -246,6 +246,40 @@ function cssPixels(value) {
 	return Number.parseFloat(value) * (value.endsWith('rem') ? 16 : 1)
 }
 
+test('compiled hero reserves mobile header space and can grow with long CMS text', async () => {
+	const css = await compiledStyle(
+		'landing',
+		'apps/landing/src/screens/home/ui/hero/HeroSection.module.scss'
+	)
+	const base = {}
+	const desktop = {}
+	css.walkRules(rule => {
+		if (!rule.selectors.includes('.heroWrapper')) return
+		const target =
+			rule.parent.type === 'root'
+				? base
+				: rule.parent.type === 'atrule' &&
+					  rule.parent.params === '(min-width: 992px)'
+					? desktop
+					: null
+		if (target)
+			rule.walkDecls(declaration => {
+				target[declaration.prop] = declaration.value
+			})
+	})
+	assert.equal(base.height, undefined)
+	assert.equal(base['min-height'], '1173px')
+	assert.equal(cssPixels(base['padding-top']), 128)
+	assert.equal(cssPixels(base['padding-bottom']), 128)
+	assert.equal(desktop.height, '1173px')
+	assert.equal(cssPixels(desktop['padding-top']), 0)
+	assert.equal(cssPixels(desktop['padding-bottom']), 0)
+	assert.equal(
+		declarationsFor(css, '.heroWrapper .heroContent').top,
+		undefined
+	)
+})
+
 test('compiled product switch caption stays compact in all three shared-preset apps', async () => {
 	for (const app of ['landing', 'widgets', 'admin-panel']) {
 		const css = await compiledStyle(

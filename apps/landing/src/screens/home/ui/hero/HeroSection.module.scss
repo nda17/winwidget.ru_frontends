@@ -1,5 +1,5 @@
 .heroWrapper {
-	@apply relative h-[1173px] overflow-hidden flex items-center justify-center;
+	@apply relative min-h-[1173px] py-32 lg:h-[1173px] lg:py-0 overflow-hidden flex items-center justify-center;
 
 	.heroBackground {
 		@apply absolute z-1 top-[6rem] sm:top-[1%] md:top-[1rem] lg:top-[-2rem] left-[-2rem] lg:left-[-7rem] w-[115vw] max-w-[1615px] opacity-[0.7] lg:opacity-[0.3] m-0;
@@ -50,7 +50,7 @@
 	}
 
 	.heroContent {
-		@apply w-[95%] top-[-7rem] lg:top-0 max-w-[886px] flex gap-4 relative z-5 flex-col items-center;
+		@apply w-[95%] max-w-[886px] flex gap-4 relative z-5 flex-col items-center;
 
 		.title {
 			@apply leading-[1.45] text-[1.8rem] md:text-[2.5rem] lg:text-[48px] text-center text-[#fdfdfd] relative font-semibold;
