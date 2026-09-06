@@ -95,6 +95,17 @@ test('root preserves the existing unavailable pricing/affiliate fallback', async
 	assert.equal(element.props.affiliateSettings, null)
 })
 
+test('widget landing uses the original header without ecosystem color overrides', () => {
+	const header = read(
+		'packages/winwidget-web/src/app/_ui/layout/header/Header.module.scss'
+	)
+	assert.match(
+		header,
+		/\.headerAbsolute\s*\{\s*@apply absolute top-0 z-50;\s*\}/
+	)
+	assert.doesNotMatch(header, /nav\[aria-label=/)
+})
+
 test('root SEO uses editable widget fields and the original canonical URL', async () => {
 	const metadata = await page().generateMetadata()
 	assert.equal(metadata.title, content.seo.title)
