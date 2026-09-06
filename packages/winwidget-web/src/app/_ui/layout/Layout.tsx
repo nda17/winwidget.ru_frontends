@@ -5,7 +5,10 @@ import styles from '@/app/_ui/layout/Layout.module.scss'
 import Footer from '@/app/_ui/layout/footer/Footer'
 import Header from '@/app/_ui/layout/header/Header'
 import { ILayout } from '@/app/_ui/layout/layout.interface'
-import { PUBLIC_PAGES } from '@/shared/config/pages/public.config'
+import {
+	PUBLIC_PAGES,
+	isMarketingPage
+} from '@/shared/config/pages/public.config'
 import { useAuthStore } from '@/entities/user'
 import { authSettingsService } from '@/features/auth/api/auth.api'
 import { useVeilBackgroundStore } from '@/shared/lib/veil-background'
@@ -47,7 +50,7 @@ const Layout: NextPage<ILayout> = ({
 		}
 	}, [auth, authSettings?.recaptchaEnabled, isRecaptchaPage])
 
-	const isLandingPage = pathname === PUBLIC_PAGES.HOME
+	const isLandingPage = isMarketingPage(pathname)
 	const isWidgetPreview =
 		pathname.startsWith('/page-wheel/') ||
 		pathname.startsWith('/page-quiz/') ||

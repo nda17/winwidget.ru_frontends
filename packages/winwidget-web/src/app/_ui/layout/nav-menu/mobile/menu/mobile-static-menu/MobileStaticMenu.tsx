@@ -1,17 +1,42 @@
-import { staticMenu } from '@/app/_ui/layout/nav-menu/data/menu.data'
+import {
+	staticMenu,
+	usesApplicationMenu
+} from '@/app/_ui/layout/nav-menu/data/menu.data'
 import MenuItem from '@/app/_ui/layout/nav-menu/mobile/menu/menu-item/MenuItem'
 import { IMenuItem } from '@/app/_ui/layout/nav-menu/menu-item.interface'
 import styles from '@/app/_ui/layout/nav-menu/mobile/menu/mobile-static-menu/MobileStaticMenu.module.scss'
 import { NextPage } from 'next'
+import { usePathname } from 'next/navigation'
+import { currentFrontendZone } from '@/shared/lib/navigation/frontend-zones'
+import { useHamburgerStore } from '@/features/mobile-navigation'
+import { useVeilBackgroundStore } from '@/shared/lib/veil-background'
+import ProductSwitch from '@/app/_ui/layout/nav-menu/product-switch/ProductSwitch'
 
 const MobileStaticMenu: NextPage = () => {
+	const application = usesApplicationMenu(
+		usePathname(),
+		currentFrontendZone()
+	)
+	const setMenu = useHamburgerStore(state => state.setVisible)
+	const setVeil = useVeilBackgroundStore(state => state.setVisible)
 	if (!staticMenu.items?.length) return null
 
 	return (
 		<ul className={styles.wrapper}>
-			{staticMenu.items?.map((item: IMenuItem) => (
-				<MenuItem item={item} key={item.link} />
-			))}
+			{application ? (
+				<li>
+					<ProductSwitch
+						onNavigate={() => {
+							setMenu(false)
+							setVeil(false)
+						}}
+					/>
+				</li>
+			) : (
+				staticMenu.items?.map((item: IMenuItem) => (
+					<MenuItem item={item} key={item.link} />
+				))
+			)}
 		</ul>
 	)
 }

@@ -66,6 +66,42 @@
 	@apply break-words text-sm font-semibold text-crm-text;
 }
 
+.productSwitch {
+	@apply relative shrink-0 text-crm-text;
+}
+
+.productSwitchTrigger {
+	@apply flex min-h-10 cursor-pointer list-none items-center gap-2 rounded-xl border border-crm-border bg-crm-surface px-3 py-2 text-sm font-semibold transition-colors hover:bg-crm-surface-muted focus-visible:outline-none focus-visible:ring-2 focus-visible:ring-primary focus-visible:ring-offset-2;
+
+	&::-webkit-details-marker {
+		@apply hidden;
+	}
+
+	svg {
+		@apply text-primary;
+	}
+}
+
+.productSwitchPanel {
+	@apply absolute right-0 top-full z-40 mt-2 w-60 max-w-[calc(100vw-2rem)] rounded-2xl border border-crm-border bg-crm-surface p-2 shadow-xl;
+
+	p {
+		@apply px-2 py-2 text-xs leading-5 text-crm-muted;
+	}
+
+	a {
+		@apply flex flex-col gap-0.5 rounded-xl px-3 py-2.5 text-sm text-crm-text transition-colors hover:bg-crm-surface-muted focus-visible:outline-none focus-visible:ring-2 focus-visible:ring-primary;
+
+		span {
+			@apply text-xs text-crm-muted;
+		}
+
+		&[aria-current] {
+			@apply bg-primary/10 text-primary;
+		}
+	}
+}
+
 .accessContext {
 	@apply flex max-w-full basis-full flex-wrap items-center gap-2 border-t border-crm-border pt-3 sm:ml-auto sm:basis-auto sm:border-0 sm:pt-0;
 }

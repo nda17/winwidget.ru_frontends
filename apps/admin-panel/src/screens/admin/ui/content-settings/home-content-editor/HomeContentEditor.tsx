@@ -34,6 +34,7 @@ import { useZoneRouter as useRouter } from '@/shared/lib/navigation/useZoneRoute
 import { useEffect, useId, useMemo, useRef, useState } from 'react'
 import toast from 'react-hot-toast'
 import styles from './HomeContentEditor.module.scss'
+import ProductContentFields from './ProductContentFields'
 
 const ICON_OPTIONS: Array<{
 	value: HomePageIntegrationIconKey
@@ -77,6 +78,8 @@ const SITEMAP_CHANGE_FREQUENCY_OPTIONS: Array<{
 ]
 
 export type HomeContentEditorArea =
+	| 'ecosystem'
+	| 'crmProduct'
 	| 'home'
 	| 'footer'
 	| 'seo'
@@ -99,17 +102,41 @@ const EDITOR_META: Record<
 		resetSuccessText?: string
 	}
 > = {
-	home: {
-		title: 'Главная страница',
-		helpTitle: 'Общий редактор главной',
+	ecosystem: {
+		title: 'Главная экосистемы',
+		helpTitle: 'Контент winwidget.ru',
 		helpDescription:
-			'Здесь собраны основные секции главной страницы: первый экран, блоки, тарифы, FAQ и CTA.',
+			'Позиционирование экосистемы, продукты, подписки, подключение и вопросы посетителей.',
+		riskText:
+			'Редактируется только текст. Доступность WinCRM, адреса переходов и тарифы не меняются.',
+		hint: 'Страница /. SEO редактируется отдельно во вкладке SEO. Публичное обновление — до 60 секунд после сохранения.',
+		saveLabel: 'Сохранить главную',
+		loadingText: 'Загрузка главной экосистемы...',
+		successText: 'Главная экосистемы сохранена'
+	},
+	crmProduct: {
+		title: 'Страница WinCRM',
+		helpTitle: 'Маркетинговая страница WinCRM',
+		helpDescription:
+			'Возможности, сценарии, источники обращений и вопросы о WinCRM.',
+		riskText:
+			'Изменение текста не открывает продажи, не запускает Trial и не снимает статус «Скоро».',
+		hint: 'Страница /products/crm. SEO редактируется во вкладке SEO. Публичное обновление — до 60 секунд.',
+		saveLabel: 'Сохранить страницу WinCRM',
+		loadingText: 'Загрузка страницы WinCRM...',
+		successText: 'Страница WinCRM сохранена'
+	},
+	home: {
+		title: 'Страница виджетов',
+		helpTitle: 'Редактор страницы Widgets',
+		helpDescription:
+			'Страница /products/widgets: первый экран, блоки, тарифы, FAQ и CTA.',
 		riskText:
 			'Ошибки в важных текстах сразу увидят посетители. Перед сохранением проверьте смысл, переносы строк и ссылки.',
-		hint: 'Изменения попадут на публичную главную после сохранения.',
-		saveLabel: 'Сохранить главную',
-		loadingText: 'Загрузка контента главной...',
-		successText: 'Контент главной сохранён'
+		hint: 'Изменения страницы виджетов появятся в течение 60 секунд после сохранения.',
+		saveLabel: 'Сохранить страницу виджетов',
+		loadingText: 'Загрузка страницы виджетов...',
+		successText: 'Контент виджетов сохранён'
 	},
 	footer: {
 		title: 'Footer',
@@ -713,6 +740,14 @@ const HomeContentEditor = ({
 		}
 
 		if (isSeoArea) {
+			nextContent.ecosystem = {
+				...nextContent.ecosystem,
+				seo: defaultContent.ecosystem.seo
+			}
+			nextContent.crmProduct = {
+				...nextContent.crmProduct,
+				seo: defaultContent.crmProduct.seo
+			}
 			nextContent.seo = defaultContent.seo
 			nextContent.payment = defaultContent.payment
 			nextContent.technicalSeo = defaultContent.technicalSeo
@@ -721,6 +756,18 @@ const HomeContentEditor = ({
 
 		if (isDemoArea) {
 			nextContent.demoWidgets = defaultContent.demoWidgets
+		}
+		if (area === 'ecosystem') {
+			nextContent.ecosystem = {
+				...defaultContent.ecosystem,
+				seo: persistedContent.ecosystem.seo
+			}
+		}
+		if (area === 'crmProduct') {
+			nextContent.crmProduct = {
+				...defaultContent.crmProduct,
+				seo: persistedContent.crmProduct.seo
+			}
 		}
 
 		setDraft(nextContent)
@@ -889,7 +936,7 @@ const HomeContentEditor = ({
 			{isHomeArea && showFactoryResetConfirm && (
 				<ConfirmDialog
 					title="Скинуть до заводских настроек?"
-					message="Основные блоки главной страницы будут перезаписаны текущим дефолтным контентом сайта. Footer, SEO и демо-виджеты останутся без изменений."
+					message="Основные блоки страницы виджетов будут перезаписаны дефолтным контентом. Главная экосистемы, WinCRM, Footer, SEO и демо-виджеты останутся без изменений."
 					confirmLabel="Скинуть"
 					cancelLabel="Отмена"
 					onConfirm={factoryReset}
@@ -970,9 +1017,48 @@ const HomeContentEditor = ({
 					</button>
 				</section>
 			)}
+			{area === 'ecosystem' && (
+				<ProductContentFields
+					area="ecosystem"
+					value={draft.ecosystem}
+					onChange={value =>
+						updateDraft(prev => ({ ...prev, ecosystem: value }))
+					}
+				/>
+			)}
+			{area === 'crmProduct' && (
+				<ProductContentFields
+					area="crmProduct"
+					value={draft.crmProduct}
+					onChange={value =>
+						updateDraft(prev => ({ ...prev, crmProduct: value }))
+					}
+				/>
+			)}
 
 			{isSeoArea && (
 				<>
+					<h2 className={styles.panelTitle}>Главная экосистемы — /</h2>
+					<ProductContentFields
+						area="ecosystem"
+						value={draft.ecosystem}
+						mode="seo"
+						onChange={value =>
+							updateDraft(prev => ({ ...prev, ecosystem: value }))
+						}
+					/>
+					<h2 className={styles.panelTitle}>WinCRM — /products/crm</h2>
+					<ProductContentFields
+						area="crmProduct"
+						value={draft.crmProduct}
+						mode="seo"
+						onChange={value =>
+							updateDraft(prev => ({ ...prev, crmProduct: value }))
+						}
+					/>
+					<h2 className={styles.panelTitle}>
+						Виджеты — /products/widgets
+					</h2>
 					<section className={styles.panel}>
 						<SectionTitle
 							title="Общие SEO"
@@ -980,7 +1066,7 @@ const HomeContentEditor = ({
 							risk="high"
 							riskText="Неудачные SEO-тексты могут ухудшить сниппет в поиске и отображение ссылки. Не удаляйте ключевые смыслы про виджеты, лиды и конверсию без проверки."
 						>
-							Общие SEO
+							SEO виджетов
 						</SectionTitle>
 						<div className={styles.gridTwo}>
 							<TextField

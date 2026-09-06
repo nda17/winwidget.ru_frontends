@@ -6,7 +6,7 @@ pnpm и общие build-time пакеты. Это не единый frontend ru
 
 | Приложение         | Назначение и production URL                                                       | Локальный порт |
 | ------------------ | --------------------------------------------------------------------------------- | -------------- |
-| `apps/landing`     | Лендинг WinWidget: `winwidget.ru`                                                 | 3000           |
+| `apps/landing`     | Главная экосистемы и продуктовые страницы: `winwidget.ru`                         | 3000           |
 | `apps/widgets`     | Рабочее приложение WinWidget: прежние `/cabinet`, auth, payment, заявки и preview | 3002           |
 | `apps/admin-panel` | Общая админка WinWidget и WinCRM: `/admin`                                        | 3003           |
 | `apps/crm`         | WinCRM: `crm.winwidget.ru`                                                        | 3001           |
@@ -15,6 +15,21 @@ pnpm и общие build-time пакеты. Это не единый frontend ru
 Next.js 16 / React 19 и FSD-границы; объединение репозиториев не обновляет
 платформенные зависимости существующего продукта. Детали CRM — в
 [apps/crm/README.md](apps/crm/README.md).
+
+Публичная структура: `/` — экосистема, `/products/widgets` — полный лендинг
+виджетов, `/products/crm` — описание WinCRM. Точные старые ссылки `/#tools`,
+`/#pricing`, `/#faq` перенаправляются на страницу виджетов с сохранением
+query/hash. Новая навигация использует `/#plans` и `/#help`. Рабочие URL
+кабинета, auth, оплаты и общей админки не меняются; переключатель продуктов
+не активирует Trial и не заменяет серверную проверку независимых подписок.
+
+В «Контенте» ADMIN/DEV редактируют три публичные страницы и отдельное SEO;
+исходные Widgets-поля сохранены, новые страницы — `ecosystem` и `crmProduct`.
+Цены и release gates не управляются маркетинговым JSON, raw head/body остаются
+DEV-only. **Сначала выпускается совместимый Platform validator, затем frontend.**
+Публичный контент обновляется с текущим cache TTL до 60 секунд. Для sitemap
+сохраняются явные отключения; новые пути добавляются только в свободные слоты
+существующего лимита 100 записей.
 
 ## Технологический стек
 
@@ -69,7 +84,7 @@ Next.js 16 / React 19 и FSD-границы; объединение репози
 
 ```text
 apps/
-├── landing/src/{app,screens}
+├── landing/src/{app,screens,shared}
 ├── widgets/src/{app,screens,middleware.ts}
 ├── admin-panel/src/{app,screens,middleware.ts}
 └── crm/src/{app,screens,widgets,features,entities,shared}

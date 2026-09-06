@@ -16,12 +16,11 @@ const sitemap = async (): Promise<MetadataRoute.Sitemap> => {
 	const baseUrl =
 		content.technicalSeo.baseUrl ||
 		DEFAULT_HOME_PAGE_TECHNICAL_SEO_CONTENT.baseUrl
-	const enabledItems = content.technicalSeo.sitemapItems.filter(
+	// Missing or unavailable content is already normalized to trusted defaults.
+	// An explicitly disabled sitemap must not publish those URLs again.
+	const items = content.technicalSeo.sitemapItems.filter(
 		item => item.enabled
 	)
-	const items = enabledItems.length
-		? enabledItems
-		: DEFAULT_HOME_PAGE_TECHNICAL_SEO_CONTENT.sitemapItems
 	const lastModified = new Date()
 
 	return items.map(item => ({

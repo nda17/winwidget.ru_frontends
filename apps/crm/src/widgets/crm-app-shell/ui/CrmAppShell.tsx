@@ -6,6 +6,7 @@ import {
 	type CrmNavigationItem
 } from '@/widgets/crm-app-shell/model/crm-navigation'
 import { useCrmWorkspaceAccess } from '@/entities/crm-access'
+import { getRuntimeConfig } from '@/shared/config/runtime'
 import {
 	AppIcon,
 	BrandLogo,
@@ -16,7 +17,12 @@ import {
 import clsx from 'clsx'
 import Link from 'next/link'
 import { usePathname } from 'next/navigation'
-import { type PropsWithChildren, useState } from 'react'
+import {
+	type KeyboardEvent,
+	type PropsWithChildren,
+	useRef,
+	useState
+} from 'react'
 import toast from 'react-hot-toast'
 
 interface CrmNavigationProps {
@@ -112,6 +118,85 @@ const CrmMobileNavigation = () => {
 	)
 }
 
+const CrmProductSwitch = () => {
+	const details = useRef<HTMLDetailsElement>(null)
+	const closeWithEscape = (event: KeyboardEvent<HTMLElement>) => {
+		if (event.key !== 'Escape' || !details.current) return
+		details.current.open = false
+		details.current.querySelector('summary')?.focus()
+	}
+	const widgetsUrl = new URL(
+		'/cabinet',
+		getRuntimeConfig().mainAppOrigin
+	).toString()
+
+	return (
+		<details
+			ref={details}
+			className={styles.productSwitch}
+			onBlur={event => {
+				if (!event.currentTarget.contains(event.relatedTarget))
+					event.currentTarget.open = false
+			}}
+		>
+			<summary
+				className={styles.productSwitchTrigger}
+				onKeyDown={closeWithEscape}
+			>
+				<span>WinCRM</span>
+				<AppIcon name="chevronDown" size={16} aria-hidden="true" />
+			</summary>
+			<nav
+				className={styles.productSwitchPanel}
+				aria-label="Рабочие приложения"
+			>
+				<p>Один аккаунт · отдельные продукты</p>
+				<a
+					href={widgetsUrl}
+					onKeyDown={closeWithEscape}
+					onClick={event => {
+						if (
+							event.defaultPrevented ||
+							event.button !== 0 ||
+							event.metaKey ||
+							event.ctrlKey ||
+							event.shiftKey ||
+							event.altKey
+						)
+							return
+						if (details.current) details.current.open = false
+						toast('Переход в WinWidget', { id: 'product-navigation' })
+					}}
+				>
+					<strong>WinWidget</strong>
+					<span>Виджеты и заявки</span>
+				</a>
+				<Link
+					href="/inbox"
+					aria-current="true"
+					onKeyDown={closeWithEscape}
+					onClick={event => {
+						if (
+							event.defaultPrevented ||
+							event.button !== 0 ||
+							event.metaKey ||
+							event.ctrlKey ||
+							event.shiftKey ||
+							event.altKey
+						)
+							return
+						if (details.current) details.current.open = false
+						toast('Переход в WinCRM', { id: 'product-navigation' })
+					}}
+				>
+					<strong>WinCRM</strong>
+					<span>Клиенты и продажи</span>
+				</Link>
+			</nav>
+		</details>
+	)
+}
+
 const CrmAppShell = ({ children }: PropsWithChildren) => {
 	const pathname = usePathname()
 	const access = useCrmWorkspaceAccess()
@@ -158,6 +243,7 @@ const CrmAppShell = ({ children }: PropsWithChildren) => {
 						<span className={styles.productName}>WinCRM</span>
 						<span className={styles.sectionName}>{section}</span>
 					</div>
+					<CrmProductSwitch />
 
 					<div
 						className={styles.accessContext}

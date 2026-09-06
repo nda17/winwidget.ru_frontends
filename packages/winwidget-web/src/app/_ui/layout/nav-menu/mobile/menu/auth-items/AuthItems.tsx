@@ -19,33 +19,6 @@ const AuthItems: NextPage = () => {
 
 	return (
 		<>
-			{!auth && (
-				<MenuItem
-					item={{
-						icon: 'apps',
-						link: '/#tools',
-						title: 'Виджеты'
-					}}
-				/>
-			)}
-			{!auth && (
-				<MenuItem
-					item={{
-						icon: 'diamond',
-						link: '/#pricing',
-						title: 'Тарифы'
-					}}
-				/>
-			)}
-			{!auth && (
-				<MenuItem
-					item={{
-						icon: 'help',
-						link: '/#faq',
-						title: 'Вопросы'
-					}}
-				/>
-			)}
 			{auth && (
 				<MenuItem
 					item={{
@@ -81,7 +54,7 @@ const AuthItems: NextPage = () => {
 					item={{
 						icon: 'login',
 						link: PUBLIC_PAGES.LOGIN,
-						title: 'Вход'
+						title: 'Войти'
 					}}
 				/>
 			)}

@@ -1,17 +1,16 @@
-import { Ecosystem } from '@/screens/ecosystem'
+import { CrmProduct } from '@/screens/crm-product'
 import { getHomePageContent } from '@/entities/home-page-content/server'
 import { productMetadata } from '@/app/_lib/product-metadata'
 import type { Metadata } from 'next'
 
 export const generateMetadata = async (): Promise<Metadata> => {
 	const content = await getHomePageContent()
-
-	return productMetadata(content.ecosystem.seo, '/')
+	return productMetadata(content.crmProduct.seo, '/products/crm')
 }
 
-const HomePage = async () => {
+const CrmProductPage = async () => {
 	const content = await getHomePageContent()
-	return <Ecosystem content={content.ecosystem} />
+	return <CrmProduct content={content.crmProduct} />
 }
 
-export default HomePage
+export default CrmProductPage

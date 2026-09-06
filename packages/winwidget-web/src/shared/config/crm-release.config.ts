@@ -5,3 +5,10 @@ export const CRM_RELEASE = {
 	appUrl: 'https://crm.winwidget.ru',
 	unavailableLabel: 'Скоро'
 } as const
+
+// Local interactive QA stays within the two development origins. This is
+// navigation only: neither the backend release nor billing gate is enabled.
+export const getCrmAppUrl = () =>
+	process.env.NODE_ENV === 'development'
+		? 'http://localhost:3001'
+		: CRM_RELEASE.appUrl

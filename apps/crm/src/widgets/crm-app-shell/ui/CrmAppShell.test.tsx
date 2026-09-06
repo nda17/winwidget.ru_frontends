@@ -9,6 +9,7 @@ import type { ComponentProps } from 'react'
 import toast from 'react-hot-toast'
 import { afterEach, beforeEach, describe, expect, it, vi } from 'vitest'
 import CrmAppShell from './CrmAppShell'
+import { getRuntimeConfig } from '@/shared/config/runtime'
 
 const fixture = vi.hoisted(() => ({
 	pathname: '/inbox',
@@ -185,5 +186,62 @@ describe('honest WinCRM application shell', () => {
 			'Переход в раздел «Сделки»',
 			{ id: 'crm-navigation' }
 		)
+	})
+	it('offers both independent products even when CRM is read-only, without a forced chooser', () => {
+		fixture.access.state = 'READ_ONLY'
+		fixture.access.isReadOnly = true
+		mount()
+		const details = document.querySelector('details')!
+		expect(details.open).toBe(false)
+		expect(
+			screen.getByRole('heading', { name: 'Содержимое раздела' })
+		).toBeTruthy()
+		details.open = true
+		const products = screen.getByRole('navigation', {
+			name: 'Рабочие приложения'
+		})
+		const widgets = within(products).getByRole('link', {
+			name: 'WinWidget Виджеты и заявки'
+		})
+		const crm = within(products).getByRole('link', {
+			name: 'WinCRM Клиенты и продажи'
+		})
+		expect(widgets.getAttribute('href')).toBe(
+			new URL('/cabinet', getRuntimeConfig().mainAppOrigin).toString()
+		)
+		expect(widgets.getAttribute('aria-disabled')).toBeNull()
+		expect(crm.getAttribute('href')).toBe('/inbox')
+		expect(crm.getAttribute('aria-current')).toBe('true')
+		expect(toast).not.toHaveBeenCalled()
+	})
+	it('keeps product links native and closes the product switch with Escape, blur and ordinary navigation', () => {
+		mount()
+		const details = document.querySelector('details')!
+		const summary = details.querySelector('summary')!
+		details.open = true
+		const products = screen.getByRole('navigation', {
+			name: 'Рабочие приложения'
+		})
+		const crm = within(products).getByRole('link', {
+			name: 'WinCRM Клиенты и продажи'
+		})
+		fireEvent.click(crm, { ctrlKey: true })
+		expect(details.open).toBe(true)
+		expect(toast).not.toHaveBeenCalled()
+		fireEvent.click(crm)
+		expect(details.open).toBe(false)
+		expect(toast).toHaveBeenCalledExactlyOnceWith('Переход в WinCRM', {
+			id: 'product-navigation'
+		})
+		details.open = true
+		crm.focus()
+		fireEvent.keyDown(crm, { key: 'Escape' })
+		expect(details.open).toBe(false)
+		expect(document.activeElement).toBe(summary)
+		details.open = true
+		fireEvent.blur(summary, { relatedTarget: crm })
+		expect(details.open).toBe(true)
+		fireEvent.blur(crm, { relatedTarget: null })
+		expect(details.open).toBe(false)
 	})
 })

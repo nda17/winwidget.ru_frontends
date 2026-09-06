@@ -25,6 +25,8 @@ export interface HomePageContentRecord {
 }
 
 export interface HomePageContent {
+	ecosystem: EcosystemPageContent
+	crmProduct: CrmProductPageContent
 	seo: HomePageSeoContent
 	technicalSeo: HomePageTechnicalSeoContent
 	demoWidgets: HomePageDemoWidgetsContent
@@ -67,6 +69,75 @@ export interface HomePageSeoContent {
 	keywords: string[]
 	ogTitle: string
 	ogDescription: string
+}
+
+export interface ProductMarketingSection {
+	enabled: boolean
+	title: string
+	subtitle: string
+	items: HomePageFeatureCard[]
+}
+
+export interface ProductMarketingIntegration extends ProductMarketingSection {
+	note: string
+}
+
+export interface ProductMarketingFaq {
+	enabled: boolean
+	title: string
+	items: { question: string; answer: string }[]
+}
+
+export interface EcosystemPageContent {
+	seo: HomePageSeoContent
+	hero: { eyebrow: string; title: string; subtitle: string }
+	products: {
+		title: string
+		subtitle: string
+		widgets: {
+			description: string
+			features: string[]
+			buttonText: string
+		}
+		crm: { description: string; features: string[]; buttonText: string }
+	}
+	integration: ProductMarketingIntegration
+	plans: {
+		enabled: boolean
+		title: string
+		subtitle: string
+		widgetsButtonText: string
+		crmButtonText: string
+		note: string
+	}
+	faq: ProductMarketingFaq
+	cta: {
+		enabled: boolean
+		title: string
+		text: string
+		widgetsButtonText: string
+		crmButtonText: string
+	}
+}
+
+export interface CrmProductPageContent {
+	seo: HomePageSeoContent
+	hero: {
+		eyebrow: string
+		title: string
+		subtitle: string
+		buttonText: string
+	}
+	features: ProductMarketingSection
+	workflow: ProductMarketingSection
+	integration: ProductMarketingIntegration
+	faq: ProductMarketingFaq
+	cta: {
+		enabled: boolean
+		title: string
+		text: string
+		buttonText: string
+	}
 }
 
 export type HomePageSitemapChangeFrequency =

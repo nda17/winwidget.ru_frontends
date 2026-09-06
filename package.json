@@ -10,7 +10,7 @@
 		"start": "pnpm --filter @winwidget/landing start",
 		"lint": "pnpm -r run lint && eslint packages/winwidget-web/src",
 		"typecheck": "pnpm -r run typecheck",
-		"test": "node --test scripts/*.test.mjs && pnpm --filter wincrm-client test",
+		"test": "node --test scripts/*.test.mjs apps/landing/src/screens/ecosystem/ecosystem.test.mjs && pnpm --filter wincrm-client test",
 		"test:home-page-content": "node --test scripts/home-page-content-normalization.test.mjs",
 		"test:payment-auth": "node --test scripts/payment-auth-guard.test.mjs",
 		"test:auth-return": "node --test scripts/auth-return-url.test.mjs",

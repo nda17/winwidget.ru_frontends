@@ -195,19 +195,241 @@ test('fragment/query-only navigation stays local', () => {
 	}
 })
 
-test('desktop and mobile CRM links open the public app even before backend release', () => {
+test('ecosystem pages and anchors stay public without widening overlay layout or application routing', () => {
+	const pages = compile(
+		'packages/winwidget-web/src/shared/config/pages/public.config.ts'
+	)
+	const { staticMenu, usesApplicationMenu } = compile(
+		'packages/winwidget-web/src/app/_ui/layout/nav-menu/data/menu.data.ts',
+		{
+			'@/shared/config/pages/public.config': pages
+		}
+	)
+	assert.deepEqual(
+		staticMenu.items.map(({ title, link }) => [title, link]),
+		[
+			['Виджеты', '/products/widgets'],
+			['WinCRM', '/products/crm'],
+			['Тарифы', '/#plans'],
+			['Помощь', '/#help']
+		]
+	)
+	for (const pathname of ['/', '/products/widgets', '/products/crm']) {
+		assert.equal(pages.isMarketingPage(pathname), true)
+		assert.equal(zones.zoneForPath(pathname), 'landing')
+		assert.equal(usesApplicationMenu(pathname, 'landing'), false)
+	}
+	for (const pathname of [
+		'/products',
+		'/products/crm/',
+		'/products/crm/private',
+		'/products/widgets/extra',
+		'/cabinet',
+		'/payment',
+		'/admin',
+		'/login'
+	]) {
+		assert.equal(pages.isMarketingPage(pathname), false, pathname)
+	}
+	for (const pathname of [
+		'/login',
+		'/register',
+		'/restore-password',
+		'/social-auth',
+		'/social-auth/google',
+		'/logout'
+	]) {
+		assert.equal(usesApplicationMenu(pathname, 'widgets'), false)
+	}
+	for (const pathname of [
+		'/cabinet',
+		'/payment',
+		'/wheels/example',
+		'/quizzes/example'
+	]) {
+		assert.equal(usesApplicationMenu(pathname, 'widgets'), true)
+		assert.equal(zones.zoneForPath(pathname), 'widgets')
+	}
+	assert.equal(usesApplicationMenu('/admin/content', 'admin-panel'), true)
+})
+
+test('working CRM links use its own origin without enabling release or adding authentication parameters', () => {
+	for (const [nodeEnv, expected] of [
+		[undefined, 'https://crm.winwidget.ru'],
+		['production', 'https://crm.winwidget.ru'],
+		['test', 'https://crm.winwidget.ru'],
+		['development', 'http://localhost:3001']
+	]) {
+		const release = compile(
+			'packages/winwidget-web/src/shared/config/crm-release.config.ts',
+			{},
+			{ env: { NODE_ENV: nodeEnv } }
+		)
+		assert.equal(release.getCrmAppUrl(), expected)
+		assert.equal(release.CRM_RELEASE.apiEnabled, false)
+		assert.equal(release.CRM_RELEASE.appUrl, 'https://crm.winwidget.ru')
+	}
+})
+
+test('compact application switch preserves separate app navigation, keyboard closing and modified clicks', () => {
+	for (const zone of ['widgets', 'admin-panel']) {
+		let focused = false
+		const details = {
+			open: true,
+			querySelector: selector => {
+				assert.equal(selector, 'summary')
+				return {
+					focus: () => {
+						focused = true
+					}
+				}
+			}
+		}
+		const notifications = []
+		let closed = 0
+		const ProductSwitch = compile(
+			'packages/winwidget-web/src/app/_ui/layout/nav-menu/product-switch/ProductSwitch.tsx',
+			{
+				react: { useRef: () => ({ current: details }) },
+				'react/jsx-runtime': jsxRuntime,
+				'react-hot-toast': (...args) => notifications.push(args),
+				'@/shared/config/pages/public.config': compile(
+					'packages/winwidget-web/src/shared/config/pages/public.config.ts'
+				),
+				'@/shared/config/crm-release.config': {
+					getCrmAppUrl: () => 'https://crm.winwidget.ru'
+				},
+				'@/shared/lib/navigation/frontend-zones': {
+					currentFrontendZone: () => zone
+				},
+				'@/shared/lib/navigation/ZoneLink': linkForZone(zone),
+				'@/shared/ui/icons/AppIcon': () => null,
+				'./ProductSwitch.module.scss': {}
+			}
+		).default
+		const view = ProductSwitch({
+			onNavigate: () => {
+				closed++
+			}
+		})
+		assert.equal(view.type, 'details')
+		const [summary, nav] = view.props.children
+		assert.equal(summary.type, 'summary')
+		assert.equal(
+			summary.props.children[1].props.children,
+			zone === 'widgets' ? 'WinWidget' : 'Приложения'
+		)
+		assert.equal(nav.props['aria-label'], 'Рабочие приложения')
+		const links = nav.props.children[1]
+		assert.deepEqual(
+			links.map(link => link.props.href),
+			['/cabinet', 'https://crm.winwidget.ru']
+		)
+		assert.equal(
+			links[0].props['aria-current'],
+			zone === 'widgets' ? 'true' : undefined
+		)
+		assert.equal(links[1].props['aria-current'], undefined)
+		assert.equal(linkForZone(zone)(links[1].props, null).type, 'a')
+		assert.equal(
+			linkForZone(zone)(links[0].props, null).type,
+			zone === 'widgets' ? NextLink : 'a'
+		)
+		for (const mutation of [
+			{ metaKey: true },
+			{ ctrlKey: true },
+			{ shiftKey: true },
+			{ altKey: true },
+			{ button: 1 },
+			{ defaultPrevented: true }
+		]) {
+			links[1].props.onClick({ button: 0, ...mutation })
+			assert.equal(details.open, true)
+		}
+		assert.equal(closed, 0)
+		assert.deepEqual(notifications, [])
+		links[1].props.onClick({ button: 0 })
+		assert.equal(details.open, false)
+		assert.equal(closed, 1)
+		assert.deepEqual(notifications, [
+			['Переход в WinCRM', { id: 'product-navigation' }]
+		])
+		details.open = true
+		summary.props.onKeyDown({ key: 'Tab' })
+		assert.equal(details.open, true)
+		links[1].props.onKeyDown({ key: 'Escape' })
+		assert.equal(details.open, false)
+		assert.equal(focused, true)
+		details.open = true
+		details.contains = target => target === 'inside'
+		view.props.onBlur({ currentTarget: details, relatedTarget: 'inside' })
+		assert.equal(details.open, true)
+		view.props.onBlur({ currentTarget: details, relatedTarget: null })
+		assert.equal(details.open, false)
+	}
+})
+
+test('desktop and mobile auth menus preserve existing cabinet, payment, admin and logout access', () => {
+	for (const platform of ['desktop', 'mobile']) {
+		for (const auth of [false, true]) {
+			for (const isAdmin of [false, true]) {
+				const user = { isAdmin: auth && isAdmin }
+				const state = { auth, isAuthResolved: true }
+				const prefix = `@/app/_ui/layout/nav-menu/${platform}/menu/`
+				const LogoutButton = () => null
+				const AuthItems = compile(
+					`packages/winwidget-web/src/app/_ui/layout/nav-menu/${platform}/menu/auth-items/AuthItems.tsx`,
+					{
+						'react/jsx-runtime': jsxRuntime,
+						[`${prefix}logout-button/LogoutButton`]: LogoutButton,
+						[`${prefix}menu-item/MenuItem`]: () => null,
+						'@/shared/config/pages/admin.config': {
+							ADMIN_PAGES: { HOME: '/admin' }
+						},
+						'@/shared/config/pages/public.config': compile(
+							'packages/winwidget-web/src/shared/config/pages/public.config.ts'
+						),
+						'@/entities/user': {
+							useUser: () => ({ user, isLoading: false }),
+							useAuthStore: selector => selector(state)
+						}
+					}
+				).default
+				const children = AuthItems().props.children.filter(Boolean)
+				assert.deepEqual(
+					children
+						.filter(child => child.props.item)
+						.map(child => child.props.item.link),
+					auth
+						? ['/cabinet', '/payment', ...(isAdmin ? ['/admin'] : [])]
+						: ['/login', '/register']
+				)
+				assert.equal(
+					children.some(child => child.type === LogoutButton),
+					auth
+				)
+				if (!auth) assert.equal(children[0].props.item.title, 'Войти')
+				state.isAuthResolved = false
+				assert.equal(AuthItems(), null)
+			}
+		}
+	}
+})
+
+test('desktop and mobile WinCRM marketing links remain active before backend release', () => {
 	const menuRoot = 'packages/winwidget-web/src/app/_ui/layout/nav-menu/'
 	const release = compile(
 		'packages/winwidget-web/src/shared/config/crm-release.config.ts'
 	)
 	assert.equal(release.CRM_RELEASE.apiEnabled, false)
 	const { staticMenu } = compile(`${menuRoot}data/menu.data.ts`, {
-		'@/shared/config/pages/public.config': { PUBLIC_PAGES: { HOME: '/' } },
-		'@/shared/config/crm-release.config': release
+		'@/shared/config/pages/public.config': compile(
+			'packages/winwidget-web/src/shared/config/pages/public.config.ts'
+		)
 	})
-	const crm = staticMenu.items.find(item => item.title === 'CRM')
+	const crm = staticMenu.items.find(item => item.title === 'WinCRM')
 	assert.ok(crm)
-	assert.equal(crm.link, 'https://crm.winwidget.ru')
+	assert.equal(crm.link, '/products/crm')
 	assert.equal(crm.disabled, undefined)
 	assert.equal(crm.tooltip, undefined)
 	for (const platform of ['desktop', 'mobile']) {
@@ -257,7 +479,7 @@ test('desktop and mobile CRM links open the public app even before backend relea
 		)
 		for (const zone of zoneNames) {
 			const anchor = linkForZone(zone)(link.props, null)
-			assert.equal(anchor.type, 'a')
+			assert.equal(anchor.type, zone === 'landing' ? NextLink : 'a')
 			assert.equal(anchor.props.href, crm.link)
 			assert.equal(Object.hasOwn(anchor.props, 'prefetch'), false)
 		}

@@ -1,0 +1,39 @@
+.switch {
+	@apply relative max-w-full text-[#470b58];
+}
+
+.trigger {
+	@apply flex min-h-11 cursor-pointer list-none items-center gap-2 rounded-xl border border-[#470b58]/15 bg-white px-3 py-2 text-sm font-semibold shadow-sm transition-colors hover:bg-[#f4edf8] focus-visible:outline-none focus-visible:ring-2 focus-visible:ring-[#8e3c91] focus-visible:ring-offset-2;
+
+	&::-webkit-details-marker {
+		@apply hidden;
+	}
+}
+
+.arrow {
+	@apply ml-auto rotate-90 transition-transform motion-reduce:transition-none;
+}
+
+.switch[open] .arrow {
+	@apply -rotate-90;
+}
+
+.panel {
+	@apply absolute left-0 top-full z-[60] mt-2 w-64 max-w-[calc(100vw-3rem)] rounded-2xl border border-[#470b58]/15 bg-white p-2 shadow-xl;
+}
+
+.caption {
+	@apply px-2 py-2 text-xs leading-5 text-[#6d6073];
+}
+
+.item {
+	@apply flex flex-col gap-0.5 rounded-xl px-3 py-2.5 text-sm text-[#470b58] transition-colors hover:bg-[#f4edf8] focus-visible:outline-none focus-visible:ring-2 focus-visible:ring-[#8e3c91];
+
+	span {
+		@apply text-xs text-[#6d6073];
+	}
+
+	&[aria-current] {
+		@apply bg-[#f4edf8];
+	}
+}
