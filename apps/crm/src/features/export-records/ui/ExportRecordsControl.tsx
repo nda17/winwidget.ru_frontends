@@ -252,7 +252,9 @@ const ExportPanel = ({
 						session.userId,
 						format,
 						request.signal,
-						...(entity === 'companies' ? [2 as const] : [])
+						...(entity === 'companies' || entity === 'contacts'
+							? [2 as const]
+							: [])
 					)
 			if (!current(request)) return
 			await authorize(request)

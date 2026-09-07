@@ -20,8 +20,7 @@ export const downloadCustomerExport = (
 		!isUuidV4(workspaceId) ||
 		!['contacts', 'companies'].includes(kind) ||
 		!['json', 'csv'].includes(format) ||
-		![1, 2].includes(schemaVersion) ||
-		(schemaVersion === 2 && kind !== 'companies')
+		![1, 2].includes(schemaVersion)
 	)
 		throw invalidContractError()
 	return authenticatedDownload({

@@ -176,12 +176,22 @@ describe('versioned company API', () => {
 			}
 		})
 	})
-	it('keeps contact reads and writes at v1 and rejects an invented v2 contact command', async () => {
+	it('reads contact v2 while replaying existing commands at v1 without new fields', async () => {
+		const v2 = {
+			...contact,
+			timeZone: null,
+			preferredCallStart: null,
+			preferredCallEnd: null
+		}
+		vi.mocked(authenticatedRequest).mockResolvedValue({
+			schemaVersion: 2,
+			contact: v2
+		})
+		await getCustomer('token', 'contacts', workspaceId, id)
 		vi.mocked(authenticatedRequest).mockResolvedValue({
 			schemaVersion: 1,
 			contact
 		})
-		await getCustomer('token', 'contacts', workspaceId, id)
 		await mutateCustomer('token', {
 			kind: 'contacts',
 			workspaceId,
@@ -197,16 +207,27 @@ describe('versioned company API', () => {
 		})
 		expect(
 			vi.mocked(authenticatedRequest).mock.calls.map(([call]) => call.url)
-		).toEqual([`/crm/customers/contacts/${id}`, '/crm/customers/contacts'])
-		await expect(
-			mutateCustomer('token', {
-				kind: 'contacts',
-				schemaVersion: 2,
-				workspaceId,
-				commandId
+		).toEqual([
+			`/crm/customers/v2/contacts/${id}`,
+			'/crm/customers/contacts'
+		])
+		vi.mocked(authenticatedRequest).mockResolvedValue({
+			schemaVersion: 2,
+			contact: v2
+		})
+		await mutateCustomer('token', {
+			kind: 'contacts',
+			schemaVersion: 2,
+			workspaceId,
+			commandId
+		})
+		expect(authenticatedRequest).toHaveBeenLastCalledWith(
+			expect.objectContaining({
+				url: '/crm/customers/v2/contacts',
+				data: { schemaVersion: 2, workspaceId, commandId }
 			})
-		).rejects.toMatchObject({ kind: 'temporary' })
-		expect(authenticatedRequest).toHaveBeenCalledTimes(2)
+		)
+		expect(authenticatedRequest).toHaveBeenCalledTimes(3)
 	})
 })
 describe('company lookup API privacy', () => {

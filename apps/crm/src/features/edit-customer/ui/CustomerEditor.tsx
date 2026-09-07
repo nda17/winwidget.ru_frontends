@@ -11,6 +11,7 @@ import {
 	getCustomer,
 	listCustomers,
 	mutateCustomer,
+	validContactCallPreferences,
 	type Customer,
 	type CustomerKind,
 	type CustomerMutation
@@ -30,6 +31,7 @@ import { useForm, useWatch } from 'react-hook-form'
 import toast from 'react-hot-toast'
 import styles from './CustomerEditor.module.scss'
 import { CompanyLookup } from './CompanyLookup'
+import { ContactCallPanel } from './ContactCallPanel'
 
 interface EditorProps {
 	workspaceId: string
@@ -54,6 +56,9 @@ interface Draft {
 	ogrn: string
 	legalAddress: string
 	entityType: '' | 'LEGAL' | 'INDIVIDUAL'
+	timeZone: string
+	preferredCallStart: string
+	preferredCallEnd: string
 }
 
 export const CustomerEditor = (props: EditorProps) => {
@@ -67,7 +72,7 @@ export const CustomerEditor = (props: EditorProps) => {
 			revision,
 			props.scopeKey,
 			props.kind,
-			props.kind === 'companies' ? 2 : 1,
+			2,
 			props.id
 		],
 		enabled: !!props.id && !!session,
@@ -112,9 +117,7 @@ export const CustomerEditor = (props: EditorProps) => {
 	return (
 		<CustomerForm
 			key={
-				(props.kind === 'companies'
-					? `${props.workspaceId}:${session?.userId}:${revision}:${props.scopeKey}:v2:`
-					: '') +
+				`${props.workspaceId}:${session?.userId}:${revision}:${props.scopeKey}:v2:` +
 				(record.data
 					? `${record.data.id}:${record.data.version}`
 					: `new:${props.kind}`)
@@ -151,6 +154,13 @@ const CustomerForm = ({
 			email: record?.kind === 'contacts' ? (record.email ?? '') : '',
 			companyId:
 				record?.kind === 'contacts' ? (record.companyId ?? '') : '',
+			timeZone: record?.kind === 'contacts' ? (record.timeZone ?? '') : '',
+			preferredCallStart:
+				record?.kind === 'contacts'
+					? (record.preferredCallStart ?? '')
+					: '',
+			preferredCallEnd:
+				record?.kind === 'contacts' ? (record.preferredCallEnd ?? '') : '',
 			inn: record?.kind === 'companies' ? (record.inn ?? '') : '',
 			website: record?.kind === 'companies' ? (record.website ?? '') : '',
 			legalName:
@@ -216,7 +226,7 @@ const CustomerForm = ({
 			workspaceId,
 			view: scopeKey
 		},
-		`customers:${kind === 'companies' ? 'v2:' : ''}${kind}:${id ?? 'new'}`,
+		`customers:v2:${kind}:${id ?? 'new'}`,
 		canWrite,
 		async () => {
 			if (!session || !navigator.onLine)
@@ -300,9 +310,21 @@ const CustomerForm = ({
 			draft => {
 				if (!canWrite || authorizationDenied || conflict) return
 				const nullable = (value: string) => value.trim() || null
+				const callPreferences = {
+					timeZone: nullable(draft.timeZone),
+					preferredCallStart: nullable(draft.preferredCallStart),
+					preferredCallEnd: nullable(draft.preferredCallEnd)
+				}
+				if (
+					kind === 'contacts' &&
+					!validContactCallPreferences(callPreferences)
+				) {
+					toast.error('Проверьте часовой пояс и удобные часы клиента')
+					return
+				}
 				dispatch({
 					kind,
-					...(kind === 'companies' ? { schemaVersion: 2 as const } : {}),
+					schemaVersion: 2,
 					workspaceId,
 					id,
 					commandId: crypto.randomUUID(),
@@ -313,6 +335,7 @@ const CustomerForm = ({
 						teamId: record?.teamId ?? null,
 						...(kind === 'contacts'
 							? {
+									...callPreferences,
 									phone: nullable(draft.phone),
 									email: nullable(draft.email)?.toLowerCase() ?? null,
 									companyId: nullable(draft.companyId)
@@ -366,6 +389,10 @@ const CustomerForm = ({
 			'legalAddress',
 			'entityType'
 		]
+	})
+	const callPreferences = useWatch({
+		control: form.control,
+		name: ['timeZone', 'preferredCallStart', 'preferredCallEnd']
 	})
 	return (
 		<Drawer
@@ -470,6 +497,20 @@ const CustomerForm = ({
 									message: 'Укажите корректный email'
 								}
 							})}
+						/>
+						<ContactCallPanel
+							value={{
+								timeZone: callPreferences[0] || null,
+								preferredCallStart: callPreferences[1] || null,
+								preferredCallEnd: callPreferences[2] || null
+							}}
+							onChange={(key, value) => {
+								if (editable)
+									form.setValue(key, value, { shouldDirty: true })
+							}}
+							editable={editable}
+							disabled={locked || authorizationDenied}
+							record={record}
 						/>
 						<div className={styles.secondarySection}>
 							<Button
@@ -781,9 +822,7 @@ const CustomerForm = ({
 										onClick={() =>
 											dispatch({
 												kind,
-												...(kind === 'companies'
-													? { schemaVersion: 2 as const }
-													: {}),
+												schemaVersion: 2,
 												workspaceId,
 												id,
 												expectedVersion: record.version,

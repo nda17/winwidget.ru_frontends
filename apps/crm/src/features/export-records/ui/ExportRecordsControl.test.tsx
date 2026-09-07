@@ -144,7 +144,8 @@ describe('OWNER exports', () => {
 			workspaceId,
 			'owner',
 			'json',
-			expect.any(AbortSignal)
+			expect.any(AbortSignal),
+			2
 		)
 		expect(downloadFile).toHaveBeenCalledWith(
 			result.bytes,
@@ -198,7 +199,8 @@ describe('OWNER exports', () => {
 				workspaceId,
 				'owner',
 				'csv',
-				expect.any(AbortSignal)
+				expect.any(AbortSignal),
+				2
 			)
 		)
 	})

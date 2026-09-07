@@ -366,6 +366,35 @@ const mount = (canWrite = true, id?: string) => {
 	return { onSaved, onClose }
 }
 describe('CustomerEditor', () => {
+	it('saves explicit contact timezone and an overnight call window as v2 without autosave', async () => {
+		mount(true, contact.id)
+		await screen.findByRole('textbox', { name: 'Имя' })
+		fireEvent.change(screen.getByLabelText('Часовой пояс клиента'), {
+			target: { value: 'Asia/Vladivostok' }
+		})
+		fireEvent.change(screen.getByLabelText('Удобно звонить с'), {
+			target: { value: '22:00' }
+		})
+		fireEvent.change(screen.getByLabelText('Удобно звонить до'), {
+			target: { value: '06:00' }
+		})
+		expect(mutateCustomer).not.toHaveBeenCalled()
+		fireEvent.submit(document.getElementById('customer-editor')!)
+		await waitFor(() =>
+			expect(mutateCustomer).toHaveBeenCalledWith(
+				'token',
+				expect.objectContaining({
+					schemaVersion: 2,
+					expectedVersion: contact.version,
+					fields: expect.objectContaining({
+						timeZone: 'Asia/Vladivostok',
+						preferredCallStart: '22:00',
+						preferredCallEnd: '06:00'
+					})
+				})
+			)
+		)
+	})
 	it('keeps the company-picker workspace prefix invalidatable while isolating its v2 cache', async () => {
 		mount()
 		await waitFor(() => expect(listCustomers).toHaveBeenCalled())

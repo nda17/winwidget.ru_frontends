@@ -1,6 +1,12 @@
 .form {
 	@apply flex flex-col gap-5;
 }
+.callPanel {
+	@apply flex min-w-0 flex-col gap-3 rounded-xl border border-crm-border bg-crm-surface-muted p-3;
+}
+.callHours {
+	@apply grid min-w-0 grid-cols-1 gap-3 sm:grid-cols-2;
+}
 .notice {
 	@apply flex flex-col gap-3 rounded-xl border border-crm-warning/20 bg-crm-warning/10 p-4 text-sm text-crm-warning;
 }

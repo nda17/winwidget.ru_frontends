@@ -1,6 +1,7 @@
 import { describe, expect, it } from 'vitest'
 import {
 	parseCompanyV2,
+	parseContactV2,
 	parseCustomer,
 	parseCustomerPage,
 	parseCustomerResult
@@ -29,6 +30,51 @@ const page = {
 	total: 1,
 	items: [contact]
 }
+describe('contact v2 call preference contract', () => {
+	const v2 = {
+		...contact,
+		timeZone: 'Asia/Vladivostok',
+		preferredCallStart: '09:00',
+		preferredCallEnd: '18:00'
+	}
+	it('requires all three nullable fields and keeps v1 strict', () => {
+		expect(parseContactV2(v2, workspaceId)).toMatchObject(v2)
+		expect(parseContactV2(contact, workspaceId)).toBeNull()
+		expect(parseCustomer(v2, 'contacts', workspaceId)).toBeNull()
+		expect(
+			parseContactV2(
+				{
+					...v2,
+					timeZone: null,
+					preferredCallStart: null,
+					preferredCallEnd: null
+				},
+				workspaceId
+			)
+		).not.toBeNull()
+		expect(
+			parseContactV2(
+				{
+					...v2,
+					timeZone: 'US/Eastern',
+					preferredCallStart: '22:00',
+					preferredCallEnd: '06:00'
+				},
+				workspaceId
+			)
+		).not.toBeNull()
+	})
+	it.each([
+		{ timeZone: 'unknown' },
+		{ timeZone: null },
+		{ preferredCallStart: null },
+		{ preferredCallStart: '24:00' },
+		{ preferredCallStart: '18:00' },
+		{ preferredCallEnd: undefined }
+	])('rejects inconsistent preferences %j', patch => {
+		expect(parseContactV2({ ...v2, ...patch }, workspaceId)).toBeNull()
+	})
+})
 describe('customer exact contracts', () => {
 	it('parses a contact without inventing DTO fields', () =>
 		expect(parseCustomer(contact, 'contacts', workspaceId)).toEqual({

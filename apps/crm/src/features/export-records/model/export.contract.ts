@@ -1,4 +1,8 @@
-import { parseCompanyV2, parseCustomer } from '@/entities/customer'
+import {
+	parseCompanyV2,
+	parseContactV2,
+	parseCustomer
+} from '@/entities/customer'
 import { parseInboxEntry } from '@/entities/intake'
 import {
 	isSalesExportDeal,
@@ -99,6 +103,12 @@ export const companyExportV2Columns = [
 	'legalAddress',
 	'entityType'
 ] as const
+export const contactExportV2Columns = [
+	...exportColumns.contacts,
+	'timeZone',
+	'preferredCallStart',
+	'preferredCallEnd'
+] as const
 const decimal = (value: string | null, max: number) =>
 	value !== null &&
 	/^(?:0|[1-9][0-9]*)$/.test(value) &&
@@ -133,7 +143,9 @@ export const parseExportHeaders = (
 	if (
 		!Object.hasOwn(exportColumns, entity) ||
 		![1, 2].includes(schemaVersion) ||
-		(schemaVersion === 2 && entity !== 'companies') ||
+		(schemaVersion === 2 &&
+			entity !== 'companies' &&
+			entity !== 'contacts') ||
 		!['json', 'csv'].includes(format) ||
 		!isUuidV4(workspaceId) ||
 		!decimal(rowCount, 10000) ||
@@ -171,9 +183,10 @@ const validItem = (
 	schemaVersion: 1 | 2 = 1
 ) => {
 	if (schemaVersion === 2)
-		return (
-			entity === 'companies' && parseCompanyV2(value, workspaceId) !== null
-		)
+		return entity === 'contacts'
+			? parseContactV2(value, workspaceId) !== null
+			: entity === 'companies' &&
+					parseCompanyV2(value, workspaceId) !== null
 	switch (entity) {
 		case 'contacts':
 		case 'companies':
@@ -235,7 +248,9 @@ const checkCsv = (text: string, metadata: ExportMetadata) => {
 	if (!text.startsWith('\uFEFF')) throw invalidContractError()
 	const columns =
 		metadata.schemaVersion === 2
-			? companyExportV2Columns
+			? metadata.entity === 'contacts'
+				? contactExportV2Columns
+				: companyExportV2Columns
 			: exportColumns[metadata.entity]
 	let offset = 1
 	let record = 0
@@ -300,7 +315,9 @@ export const validateExportBody = (
 	if (
 		(metadata.schemaVersion !== undefined &&
 			![1, 2].includes(metadata.schemaVersion)) ||
-		(metadata.schemaVersion === 2 && metadata.entity !== 'companies') ||
+		(metadata.schemaVersion === 2 &&
+			metadata.entity !== 'companies' &&
+			metadata.entity !== 'contacts') ||
 		bytes.byteLength !== metadata.bytes ||
 		bytes.byteLength > 16 * 1024 * 1024
 	)

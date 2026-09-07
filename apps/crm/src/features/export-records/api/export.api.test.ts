@@ -4,6 +4,7 @@ import { prepareRecordExport } from './export.api'
 import {
 	exportActorHash,
 	companyExportV2Columns,
+	contactExportV2Columns,
 	exportColumns,
 	type ExportEntity
 } from '../model/export.contract'
@@ -31,7 +32,9 @@ const fields = async (
 				})
 			: '\uFEFF' +
 				(schemaVersion === 2
-					? companyExportV2Columns
+					? entity === 'contacts'
+						? contactExportV2Columns
+						: companyExportV2Columns
 					: exportColumns[entity]
 				)
 					.map(name => `"${name}"`)
@@ -69,19 +72,24 @@ beforeEach(() => {
 })
 afterEach(() => vi.restoreAllMocks())
 describe('Domain-owned export routes', () => {
-	it.each(['json', 'csv'] as const)(
-		'uses the explicit v2 company %s route without a legacy fallback',
-		async format => {
+	it.each([
+		['companies', 'json'],
+		['companies', 'csv'],
+		['contacts', 'json'],
+		['contacts', 'csv']
+	] as const)(
+		'uses the explicit v2 %s %s route without a legacy fallback',
+		async (entity, format) => {
 			vi.mocked(authenticatedDownload).mockImplementation(
 				async request => {
-					const result = await fields('companies', format, workspaceId, 2)
+					const result = await fields(entity, format, workspaceId, 2)
 					request.inspectHeaders(result.headers)
 					return result.bytes
 				}
 			)
 			const result = await prepareRecordExport(
 				'token',
-				'companies',
+				entity,
 				workspaceId,
 				'owner',
 				format,
@@ -91,7 +99,7 @@ describe('Domain-owned export routes', () => {
 			expect(result.metadata.schemaVersion).toBe(2)
 			expect(authenticatedDownload).toHaveBeenCalledWith(
 				expect.objectContaining({
-					path: '/crm/customers/exports/v2/companies'
+					path: `/crm/customers/exports/v2/${entity}`
 				})
 			)
 			expect(authenticatedDownload).toHaveBeenCalledTimes(1)
@@ -111,11 +119,11 @@ describe('Domain-owned export routes', () => {
 		).rejects.toThrow()
 		expect(authenticatedDownload).toHaveBeenCalledTimes(1)
 	})
-	it('rejects a nonexistent v2 contacts contract before the request', async () => {
+	it('rejects a nonexistent v2 tasks contract before the request', async () => {
 		await expect(
 			prepareRecordExport(
 				'token',
-				'contacts',
+				'tasks',
 				workspaceId,
 				'owner',
 				'json',

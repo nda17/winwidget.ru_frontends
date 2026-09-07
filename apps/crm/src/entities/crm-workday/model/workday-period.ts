@@ -1,4 +1,6 @@
 import type { WorkdayDateFilter } from './workday.types'
+import { isIanaTimeZone as isWorkdayTimeZone } from '@/shared/lib/time-zones'
+export { isWorkdayTimeZone }
 
 export const isWorkdayDate = (value: unknown): value is string => {
 	if (typeof value !== 'string' || !/^\d{4}-\d{2}-\d{2}$/.test(value))
@@ -8,21 +10,6 @@ export const isWorkdayDate = (value: unknown): value is string => {
 		Number.isFinite(time) &&
 		new Date(time).toISOString().slice(0, 10) === value
 	)
-}
-export const isWorkdayTimeZone = (value: unknown): value is string => {
-	if (
-		typeof value !== 'string' ||
-		!value ||
-		value.length > 100 ||
-		/^[+-]/.test(value)
-	)
-		return false
-	try {
-		new Intl.DateTimeFormat('en', { timeZone: value }).format(0)
-		return true
-	} catch {
-		return false
-	}
 }
 
 /** Validate the server's calendar boundaries using its asOf, never browser now.

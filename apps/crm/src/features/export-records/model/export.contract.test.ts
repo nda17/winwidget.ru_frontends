@@ -2,6 +2,7 @@ import { describe, expect, it } from 'vitest'
 import {
 	exportActorHash,
 	companyExportV2Columns,
+	contactExportV2Columns,
 	exportColumns,
 	parseExportHeaders,
 	validateExportBody,
@@ -94,6 +95,44 @@ const rows: Record<ExportEntity, Record<string, unknown>> = {
 		rejectedAt: null
 	}
 }
+describe('contact v2 export', () => {
+	it('keeps client timezone and call hours in exact JSON/CSV without weakening v1', () => {
+		const row = {
+			...rows.contacts,
+			timeZone: 'Asia/Vladivostok',
+			preferredCallStart: '09:00',
+			preferredCallEnd: '18:00'
+		}
+		const json = jsonBytes('contacts', [row], { schemaVersion: 2 })
+		expect(() =>
+			validateExportBody(json, {
+				...metadata('contacts', 'json', json.length),
+				schemaVersion: 2
+			})
+		).not.toThrow()
+		expect(() =>
+			validateExportBody(json, metadata('contacts', 'json', json.length))
+		).toThrow()
+		const csv = new TextEncoder().encode(
+			'\uFEFF' +
+				[
+					contactExportV2Columns,
+					contactExportV2Columns.map(
+						key => row[key as keyof typeof row] ?? ''
+					)
+				]
+					.map(values => values.map(quote).join(','))
+					.join('\r\n') +
+				'\r\n'
+		)
+		expect(() =>
+			validateExportBody(csv, {
+				...metadata('contacts', 'csv', csv.length),
+				schemaVersion: 2
+			})
+		).not.toThrow()
+	})
+})
 const metadata = (
 	entity: ExportEntity,
 	format: 'json' | 'csv',

@@ -21,7 +21,7 @@ export const listCustomers = async (
 		await authenticatedRequest({
 			accessToken,
 			method: 'GET',
-			url: `/crm/customers/${kind === 'companies' ? 'v2/' : ''}${kind}`,
+			url: `/crm/customers/v2/${kind}`,
 			params: {
 				workspaceId,
 				page: String(page),
@@ -33,7 +33,7 @@ export const listCustomers = async (
 		workspaceId,
 		page,
 		pageSize,
-		kind === 'companies' ? 2 : 1
+		2
 	)
 	if (!result) throw invalidContractError()
 	return result
@@ -49,13 +49,13 @@ export const getCustomer = async (
 		await authenticatedRequest({
 			accessToken,
 			method: 'GET',
-			url: `/crm/customers/${kind === 'companies' ? 'v2/' : ''}${kind}/${id}`,
+			url: `/crm/customers/v2/${kind}/${id}`,
 			params: { workspaceId }
 		}),
 		kind,
 		workspaceId,
 		id,
-		kind === 'companies' ? 2 : 1
+		2
 	)
 	if (!result || result.archivedAt !== null) throw invalidContractError()
 	return result
@@ -115,11 +115,7 @@ export const mutateCustomer = async (
 		archive
 	} = command
 	const schemaVersion = command.schemaVersion ?? 1
-	if (
-		![1, 2].includes(schemaVersion) ||
-		(schemaVersion === 2 && kind !== 'companies')
-	)
-		throw invalidContractError()
+	if (![1, 2].includes(schemaVersion)) throw invalidContractError()
 	const result = parseCustomerResult(
 		await authenticatedRequest({
 			accessToken,

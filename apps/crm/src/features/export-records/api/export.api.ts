@@ -25,7 +25,9 @@ export const prepareRecordExport = async (
 		!Object.hasOwn(exportColumns, entity) ||
 		!['json', 'csv'].includes(format) ||
 		![1, 2].includes(schemaVersion) ||
-		(schemaVersion === 2 && entity !== 'companies')
+		(schemaVersion === 2 &&
+			entity !== 'companies' &&
+			entity !== 'contacts')
 	)
 		throw invalidContractError()
 	const actorHash = await exportActorHash(subject)

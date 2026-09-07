@@ -5,6 +5,7 @@ import {
 	isRecord,
 	isUuidV4
 } from '@/shared/lib/contract'
+import { isIanaTimeZone } from '@/shared/lib/time-zones'
 
 export type CustomerKind = 'contacts' | 'companies'
 export interface CustomerBase {
@@ -24,6 +25,30 @@ export interface ContactFields {
 	email: string | null
 	companyId: string | null
 }
+export interface ContactCallPreferences {
+	timeZone: string | null
+	preferredCallStart: string | null
+	preferredCallEnd: string | null
+}
+export const validContactCallPreferences = (
+	value: ContactCallPreferences
+) => {
+	const {
+		timeZone,
+		preferredCallStart: start,
+		preferredCallEnd: end
+	} = value
+	return (
+		(timeZone === null || isIanaTimeZone(timeZone)) &&
+		((start === null && end === null) ||
+			(timeZone !== null &&
+				typeof start === 'string' &&
+				typeof end === 'string' &&
+				/^([01]\d|2[0-3]):[0-5]\d$/.test(start) &&
+				/^([01]\d|2[0-3]):[0-5]\d$/.test(end) &&
+				start !== end))
+	)
+}
 export interface CompanyFields {
 	inn: string | null
 	website: string | null
@@ -36,7 +61,9 @@ export interface CompanyRequisites {
 	entityType: 'LEGAL' | 'INDIVIDUAL' | null
 }
 export type Customer =
-	| (CustomerBase & ContactFields & { kind: 'contacts' })
+	| (CustomerBase &
+			ContactFields &
+			Partial<ContactCallPreferences> & { kind: 'contacts' })
 	| (CustomerBase &
 			CompanyFields &
 			Partial<CompanyRequisites> & { kind: 'companies' })
@@ -51,7 +78,10 @@ export type CustomerFields = Pick<
 	CustomerBase,
 	'name' | 'notes' | 'teamId'
 > &
-	(ContactFields | (CompanyFields & Partial<CompanyRequisites>))
+	(
+		| (ContactFields & Partial<ContactCallPreferences>)
+		| (CompanyFields & Partial<CompanyRequisites>)
+	)
 
 const nullableText = (value: unknown, length: number) =>
 	value === null || (typeof value === 'string' && value.length <= length)
@@ -146,13 +176,14 @@ export const parseCustomerResult = (
 	if (
 		!isRecord(value) ||
 		!hasExactKeys(value, ['schemaVersion', key]) ||
-		value.schemaVersion !== schemaVersion ||
-		(schemaVersion === 2 && kind !== 'companies')
+		value.schemaVersion !== schemaVersion
 	)
 		return null
 	const result =
 		schemaVersion === 2
-			? parseCompanyV2(value[key], workspaceId)
+			? kind === 'contacts'
+				? parseContactV2(value[key], workspaceId)
+				: parseCompanyV2(value[key], workspaceId)
 			: parseCustomer(value[key], kind, workspaceId)
 	return result && (!expectedId || result.id === expectedId)
 		? result
@@ -177,7 +208,6 @@ export const parseCustomerPage = (
 			'total'
 		]) ||
 		value.schemaVersion !== schemaVersion ||
-		(schemaVersion === 2 && kind !== 'companies') ||
 		value.page !== page ||
 		value.pageSize !== pageSize ||
 		!Number.isSafeInteger(value.total) ||
@@ -189,7 +219,9 @@ export const parseCustomerPage = (
 		return null
 	const items = value.items.map(item =>
 		schemaVersion === 2
-			? parseCompanyV2(item, workspaceId)
+			? kind === 'contacts'
+				? parseContactV2(item, workspaceId)
+				: parseCompanyV2(item, workspaceId)
 			: parseCustomer(item, kind, workspaceId)
 	)
 	if (
@@ -207,6 +239,35 @@ export const parseCustomerPage = (
 }
 
 /** v1 stays exact for published exports and legacy command receipts. */
+export const parseContactV2 = (
+	value: unknown,
+	workspaceId: string
+): Customer | null => {
+	if (
+		!isRecord(value) ||
+		!hasExactKeys(value, [
+			...baseKeys,
+			'phone',
+			'email',
+			'companyId',
+			'timeZone',
+			'preferredCallStart',
+			'preferredCallEnd'
+		])
+	)
+		return null
+	const { timeZone, preferredCallStart, preferredCallEnd, ...legacy } =
+		value
+	const preferences = {
+		timeZone,
+		preferredCallStart,
+		preferredCallEnd
+	} as ContactCallPreferences
+	if (!validContactCallPreferences(preferences)) return null
+	const parsed = parseCustomer(legacy, 'contacts', workspaceId)
+	return parsed ? ({ ...parsed, ...preferences } as Customer) : null
+}
+
 export const parseCompanyV2 = (
 	value: unknown,
 	workspaceId: string
