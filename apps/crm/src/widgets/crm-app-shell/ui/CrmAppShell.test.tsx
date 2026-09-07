@@ -1,5 +1,7 @@
 import {
+	act,
 	cleanup,
+	createEvent,
 	fireEvent,
 	render,
 	screen,
@@ -10,6 +12,7 @@ import toast from 'react-hot-toast'
 import { afterEach, beforeEach, describe, expect, it, vi } from 'vitest'
 import CrmAppShell from './CrmAppShell'
 import { getRuntimeConfig } from '@/shared/config/runtime'
+import { CRM_NAVIGATION } from '../model/crm-navigation'
 
 const fixture = vi.hoisted(() => ({
 	pathname: '/inbox',
@@ -71,6 +74,8 @@ beforeEach(() => {
 })
 afterEach(() => {
 	cleanup()
+	vi.useRealTimers()
+	vi.restoreAllMocks()
 	Reflect.deleteProperty(HTMLDialogElement.prototype, 'showModal')
 	Reflect.deleteProperty(HTMLDialogElement.prototype, 'close')
 })
@@ -83,7 +88,265 @@ const mount = () =>
 const mainNavigation = () =>
 	screen.getByRole('navigation', { name: 'Основная навигация CRM' })
 
+const pointer = (
+	element: Element,
+	type: 'over' | 'out' | 'down',
+	pointerType = 'mouse'
+) => {
+	const event =
+		type === 'over'
+			? createEvent.pointerOver(element)
+			: type === 'out'
+				? createEvent.pointerOut(element)
+				: createEvent.pointerDown(element)
+	Object.defineProperty(event, 'pointerType', { value: pointerType })
+	fireEvent(element, event)
+}
+
+describe('CRM navigation descriptions', () => {
+	it('describes all seven sections on keyboard focus without changing names, links or current state', () => {
+		mount()
+		for (const item of CRM_NAVIGATION) {
+			const link = within(mainNavigation()).getByRole('link', {
+				name: item.label
+			})
+			fireEvent.focus(link)
+			const tooltip = screen.getByRole('tooltip')
+			expect(tooltip.textContent).toBe(item.description)
+			expect(link.getAttribute('aria-describedby')).toBe(tooltip.id)
+			expect(link.getAttribute('href')).toBe(item.href)
+			expect(link.hasAttribute('title')).toBe(false)
+			expect(tooltip.parentElement).toBe(document.body)
+			expect(mainNavigation().contains(tooltip)).toBe(false)
+			fireEvent.blur(link)
+			expect(screen.queryByRole('tooltip')).toBeNull()
+			expect(link.hasAttribute('aria-describedby')).toBe(false)
+		}
+		expect(toast).not.toHaveBeenCalled()
+	})
+	it('delays mouse hover, remains hoverable across the gap, and closes after leaving the bubble', () => {
+		vi.useFakeTimers()
+		mount()
+		const link = within(mainNavigation()).getByRole('link', {
+			name: 'Контакты'
+		})
+		pointer(link, 'over')
+		act(() => vi.advanceTimersByTime(249))
+		expect(screen.queryByRole('tooltip')).toBeNull()
+		act(() => vi.advanceTimersByTime(1))
+		const tooltip = screen.getByRole('tooltip')
+		pointer(link, 'out')
+		act(() => vi.advanceTimersByTime(60))
+		pointer(tooltip, 'over')
+		act(() => vi.advanceTimersByTime(200))
+		expect(screen.getByRole('tooltip')).toBe(tooltip)
+		pointer(tooltip, 'out')
+		act(() => vi.advanceTimersByTime(121))
+		expect(screen.queryByRole('tooltip')).toBeNull()
+	})
+	it('dismisses both open and delayed descriptions on scroll and resize', () => {
+		vi.useFakeTimers()
+		mount()
+		const link = within(mainNavigation()).getByRole('link', {
+			name: 'Сделки'
+		})
+		pointer(link, 'over')
+		fireEvent.scroll(mainNavigation().parentElement!)
+		act(() => vi.advanceTimersByTime(300))
+		expect(screen.queryByRole('tooltip')).toBeNull()
+		fireEvent.focus(link)
+		expect(screen.getByRole('tooltip')).toBeTruthy()
+		fireEvent.scroll(window)
+		expect(screen.queryByRole('tooltip')).toBeNull()
+		fireEvent.focus(link)
+		fireEvent.resize(window)
+		expect(screen.queryByRole('tooltip')).toBeNull()
+	})
+	it('shows at most one description when mouse hover moves away from a keyboard-focused link', () => {
+		vi.useFakeTimers()
+		mount()
+		const links = within(mainNavigation())
+		const first = links.getByRole('link', { name: 'Контакты' })
+		const second = links.getByRole('link', { name: 'Сделки' })
+		fireEvent.focus(first)
+		pointer(second, 'over')
+		act(() => vi.advanceTimersByTime(250))
+		expect(screen.getAllByRole('tooltip')).toHaveLength(1)
+		expect(first.hasAttribute('aria-describedby')).toBe(false)
+		expect(screen.getByRole('tooltip').textContent).toBe(
+			CRM_NAVIGATION[2].description
+		)
+	})
+	it('cancels a pending hover on Escape without consuming the enclosing drawer escape', () => {
+		vi.useFakeTimers()
+		mount()
+		const link = within(mainNavigation()).getByRole('link', {
+			name: 'Контакты'
+		})
+		pointer(link, 'over')
+		const escape = createEvent.keyDown(link, { key: 'Escape' })
+		fireEvent(link, escape)
+		act(() => vi.advanceTimersByTime(300))
+		expect(escape.defaultPrevented).toBe(false)
+		expect(screen.queryByRole('tooltip')).toBeNull()
+	})
+	it('does not retain a stale bubble-hover flag after scroll dismisses the portal', () => {
+		vi.useFakeTimers()
+		mount()
+		const link = within(mainNavigation()).getByRole('link', {
+			name: 'Контакты'
+		})
+		pointer(link, 'over')
+		act(() => vi.advanceTimersByTime(250))
+		pointer(link, 'out')
+		pointer(screen.getByRole('tooltip'), 'over')
+		fireEvent.scroll(window)
+		pointer(link, 'over')
+		act(() => vi.advanceTimersByTime(250))
+		expect(screen.getByRole('tooltip')).toBeTruthy()
+		pointer(link, 'out')
+		act(() => vi.advanceTimersByTime(121))
+		expect(screen.queryByRole('tooltip')).toBeNull()
+	})
+	it('cancels delayed hover and removes portal content on collapse, route changes and unmount', () => {
+		vi.useFakeTimers()
+		const view = mount()
+		pointer(
+			within(mainNavigation()).getByRole('link', { name: 'Задачи' }),
+			'over'
+		)
+		fireEvent.click(
+			screen.getByRole('button', { name: 'Свернуть боковую панель' })
+		)
+		act(() => vi.advanceTimersByTime(300))
+		expect(screen.queryByRole('tooltip')).toBeNull()
+		fireEvent.click(
+			screen.getByRole('button', { name: 'Развернуть боковую панель' })
+		)
+		fireEvent.focus(
+			within(mainNavigation()).getByRole('link', { name: 'Настройки' })
+		)
+		expect(screen.getByRole('tooltip')).toBeTruthy()
+		fixture.pathname = '/tasks'
+		view.rerender(
+			<CrmAppShell>
+				<h1>Контент</h1>
+			</CrmAppShell>
+		)
+		expect(screen.queryByRole('tooltip')).toBeNull()
+		pointer(
+			within(mainNavigation()).getByRole('link', { name: 'Задачи' }),
+			'over'
+		)
+		view.unmount()
+		act(() => vi.advanceTimersByTime(300))
+		expect(screen.queryByRole('tooltip')).toBeNull()
+	})
+	it('does not open a tooltip for touch-generated hover/focus or require a second mobile tap', () => {
+		vi.useFakeTimers()
+		mount()
+		fireEvent.click(
+			screen.getByRole('button', { name: 'Открыть навигацию CRM' })
+		)
+		const link = within(
+			screen.getByRole('navigation', { name: 'Мобильная навигация CRM' })
+		).getByRole('link', { name: 'Планировщик' })
+		pointer(link, 'over', 'touch')
+		pointer(link, 'down', 'touch')
+		fireEvent.focus(link)
+		act(() => vi.advanceTimersByTime(300))
+		expect(screen.queryByRole('tooltip')).toBeNull()
+		fireEvent.click(link)
+		expect(link.getAttribute('href')).toBe('/my-day')
+		expect(screen.queryByRole('dialog')).toBeNull()
+	})
+	it('keeps mobile keyboard descriptions inside the dialog top layer and consumes only the first Escape', () => {
+		mount()
+		fireEvent.click(
+			screen.getByRole('button', { name: 'Открыть навигацию CRM' })
+		)
+		const dialog = screen.getByRole('dialog')
+		const link = within(dialog).getByRole('link', { name: 'Планировщик' })
+		fireEvent.focus(link)
+		expect(screen.getByRole('tooltip').parentElement).toBe(dialog)
+		const firstEscape = createEvent.keyDown(link, { key: 'Escape' })
+		fireEvent(link, firstEscape)
+		expect(firstEscape.defaultPrevented).toBe(true)
+		expect(screen.queryByRole('tooltip')).toBeNull()
+		expect(screen.getByRole('dialog')).toBe(dialog)
+		const secondEscape = createEvent.keyDown(link, { key: 'Escape' })
+		fireEvent(link, secondEscape)
+		expect(secondEscape.defaultPrevented).toBe(false)
+		fireEvent(
+			dialog,
+			new Event('cancel', { bubbles: false, cancelable: true })
+		)
+		expect(screen.queryByRole('dialog')).toBeNull()
+	})
+	it('bounds mobile positioning to the dialog and viewport instead of clipping in sidebar content', () => {
+		mount()
+		fireEvent.click(
+			screen.getByRole('button', { name: 'Открыть навигацию CRM' })
+		)
+		const dialog = screen.getByRole('dialog')
+		const link = within(dialog).getByRole('link', { name: 'Настройки' })
+		vi.spyOn(
+			HTMLElement.prototype,
+			'getBoundingClientRect'
+		).mockImplementation(function (this: HTMLElement) {
+			const rect =
+				this === dialog
+					? { x: 0, y: 0, width: 380, height: 500 }
+					: this === link
+						? { x: 24, y: 420, width: 330, height: 44 }
+						: { x: 0, y: 0, width: 288, height: 60 }
+			return {
+				...rect,
+				left: rect.x,
+				top: rect.y,
+				right: rect.x + rect.width,
+				bottom: rect.y + rect.height,
+				toJSON: () => ({})
+			}
+		})
+		fireEvent.focus(link)
+		const tooltip = screen.getByRole('tooltip')
+		expect(tooltip.style.left).toBe('24px')
+		expect(tooltip.style.top).toBe('352px')
+		expect(tooltip.style.maxWidth).toBe('364px')
+		expect(tooltip.style.visibility).toBe('visible')
+		fireEvent.click(screen.getByRole('button', { name: 'Закрыть панель' }))
+		expect(screen.queryByRole('tooltip')).toBeNull()
+	})
+})
+
 describe('honest WinCRM application shell', () => {
+	it('names the planner consistently in desktop and mobile navigation while preserving /my-day links', () => {
+		fixture.pathname = '/my-day'
+		mount()
+		const desktopLink = within(mainNavigation()).getByRole('link', {
+			name: 'Планировщик'
+		})
+		expect(desktopLink.getAttribute('href')).toBe('/my-day')
+		expect(desktopLink.getAttribute('aria-current')).toBe('page')
+		const context = document.querySelector(
+			'[aria-label="Текущий раздел"]'
+		)!
+		expect(
+			within(context as HTMLElement).getByText('Планировщик')
+		).toBeTruthy()
+		fireEvent.click(
+			screen.getByRole('button', { name: 'Открыть навигацию CRM' })
+		)
+		const mobileLink = within(
+			screen.getByRole('navigation', {
+				name: 'Мобильная навигация CRM'
+			})
+		).getByRole('link', { name: 'Планировщик' })
+		expect(mobileLink.getAttribute('href')).toBe('/my-day')
+		expect(mobileLink.getAttribute('aria-current')).toBe('page')
+		expect(screen.queryByText('Мой день')).toBeNull()
+	})
 	it('shows optional workspace branding below both logos without changing the section or logo', () => {
 		fixture.companyName = 'Студия Север'
 		const view = mount()

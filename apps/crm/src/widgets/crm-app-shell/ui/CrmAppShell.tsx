@@ -9,6 +9,7 @@ import { useCrmWorkspaceAccess } from '@/entities/crm-access'
 import { useWorkspaceBranding } from '@/entities/crm-workspace-branding'
 import { getRuntimeConfig } from '@/shared/config/runtime'
 import { ThemeSwitcher } from '@/shared/ui/theme-switcher/ThemeSwitcher'
+import { CrmNavigationLink } from './CrmNavigationLink'
 import {
 	AppIcon,
 	BrandLogo,
@@ -29,6 +30,7 @@ import {
 
 interface CrmNavigationProps {
 	ariaLabel: string
+	enabled?: boolean
 	onNavigate?: () => void
 }
 
@@ -37,7 +39,11 @@ const isNavigationItemActive = (
 	item: CrmNavigationItem
 ) => pathname === item.href || pathname.startsWith(`${item.href}/`)
 
-const CrmNavigation = ({ ariaLabel, onNavigate }: CrmNavigationProps) => {
+const CrmNavigation = ({
+	ariaLabel,
+	enabled = true,
+	onNavigate
+}: CrmNavigationProps) => {
 	const pathname = usePathname()
 
 	return (
@@ -48,31 +54,12 @@ const CrmNavigation = ({ ariaLabel, onNavigate }: CrmNavigationProps) => {
 
 					return (
 						<li key={item.href}>
-							<Link
-								href={item.href}
-								className={clsx(
-									styles.navigationLink,
-									isActive && styles.navigationLinkActive
-								)}
-								aria-current={isActive ? 'page' : undefined}
-								onClick={event => {
-									if (
-										event.defaultPrevented ||
-										event.button !== 0 ||
-										event.metaKey ||
-										event.ctrlKey ||
-										event.shiftKey ||
-										event.altKey
-									)
-										return
-									onNavigate?.()
-								}}
-							>
-								<span className={styles.navigationIcon}>
-									<AppIcon name={item.icon} size={20} />
-								</span>
-								<span>{item.label}</span>
-							</Link>
+							<CrmNavigationLink
+								item={item}
+								isActive={isActive}
+								enabled={enabled}
+								onNavigate={onNavigate}
+							/>
 						</li>
 					)
 				})}
@@ -104,6 +91,8 @@ const CrmMobileNavigation = () => {
 			>
 				<div className={styles.mobileNavigation}>
 					<CrmNavigation
+						key={String(isOpen)}
+						enabled={isOpen}
 						ariaLabel="Мобильная навигация CRM"
 						onNavigate={() => setIsOpen(false)}
 					/>
@@ -261,7 +250,11 @@ const CrmAppShell = ({ children }: PropsWithChildren) => {
 						) : null}
 					</div>
 					<div className={styles.sidebarNavigation}>
-						<CrmNavigation ariaLabel="Основная навигация CRM" />
+						<CrmNavigation
+							key={`${pathname}:${isSidebarCollapsed}`}
+							enabled={!isSidebarCollapsed}
+							ariaLabel="Основная навигация CRM"
+						/>
 					</div>
 					<p className={styles.sidebarCaption}>
 						WinCRM · рабочее пространство

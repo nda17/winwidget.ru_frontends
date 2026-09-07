@@ -34,6 +34,7 @@ import {
 	PendingCommandProvider
 } from '@/shared/lib/pending-command'
 import MyDayScreen from './MyDayScreen'
+import { metadata } from '@/app/(workspace)/my-day/page'
 
 let client: QueryClient
 let permissions: CrmPermissions
@@ -200,6 +201,14 @@ afterEach(() => {
 })
 
 describe('MyDay actual permission query lifecycle', () => {
+	it('shows the planner heading and metadata on the existing workday page', async () => {
+		expect(metadata.title).toBe('Планировщик')
+		render(<MyDayScreen />, { wrapper: Wrapper })
+		expect(
+			await screen.findByRole('heading', { level: 1, name: 'Планировщик' })
+		).toBeTruthy()
+		expect(screen.queryByRole('heading', { name: 'Мой день' })).toBeNull()
+	})
 	it.each(['list', 'board', 'drawer'] as const)(
 		'offers a blank new draft only after confirmed completion from %s with real permission observers',
 		async surface => {

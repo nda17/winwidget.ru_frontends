@@ -159,7 +159,7 @@ const MyDayContent = () => {
 				<div className={styles.screen}>
 					<PageHeader
 						eyebrow="Рабочий день"
-						title="Мой день"
+						title="Планировщик"
 						description="Сосредоточьтесь на задачах: выберите день, период или все сроки."
 						actions={
 							<>
