@@ -18,6 +18,7 @@ import {
 	type WorkdayCompletion
 } from '@/features/manage-workday'
 import type { SalesDeal } from '@/entities/sales'
+import { isUuidV4 } from '@/shared/lib/contract'
 import { WorkdayExportControl } from '@/features/export-records'
 import {
 	Button,
@@ -34,12 +35,16 @@ import { WorkdayFilters } from './WorkdayFilters'
 import { WorkdayInboxSummary } from './WorkdayInboxSummary'
 import styles from './MyDayScreen.module.scss'
 
-const MyDayContent = () => {
+const MyDayContent = ({
+	initialTaskId
+}: {
+	initialTaskId: string | null
+}) => {
 	const context = useWorkdaySession()
 	const client = useQueryClient()
 	const [filters, setFilters] = useState<Filters>(initialWorkdayFilters)
 	const [view, setView] = useState<WorkdayView>('list')
-	const [selected, setSelected] = useState<string | null>(null)
+	const [selected, setSelected] = useState<string | null>(initialTaskId)
 	const [creating, setCreating] = useState<{
 		deal: SalesDeal | null
 	} | null>(null)
@@ -372,8 +377,42 @@ const MyDayContent = () => {
 	)
 }
 
-const MyDayScreen = () => {
+const MyDayScreen = ({
+	initialTaskId
+}: {
+	initialTaskId?: string | null
+}) => {
 	const context = useWorkdaySession()
-	return <MyDayContent key={JSON.stringify(context.key)} />
+	const entryBinding = JSON.stringify([
+		context.workspace.workspaceId,
+		context.session?.userId,
+		context.sessionRevision
+	])
+	const scope = JSON.stringify(context.key)
+	// Bind a link once to its entry session/workspace and first verified scope.
+	// The drawer still performs a fresh read; a URL supplies no task snapshot.
+	const [link, setLink] = useState(() =>
+		isUuidV4(initialTaskId)
+			? {
+					taskId: initialTaskId,
+					binding: entryBinding,
+					scope: null as string | null
+				}
+			: null
+	)
+	if (
+		link?.scope === null &&
+		link.binding === entryBinding &&
+		context.canRead
+	)
+		setLink({ ...link, scope })
+	else if (link?.scope && link.scope !== scope) setLink(null)
+	const linkedTaskId = link?.scope === scope ? link.taskId : null
+	return (
+		<MyDayContent
+			key={JSON.stringify([context.key, linkedTaskId])}
+			initialTaskId={linkedTaskId}
+		/>
+	)
 }
 export default MyDayScreen

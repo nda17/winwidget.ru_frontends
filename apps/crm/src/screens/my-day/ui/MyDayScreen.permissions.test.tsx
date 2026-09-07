@@ -38,7 +38,7 @@ import {
 	PendingCommandProvider
 } from '@/shared/lib/pending-command'
 import MyDayScreen from './MyDayScreen'
-import { metadata } from '@/app/(workspace)/planner/page'
+import PlannerPage, { metadata } from '@/app/(workspace)/planner/page'
 
 let client: QueryClient
 let permissions: CrmPermissions
@@ -144,6 +144,7 @@ const startRefresh = async () => {
 }
 beforeEach(() => {
 	vi.resetAllMocks()
+	workspace.workspaceId = workspaceId
 	resetSessionStore()
 	useSessionStore
 		.getState()
@@ -210,6 +211,154 @@ afterEach(() => {
 })
 
 describe('MyDay actual permission query lifecycle', () => {
+	it.each(['ACTIVE', 'READ_ONLY'] as const)(
+		'opens a planner deep link with a current server-bound task read under %s access',
+		async state => {
+			permissions = {
+				...permissions,
+				state,
+				permissions:
+					state === 'READ_ONLY' ? ['sales:read'] : permissions.permissions
+			}
+			render(
+				await PlannerPage({
+					searchParams: Promise.resolve({
+						task: task.id,
+						workspaceId: 'untrusted-workspace'
+					})
+				}),
+				{ wrapper: Wrapper }
+			)
+			await waitFor(() =>
+				expect(titleField()).toHaveProperty('value', task.title)
+			)
+			await waitFor(() =>
+				expect(titleField().closest('[hidden]')).toBeNull()
+			)
+			expect(titleField()).toHaveProperty(
+				'disabled',
+				state === 'READ_ONLY'
+			)
+			expect(getWorkdayTask).toHaveBeenCalledWith('token', {
+				workspaceId,
+				subject: 'actor',
+				id: task.id
+			})
+			expect(mutateWorkdayTask).not.toHaveBeenCalled()
+		}
+	)
+	it.each([
+		undefined,
+		'',
+		'../private',
+		'not-a-uuid',
+		[task.id],
+		[task.id, task.id]
+	])(
+		'ignores malformed or repeated deep-link task parameters: %s',
+		async value => {
+			render(
+				await PlannerPage({
+					searchParams: Promise.resolve({ task: value })
+				}),
+				{ wrapper: Wrapper }
+			)
+			await screen.findByRole('button', { name: task.title })
+			expect(getWorkdayTask).not.toHaveBeenCalled()
+			expect(screen.queryByLabelText('Название задачи')).toBeNull()
+		}
+	)
+	it('does not read a linked task before permission verification or after a denied scope', async () => {
+		const response = deferred<CrmPermissions>()
+		vi.mocked(authenticatedRequest).mockReturnValue(response.promise)
+		render(<MyDayScreen initialTaskId={task.id} />, { wrapper: Wrapper })
+		expect(getWorkdayTask).not.toHaveBeenCalled()
+		await act(async () =>
+			response.resolve({ ...permissions, permissions: [] })
+		)
+		await screen.findByText(
+			'Ваша роль не даёт доступа к задачам сотрудников.'
+		)
+		expect(getWorkdayTask).not.toHaveBeenCalled()
+	})
+	it('keeps a linked draft through same-scope refresh and does not reopen it after close', async () => {
+		render(<MyDayScreen initialTaskId={task.id} />, { wrapper: Wrapper })
+		await waitFor(() =>
+			expect(titleField()).toHaveProperty('disabled', false)
+		)
+		fireEvent.change(titleField(), {
+			target: { value: 'Черновик из напоминания' }
+		})
+		const before = titleField()
+		const response = await startRefresh()
+		await act(async () => {
+			response.resolve(permissions)
+			await response.pending
+		})
+		await waitFor(() =>
+			expect(titleField()).toHaveProperty('disabled', false)
+		)
+		expect(titleField()).toBe(before)
+		expect(titleField()).toHaveProperty('value', 'Черновик из напоминания')
+		fireEvent.click(screen.getByRole('button', { name: 'Закрыть' }))
+		await waitFor(() =>
+			expect(screen.queryByLabelText('Название задачи')).toBeNull()
+		)
+		await act(async () => {
+			await client.refetchQueries({ queryKey: ['crm-permissions'] })
+		})
+		expect(screen.queryByLabelText('Название задачи')).toBeNull()
+	})
+	it.each(['session', 'workspace', 'scope'] as const)(
+		'discards a linked task on a confirmed %s boundary without reopening it',
+		async boundary => {
+			const view = render(<MyDayScreen initialTaskId={task.id} />, {
+				wrapper: Wrapper
+			})
+			await waitFor(() =>
+				expect(titleField()).toHaveProperty('disabled', false)
+			)
+			fireEvent.change(titleField(), {
+				target: { value: 'Приватный черновик ссылки' }
+			})
+			await act(async () => {
+				if (boundary === 'session')
+					useSessionStore.getState().setAuthenticated({
+						accessToken: 'new-token',
+						userId: 'actor'
+					})
+				else if (boundary === 'workspace') {
+					workspace.workspaceId = '55555555-5555-4555-8555-555555555555'
+					permissions = {
+						...permissions,
+						workspaceId: workspace.workspaceId
+					}
+					view.rerender(<MyDayScreen initialTaskId={task.id} />)
+				} else {
+					permissions = {
+						...permissions,
+						state: 'READ_ONLY',
+						permissions: ['sales:read']
+					}
+					await client.refetchQueries({ queryKey: ['crm-permissions'] })
+				}
+			})
+			await waitFor(() => expect(client.isFetching()).toBe(0))
+			expect(screen.queryByLabelText('Название задачи')).toBeNull()
+			expect(mutateWorkdayTask).not.toHaveBeenCalled()
+		}
+	)
+	it('never displays a task outside the current workspace from a linked read', async () => {
+		vi.mocked(getWorkdayTask).mockResolvedValue({
+			...task,
+			workspaceId: '55555555-5555-4555-8555-555555555555',
+			title: 'Чужая задача'
+		})
+		render(<MyDayScreen initialTaskId={task.id} />, { wrapper: Wrapper })
+		await screen.findByRole('button', { name: 'Повторить загрузку' })
+		expect(screen.queryByLabelText('Название задачи')).toBeNull()
+		expect(screen.queryByText('Чужая задача')).toBeNull()
+	})
 	it('shows the planner heading and metadata on the existing workday page', async () => {
 		expect(metadata.title).toBe('Планировщик')
 		render(<MyDayScreen />, { wrapper: Wrapper })
