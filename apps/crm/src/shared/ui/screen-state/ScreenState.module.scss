@@ -15,7 +15,7 @@
 }
 
 .loading .icon {
-	@apply bg-crm-info/10 text-crm-info;
+	@apply rounded-full bg-crm-info/10 text-crm-info;
 }
 
 .empty .icon {
