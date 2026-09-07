@@ -27,6 +27,11 @@ vi.mock('@/entities/crm-team', async original => ({
 }))
 vi.mock('@/features/manage-team', () => ({
 	useTeamSession: vi.fn(),
+	EmployeeProfileControl: ({
+		targetSubject
+	}: {
+		targetSubject: string
+	}) => <button>ФИО: {targetSubject}</button>,
 	TeamEditor: () => <div>Редактор команды</div>
 }))
 vi.mock('react-hot-toast', () => ({

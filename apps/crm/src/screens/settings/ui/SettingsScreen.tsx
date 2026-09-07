@@ -12,6 +12,7 @@ import { BillingEntryCard } from '@/features/manage-crm-billing'
 import { getRuntimeConfig } from '@/shared/config/runtime'
 import {
 	TeamEditor,
+	EmployeeProfileControl,
 	useTeamSession,
 	type TeamEditorSelection
 } from '@/features/manage-team'
@@ -255,6 +256,16 @@ const SettingsScreen = () => {
 				<div className={styles.rowActions}>
 					{row.kind === 'member' ? (
 						<>
+							<EmployeeProfileControl
+								context={context}
+								targetSubject={row.subject}
+								disabled={!visible || !!row.disabledAt}
+								allowEdit={
+									row.subject === session?.userId ||
+									context.permissions.data?.role === 'OWNER' ||
+									row.role !== 'CRM_ADMIN'
+								}
+							/>
 							{action(row, 'role', 'Роль')}
 							{action(row, 'teams', 'Отделы')}
 							{row.disabledAt
@@ -304,6 +315,13 @@ const SettingsScreen = () => {
 				description="Приглашайте сотрудников, распределяйте роли и отделы. Доступ к CRM не меняет права на виджеты."
 				actions={
 					<div className={styles.actions}>
+						{session ? (
+							<EmployeeProfileControl
+								key={context.key.join(':')}
+								context={context}
+								targetSubject={session.userId}
+							/>
+						) : null}
 						<Button
 							variant="secondary"
 							disabled={!context.canManage}

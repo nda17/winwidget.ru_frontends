@@ -21,6 +21,7 @@ import {
 	parseTeamOptions,
 	type TeamOptionsRequest
 } from '../model/team-options.contract'
+import type { EmployeeName } from '../model/employee-profile.contract'
 
 export const listTeamOptions = async (
 	accessToken: string,
@@ -85,6 +86,7 @@ export type TeamMutation =
 			role: CrmRole
 			teamIds: string[]
 			ttlDays: number
+			profile?: EmployeeName
 	  }
 	| { kind: 'revoke'; id: string; expectedVersion: number }
 	| { kind: 'role'; id: string; expectedVersion: number; role: CrmRole }

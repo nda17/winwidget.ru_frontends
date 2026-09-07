@@ -3,6 +3,8 @@
 import {
 	crmRoleLabels,
 	crmRoles,
+	normalizeEmployeeName,
+	type EmployeeName,
 	type CrmRole,
 	type TeamMutation,
 	type TeamRow
@@ -13,6 +15,7 @@ import toast from 'react-hot-toast'
 import { useTeamCommand } from '../model/use-team-command'
 import type { useTeamSession } from '../model/use-team-session'
 import { TeamPicker } from './TeamPicker'
+import { EmployeeNameFields } from './EmployeeNameFields'
 import styles from './TeamEditor.module.scss'
 
 export interface TeamEditorSelection {
@@ -63,6 +66,12 @@ export const TeamEditor = ({
 		record?.kind === 'team' ? record.name : ''
 	)
 	const [email, setEmail] = useState('')
+	const [profile, setProfile] = useState<EmployeeName>({
+		firstName: '',
+		lastName: '',
+		middleName: null
+	})
+	const [profileError, setProfileError] = useState('')
 	const [role, setRole] = useState<CrmRole>(
 		record && 'role' in record ? record.role : 'MANAGER'
 	)
@@ -89,7 +98,8 @@ export const TeamEditor = ({
 				email: email.trim().toLowerCase(),
 				role,
 				teamIds,
-				ttlDays: 7
+				ttlDays: 7,
+				profile: normalizeEmployeeName(profile)!
 			}
 		if (!record) throw new Error('Нет записи для команды')
 		const versioned = { id: record.id, expectedVersion: record.version }
@@ -101,6 +111,13 @@ export const TeamEditor = ({
 	}
 	const submit = (event: FormEvent) => {
 		event.preventDefault()
+		if (!locked && kind === 'invite' && !normalizeEmployeeName(profile)) {
+			const message =
+				'Проверьте имя и фамилию: используйте буквы, пробелы, дефис или апостроф. Отчество необязательно.'
+			setProfileError(message)
+			toast.error(message)
+			return
+		}
 		if (!locked) void command.execute(prepare())
 	}
 	const review = async () => {
@@ -162,16 +179,35 @@ export const TeamEditor = ({
 					/>
 				) : null}
 				{kind === 'invite' ? (
-					<TextField
-						label="Email сотрудника"
-						type="email"
-						autoComplete="off"
-						maxLength={254}
-						value={email}
-						onChange={event => setEmail(event.target.value)}
-						required
-						disabled={locked}
-					/>
+					<>
+						<EmployeeNameFields
+							value={profile}
+							disabled={locked}
+							onChange={value => {
+								setProfile(value)
+								setProfileError('')
+							}}
+						/>
+						<p className={styles.muted}>
+							ФИО используется в этом CRM-пространстве. Общий аккаунт
+							сотрудника не изменится.
+						</p>
+						{profileError ? (
+							<p className={styles.error} role="alert">
+								{profileError}
+							</p>
+						) : null}
+						<TextField
+							label="Email сотрудника"
+							type="email"
+							autoComplete="off"
+							maxLength={254}
+							value={email}
+							onChange={event => setEmail(event.target.value)}
+							required
+							disabled={locked}
+						/>
+					</>
 				) : null}
 				{kind === 'invite' || kind === 'role' ? (
 					<>
