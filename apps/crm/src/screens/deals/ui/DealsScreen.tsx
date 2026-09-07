@@ -277,6 +277,7 @@ const DealsScreen = () => {
 						/>
 					) : (
 						<DataTable
+							mobileLayout="cards"
 							caption="Сделки компании"
 							rows={deals.data.items}
 							columns={columns}

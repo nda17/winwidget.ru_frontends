@@ -169,6 +169,7 @@ const TasksScreen = () => {
 						/>
 					) : (
 						<DataTable
+							mobileLayout="cards"
 							caption="Актуальные следующие действия"
 							columns={columns}
 							rows={tasks.data.items}

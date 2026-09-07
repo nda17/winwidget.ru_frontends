@@ -31,6 +31,21 @@ export const ToastProvider = ({ children }: PropsWithChildren) => {
 	const toaster = (
 		<Toaster
 			position="top-center"
+			toastOptions={{
+				className: styles.toast,
+				success: {
+					iconTheme: {
+						primary: 'rgb(var(--crm-success))',
+						secondary: 'rgb(var(--crm-surface))'
+					}
+				},
+				error: {
+					iconTheme: {
+						primary: 'rgb(var(--crm-danger))',
+						secondary: 'rgb(var(--crm-surface))'
+					}
+				}
+			}}
 			containerClassName={host ? styles.modalViewport : undefined}
 		/>
 	)

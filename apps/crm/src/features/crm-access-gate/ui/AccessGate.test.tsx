@@ -39,6 +39,9 @@ import {
 import { AccessGate } from './AccessGate'
 
 vi.mock('@/shared/config/runtime', () => ({ getRuntimeConfig: vi.fn() }))
+vi.mock('@/entities/crm-workspace-branding', () => ({
+	useWorkspaceBranding: () => ({ data: undefined })
+}))
 
 vi.mock('../api/crm-access.api', () => ({
 	activateCrmTrial: vi.fn(),

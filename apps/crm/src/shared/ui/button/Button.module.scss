@@ -1,13 +1,13 @@
 .button {
-	@apply inline-flex shrink-0 cursor-pointer items-center justify-center gap-2 rounded-xl border font-semibold transition-colors duration-200 focus-visible:outline-none focus-visible:ring-2 focus-visible:ring-primary/40 focus-visible:ring-offset-2 disabled:cursor-not-allowed disabled:opacity-50;
+	@apply inline-flex min-w-0 max-w-full shrink-0 cursor-pointer items-center justify-center gap-2 rounded-xl border font-semibold transition-colors duration-200 focus-visible:outline-none focus-visible:ring-2 focus-visible:ring-primary/40 focus-visible:ring-offset-2 disabled:cursor-not-allowed disabled:opacity-50;
 }
 
 .primary {
-	@apply border-primary bg-primary text-white hover:bg-primary/90;
+	@apply border-crm-action bg-crm-action text-white hover:bg-crm-action/90;
 }
 
 .accent {
-	@apply border-accent bg-accent text-crm-text hover:bg-accent/85;
+	@apply border-accent bg-accent text-secondary hover:bg-accent/85;
 }
 
 .secondary {
@@ -19,15 +19,15 @@
 }
 
 .danger {
-	@apply border-crm-danger bg-crm-danger text-white hover:bg-crm-danger/90;
+	@apply border-crm-action-danger bg-crm-action-danger text-white hover:bg-crm-action-danger/90;
 }
 
 .sm {
-	@apply min-h-9 px-3 py-1.5 text-xs;
+	@apply min-h-11 px-3 py-2 text-sm lg:min-h-9 lg:py-1.5 lg:text-xs;
 }
 
 .md {
-	@apply min-h-10 px-4 py-2 text-sm;
+	@apply min-h-11 px-4 py-2 text-sm lg:min-h-10;
 }
 
 .lg {
@@ -39,7 +39,7 @@
 }
 
 .label {
-	@apply min-w-0;
+	@apply min-w-0 break-words;
 }
 
 .spinner {

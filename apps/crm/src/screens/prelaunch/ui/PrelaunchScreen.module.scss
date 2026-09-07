@@ -67,7 +67,7 @@
 }
 
 .mainLink {
-	@apply mx-auto mt-6 inline-flex min-h-12 w-full items-center justify-center gap-3 rounded-xl bg-primary px-4 py-3 text-sm font-semibold text-white transition-colors hover:bg-primary/90 focus-visible:ring-2 focus-visible:ring-primary focus-visible:ring-offset-4 sm:w-auto sm:px-7;
+	@apply mx-auto mt-6 inline-flex min-h-12 w-full items-center justify-center gap-3 rounded-xl bg-crm-action px-4 py-3 text-sm font-semibold text-white transition-colors hover:bg-crm-action/90 focus-visible:ring-2 focus-visible:ring-primary focus-visible:ring-offset-4 sm:w-auto sm:px-7;
 
 	span {
 		@apply text-lg leading-none;

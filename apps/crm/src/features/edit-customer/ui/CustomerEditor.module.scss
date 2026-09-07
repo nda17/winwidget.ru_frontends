@@ -2,7 +2,7 @@
 	@apply flex flex-col gap-5;
 }
 .notice {
-	@apply flex flex-col gap-3 rounded-xl border border-amber-200 bg-amber-50 p-4 text-sm text-amber-900;
+	@apply flex flex-col gap-3 rounded-xl border border-crm-warning/20 bg-crm-warning/10 p-4 text-sm text-crm-warning;
 }
 .hint {
 	@apply text-xs leading-relaxed text-crm-muted;

@@ -7,6 +7,9 @@ export const appIconNames = [
 	'contacts',
 	'analytics',
 	'settings',
+	'moon',
+	'monitor',
+	'products',
 	'menu',
 	'search',
 	'plus',
@@ -71,6 +74,21 @@ const iconRegistry: Record<AppIconName, ReactNode> = {
 		</>
 	),
 	menu: <path d="M4 7h16M4 12h16M4 17h16" />,
+	products: (
+		<>
+			<rect x="3" y="3" width="7" height="7" rx="1.5" />
+			<rect x="14" y="3" width="7" height="7" rx="1.5" />
+			<rect x="3" y="14" width="7" height="7" rx="1.5" />
+			<rect x="14" y="14" width="7" height="7" rx="1.5" />
+		</>
+	),
+	moon: <path d="M20 14.4A8.5 8.5 0 0 1 9.6 4a8.5 8.5 0 1 0 10.4 10.4Z" />,
+	monitor: (
+		<>
+			<rect x="3" y="4" width="18" height="13" rx="2" />
+			<path d="M8 21h8M12 17v4" />
+		</>
+	),
 	search: (
 		<>
 			<circle cx="10.5" cy="10.5" r="6.5" />

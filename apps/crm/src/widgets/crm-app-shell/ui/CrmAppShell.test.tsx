@@ -13,6 +13,7 @@ import { getRuntimeConfig } from '@/shared/config/runtime'
 
 const fixture = vi.hoisted(() => ({
 	pathname: '/inbox',
+	companyName: null as string | null,
 	access: {
 		state: 'ACTIVE' as 'ACTIVE' | 'GRACE' | 'READ_ONLY',
 		isReadOnly: false,
@@ -25,6 +26,11 @@ const fixture = vi.hoisted(() => ({
 vi.mock('next/navigation', () => ({ usePathname: () => fixture.pathname }))
 vi.mock('@/entities/crm-access', () => ({
 	useCrmWorkspaceAccess: () => fixture.access
+}))
+vi.mock('@/entities/crm-workspace-branding', () => ({
+	useWorkspaceBranding: () => ({
+		data: { branding: { displayName: fixture.companyName } }
+	})
 }))
 vi.mock('react-hot-toast', () => ({ default: vi.fn() }))
 vi.mock('next/link', () => ({
@@ -43,6 +49,7 @@ vi.mock('next/link', () => ({
 
 beforeEach(() => {
 	fixture.pathname = '/inbox'
+	fixture.companyName = null
 	fixture.access.state = 'ACTIVE'
 	fixture.access.isReadOnly = false
 	fixture.access.membership.role = 'OWNER'
@@ -77,6 +84,25 @@ const mainNavigation = () =>
 	screen.getByRole('navigation', { name: 'Основная навигация CRM' })
 
 describe('honest WinCRM application shell', () => {
+	it('shows optional workspace branding below both logos without changing the section or logo', () => {
+		fixture.companyName = 'Студия Север'
+		const view = mount()
+		expect(screen.getAllByText('Студия Север')).toHaveLength(2)
+		for (const caption of screen.getAllByText('Студия Север')) {
+			expect(caption.title).toBe('Студия Север')
+			expect(
+				caption.previousElementSibling?.querySelector('svg')
+			).toBeTruthy()
+		}
+		fixture.companyName = null
+		view.rerender(
+			<CrmAppShell>
+				<h1>Контент</h1>
+			</CrmAppShell>
+		)
+		expect(screen.queryByText('Студия Север')).toBeNull()
+		expect(mainNavigation()).toBeTruthy()
+	})
 	it('collapses and reopens the desktop sidebar without hiding the control or main content', () => {
 		mount()
 		const sidebar = screen.getByRole('complementary', { name: 'CRM' })

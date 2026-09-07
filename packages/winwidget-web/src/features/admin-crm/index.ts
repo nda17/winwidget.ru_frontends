@@ -1,4 +1,20 @@
 export { default as adminCrmService } from './api/admin-crm.api'
+export { adminCrmSubscriptionsService } from './api/admin-crm-subscriptions.api'
+export {
+	CrmAdminGrantNotSentError,
+	createCrmAdminGrantCommand,
+	type CrmAdminSubscription,
+	type CrmAdminGrantCommand,
+	type CrmAdminCommandRecovery,
+	type CrmAdminGrantResult
+} from './model/crm-subscriptions.contract'
+export {
+	bindCrmAdminGrantActor,
+	readPendingCrmAdminGrant,
+	retainPendingCrmAdminGrant,
+	clearResolvedCrmAdminGrant,
+	type PendingCrmAdminGrant
+} from './model/crm-subscription-pending'
 export {
 	CRM_PRICE_FIELDS,
 	CRM_SEAT_FIELDS,

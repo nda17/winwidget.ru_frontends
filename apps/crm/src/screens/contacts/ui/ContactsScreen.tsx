@@ -270,6 +270,7 @@ const ContactsScreen = () => {
 						<ScreenState variant="loading" compact />
 					) : rows.length ? (
 						<DataTable
+							mobileLayout="cards"
 							caption={
 								kind === 'contacts'
 									? 'Контакты вашей команды'

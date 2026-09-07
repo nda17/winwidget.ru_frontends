@@ -6,7 +6,9 @@ import {
 	type CrmNavigationItem
 } from '@/widgets/crm-app-shell/model/crm-navigation'
 import { useCrmWorkspaceAccess } from '@/entities/crm-access'
+import { useWorkspaceBranding } from '@/entities/crm-workspace-branding'
 import { getRuntimeConfig } from '@/shared/config/runtime'
+import { ThemeSwitcher } from '@/shared/ui/theme-switcher/ThemeSwitcher'
 import {
 	AppIcon,
 	BrandLogo,
@@ -138,9 +140,20 @@ const CrmProductSwitch = () => {
 			<summary
 				className={styles.productSwitchTrigger}
 				onKeyDown={closeWithEscape}
+				title="Рабочие приложения"
 			>
-				<span>WinCRM</span>
-				<AppIcon name="chevronDown" size={16} aria-hidden="true" />
+				<AppIcon
+					name="products"
+					size={20}
+					className={styles.mobileProductIcon}
+				/>
+				<span className={styles.productSwitchName}>WinCRM</span>
+				<AppIcon
+					name="chevronDown"
+					size={16}
+					className={styles.productSwitchChevron}
+					aria-hidden="true"
+				/>
 			</summary>
 			<nav
 				className={styles.productSwitchPanel}
@@ -194,6 +207,8 @@ const CrmProductSwitch = () => {
 const CrmAppShell = ({ children }: PropsWithChildren) => {
 	const pathname = usePathname()
 	const access = useCrmWorkspaceAccess()
+	const branding = useWorkspaceBranding()
+	const companyName = branding.data?.branding.displayName
 	const sidebarId = useId()
 	const [isSidebarCollapsed, setIsSidebarCollapsed] = useState(false)
 	const sidebarToggleLabel = isSidebarCollapsed
@@ -239,6 +254,11 @@ const CrmAppShell = ({ children }: PropsWithChildren) => {
 				>
 					<div className={styles.sidebarBrand}>
 						<BrandLogo href="/inbox" />
+						{companyName ? (
+							<span className={styles.companyName} title={companyName}>
+								{companyName}
+							</span>
+						) : null}
 					</div>
 					<div className={styles.sidebarNavigation}>
 						<CrmNavigation ariaLabel="Основная навигация CRM" />
@@ -279,10 +299,19 @@ const CrmAppShell = ({ children }: PropsWithChildren) => {
 						aria-label="Текущий раздел"
 					>
 						<BrandLogo size="compact" className={styles.mobileBrand} />
+						{companyName ? (
+							<span
+								className={styles.mobileCompanyName}
+								title={companyName}
+							>
+								{companyName}
+							</span>
+						) : null}
 						<span className={styles.productName}>WinCRM</span>
 						<span className={styles.sectionName}>{section}</span>
 					</div>
 					<CrmProductSwitch />
+					<ThemeSwitcher />
 
 					<div
 						className={styles.accessContext}
@@ -300,7 +329,14 @@ const CrmAppShell = ({ children }: PropsWithChildren) => {
 							{accessLabel}
 						</StatusBadge>
 						<StatusBadge tone="neutral" showDot={false}>
-							{membershipLabel}
+							<span className={styles.membershipFull}>
+								{membershipLabel}
+							</span>
+							<span className={styles.membershipShort} aria-hidden="true">
+								{access.membership.role === 'OWNER'
+									? 'Владелец'
+									: 'Участник'}
+							</span>
 						</StatusBadge>
 					</div>
 				</header>

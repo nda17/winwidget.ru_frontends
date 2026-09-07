@@ -277,6 +277,7 @@ const InboxScreen = () => {
 					) : (
 						<>
 							<DataTable
+								mobileLayout="cards"
 								caption="Входящие обращения выбранного рабочего пространства"
 								columns={columns}
 								rows={query.data.items}

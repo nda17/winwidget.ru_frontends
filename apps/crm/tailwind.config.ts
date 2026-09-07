@@ -5,20 +5,25 @@ const config: Config = {
 	theme: {
 		extend: {
 			colors: {
-				primary: '#7b3fa0',
+				primary: 'rgb(var(--crm-primary) / <alpha-value>)',
+				'crm-brand': '#7b3fa0',
+				'crm-action': '#7b3fa0',
+				'crm-action-danger': '#c0392b',
 				accent: '#ff9902',
 				secondary: '#161d25',
-				'crm-bg': '#f8f5ff',
-				'crm-surface': '#ffffff',
-				'crm-surface-muted': '#faf8ff',
-				'crm-border': '#e0d6f0',
-				'crm-border-strong': '#c4a8e8',
-				'crm-text': '#1a1a1a',
-				'crm-muted': '#675b70',
-				'crm-success': '#25834b',
-				'crm-warning': '#81540d',
-				'crm-danger': '#c0392b',
-				'crm-info': '#27628a'
+				'crm-bg': 'rgb(var(--crm-bg) / <alpha-value>)',
+				'crm-surface': 'rgb(var(--crm-surface) / <alpha-value>)',
+				'crm-surface-muted':
+					'rgb(var(--crm-surface-muted) / <alpha-value>)',
+				'crm-border': 'rgb(var(--crm-border) / <alpha-value>)',
+				'crm-border-strong':
+					'rgb(var(--crm-border-strong) / <alpha-value>)',
+				'crm-text': 'rgb(var(--crm-text) / <alpha-value>)',
+				'crm-muted': 'rgb(var(--crm-muted) / <alpha-value>)',
+				'crm-success': 'rgb(var(--crm-success) / <alpha-value>)',
+				'crm-warning': 'rgb(var(--crm-warning) / <alpha-value>)',
+				'crm-danger': 'rgb(var(--crm-danger) / <alpha-value>)',
+				'crm-info': 'rgb(var(--crm-info) / <alpha-value>)'
 			},
 			fontFamily: {
 				sans: [

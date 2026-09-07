@@ -15,6 +15,7 @@ import { NextPage } from 'next'
 import toast from 'react-hot-toast'
 import styles from './AdminCrm.module.scss'
 import CrmPricingSettings from './CrmPricingSettings'
+import CrmSubscriptionAdmin from './CrmSubscriptionAdmin'
 
 const CRM_SERVICES = [
 	{
@@ -75,7 +76,7 @@ const AdminCrm: NextPage = () => {
 				title="Глобальные настройки WinCRM"
 				description="Операторский экран продукта. Клиентские воронки, контакты и сделки здесь не хранятся и управляются только на crm.winwidget.ru."
 				risk="medium"
-				riskText="ADMIN и DEV просматривают тариф и каталог, могут создать новую версию цен и лимитов с записью в Журнал событий."
+				riskText="ADMIN и DEV просматривают тариф и каталог, меняют цены и лимиты, начисляют дни клиентам или себе. Изменения записываются в Журнал событий."
 			/>
 
 			{!CRM_RELEASE.apiEnabled && (
@@ -112,6 +113,7 @@ const AdminCrm: NextPage = () => {
 			</div>
 
 			<CrmPricingSettings />
+			<CrmSubscriptionAdmin />
 
 			<div className={styles.section}>
 				<div className={styles.sectionHeader}>

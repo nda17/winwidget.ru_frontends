@@ -41,5 +41,5 @@
 	@apply flex flex-wrap items-center justify-end gap-3 text-sm text-crm-muted;
 }
 .error {
-	@apply flex flex-col gap-2 rounded-xl border border-red-200 bg-red-50 p-4 text-sm leading-relaxed text-red-700;
+	@apply flex flex-col gap-2 rounded-xl border border-crm-danger/20 bg-crm-danger/10 p-4 text-sm leading-relaxed text-crm-danger;
 }

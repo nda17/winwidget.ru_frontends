@@ -17,7 +17,7 @@
 	@apply text-sm leading-6 text-crm-muted;
 }
 .error {
-	@apply flex flex-col gap-3 rounded-xl border border-red-200 bg-red-50 p-4 text-sm text-red-900;
+	@apply flex flex-col gap-3 rounded-xl border border-crm-danger/20 bg-crm-danger/10 p-4 text-sm text-crm-danger;
 }
 .summary {
 	@apply flex flex-col gap-2 rounded-2xl bg-brand-gradient p-5 text-white;

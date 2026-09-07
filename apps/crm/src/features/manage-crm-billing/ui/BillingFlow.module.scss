@@ -16,10 +16,10 @@
 	}
 }
 .tag {
-	@apply rounded-full bg-slate-100 px-3 py-1 text-xs font-medium text-slate-600;
+	@apply rounded-full bg-crm-surface-muted px-3 py-1 text-xs font-medium text-crm-muted;
 }
 .quote {
-	@apply min-w-0 rounded-xl border border-sky-200 bg-sky-50 p-4 sm:p-5;
+	@apply min-w-0 rounded-xl border border-crm-info/20 bg-crm-info/10 p-4 sm:p-5;
 }
 .facts {
 	@apply flex min-w-0 flex-col gap-3;
@@ -56,18 +56,18 @@
 	@apply flex items-start gap-3 rounded-xl border border-crm-border p-4 text-sm leading-6 text-crm-text;
 
 	input {
-		@apply mt-1 h-4 w-4 shrink-0 accent-sky-600;
+		@apply mt-1 h-4 w-4 shrink-0 accent-crm-info;
 	}
 }
 .terms {
 	@apply whitespace-pre-wrap break-words text-sm leading-6 text-crm-muted;
 }
 .notice {
-	@apply rounded-xl border border-amber-200 bg-amber-50 p-4 text-sm leading-6 text-amber-950;
+	@apply rounded-xl border border-crm-warning/20 bg-crm-warning/10 p-4 text-sm leading-6 text-crm-warning;
 }
 .error {
-	@apply rounded-xl border border-red-200 bg-red-50 p-4 text-sm leading-6 text-red-900;
+	@apply rounded-xl border border-crm-danger/20 bg-crm-danger/10 p-4 text-sm leading-6 text-crm-danger;
 }
 .link {
-	@apply inline-flex min-h-10 items-center gap-2 rounded-lg font-medium text-sky-700 underline underline-offset-4 outline-none focus-visible:ring-2 focus-visible:ring-sky-500;
+	@apply inline-flex min-h-10 items-center gap-2 rounded-lg font-medium text-crm-info underline underline-offset-4 outline-none focus-visible:ring-2 focus-visible:ring-crm-info;
 }

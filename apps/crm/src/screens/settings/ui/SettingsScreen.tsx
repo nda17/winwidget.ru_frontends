@@ -8,6 +8,7 @@ import {
 } from '@/entities/crm-team'
 import { useSessionStore } from '@/entities/session'
 import { CrmCommercialPolicyCard } from '@/features/view-crm-commercial-policy'
+import { WorkspaceBrandingSettings } from '@/features/manage-workspace-branding'
 import { BillingEntryCard } from '@/features/manage-crm-billing'
 import { getRuntimeConfig } from '@/shared/config/runtime'
 import {
@@ -338,6 +339,7 @@ const SettingsScreen = () => {
 					</div>
 				}
 			/>
+			<WorkspaceBrandingSettings />
 			<CrmCommercialPolicyCard />
 			{workspace.membership.role === 'OWNER' &&
 			getRuntimeConfig().wincrmBillingEnabled ? (

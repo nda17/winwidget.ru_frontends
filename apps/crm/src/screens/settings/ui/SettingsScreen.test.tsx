@@ -18,6 +18,9 @@ vi.mock('@/shared/config/runtime', () => ({ getRuntimeConfig: vi.fn() }))
 vi.mock('@/features/view-crm-commercial-policy', () => ({
 	CrmCommercialPolicyCard: () => <div>Опубликованные условия WinCRM</div>
 }))
+vi.mock('@/features/manage-workspace-branding', () => ({
+	WorkspaceBrandingSettings: () => <div>Название компании в CRM</div>
+}))
 vi.mock('@/features/manage-crm-billing', () => ({
 	BillingEntryCard: () => <div>Управление оплатой владельца</div>
 }))

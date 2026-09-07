@@ -1,9 +1,9 @@
 .dialog {
-	@apply fixed inset-y-0 m-0 h-dvh max-h-dvh w-[calc(100%-1rem)] overflow-hidden border-0 bg-transparent p-0 text-crm-text sm:w-full;
+	@apply fixed inset-y-0 m-0 h-dvh max-h-dvh w-full overflow-hidden border-0 bg-transparent p-0 text-crm-text;
 }
 
 .dialog::backdrop {
-	@apply bg-crm-text/40 backdrop-blur-[1px];
+	@apply bg-secondary/60 backdrop-blur-[1px];
 }
 
 .left {
@@ -15,15 +15,15 @@
 }
 
 .sm {
-	@apply max-w-sm;
+	@apply max-w-none sm:max-w-sm;
 }
 
 .md {
-	@apply max-w-lg;
+	@apply max-w-none sm:max-w-lg;
 }
 
 .lg {
-	@apply max-w-2xl;
+	@apply max-w-none sm:max-w-2xl;
 }
 
 .panel {
@@ -31,7 +31,7 @@
 }
 
 .header {
-	@apply flex shrink-0 items-start justify-between gap-4 border-b border-crm-border px-5 py-4 sm:px-6;
+	@apply flex shrink-0 items-start justify-between gap-3 border-b border-crm-border pb-4 pl-[max(1rem,env(safe-area-inset-left))] pr-[max(1rem,env(safe-area-inset-right))] pt-[max(1rem,env(safe-area-inset-top))] sm:gap-4 sm:pl-[max(1.5rem,env(safe-area-inset-left))] sm:pr-[max(1.5rem,env(safe-area-inset-right))];
 }
 
 .heading {
@@ -47,13 +47,17 @@
 }
 
 .closeButton {
-	@apply inline-flex h-10 w-10 shrink-0 cursor-pointer items-center justify-center rounded-xl border border-transparent bg-transparent text-crm-muted transition-colors hover:bg-primary/10 hover:text-primary focus-visible:outline-none focus-visible:ring-2 focus-visible:ring-primary/40 focus-visible:ring-offset-2;
+	@apply inline-flex h-11 w-11 shrink-0 cursor-pointer items-center justify-center rounded-xl border border-transparent bg-transparent text-crm-muted transition-colors hover:bg-primary/10 hover:text-primary focus-visible:outline-none focus-visible:ring-2 focus-visible:ring-primary/40 focus-visible:ring-offset-2 lg:h-10 lg:w-10;
 }
 
 .content {
-	@apply min-h-0 flex-1 overflow-y-auto px-5 py-5 sm:px-6;
+	@apply min-h-0 flex-1 overflow-y-auto overscroll-contain scroll-py-5 pb-[max(1.25rem,env(safe-area-inset-bottom))] pl-[max(1rem,env(safe-area-inset-left))] pr-[max(1rem,env(safe-area-inset-right))] pt-5 sm:pl-[max(1.5rem,env(safe-area-inset-left))] sm:pr-[max(1.5rem,env(safe-area-inset-right))];
 }
 
 .footer {
-	@apply flex shrink-0 flex-wrap items-center justify-end gap-2 border-t border-crm-border bg-crm-surface-muted px-5 py-4 sm:px-6;
+	@apply flex shrink-0 flex-wrap items-center justify-end gap-2 border-t border-crm-border bg-crm-surface-muted pb-[max(1rem,env(safe-area-inset-bottom))] pl-[max(1rem,env(safe-area-inset-left))] pr-[max(1rem,env(safe-area-inset-right))] pt-4 sm:pl-[max(1.5rem,env(safe-area-inset-left))] sm:pr-[max(1.5rem,env(safe-area-inset-right))];
+}
+
+.footer > button {
+	@apply flex-1 sm:flex-none;
 }
