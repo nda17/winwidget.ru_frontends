@@ -60,6 +60,7 @@ const ContactsScreen = () => {
 			revision,
 			scopeKey,
 			kind,
+			kind === 'companies' ? 2 : 1,
 			search,
 			page
 		],

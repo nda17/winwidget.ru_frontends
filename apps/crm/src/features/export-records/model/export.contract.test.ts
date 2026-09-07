@@ -1,6 +1,7 @@
 import { describe, expect, it } from 'vitest'
 import {
 	exportActorHash,
+	companyExportV2Columns,
 	exportColumns,
 	parseExportHeaders,
 	validateExportBody,
@@ -141,6 +142,72 @@ const jsonBytes = (
 			...patch
 		})
 	)
+
+describe('company export v2 requisites', () => {
+	const company = {
+		...rows.companies,
+		legalName: 'Полное название',
+		kpp: '773601001',
+		ogrn: '1027700132195',
+		legalAddress: 'Тестовый адрес',
+		entityType: 'LEGAL'
+	}
+	it('accepts saved requisites and archived companies in v2 JSON', () => {
+		const bytes = jsonBytes('companies', [company], { schemaVersion: 2 })
+		expect(() =>
+			validateExportBody(bytes, {
+				...metadata('companies', 'json', bytes.length),
+				schemaVersion: 2
+			})
+		).not.toThrow()
+	})
+	it.each([
+		{ legalAddress: undefined },
+		{ kpp: '123' },
+		{ entityType: 'PERSON' },
+		{ legalName: 'a'.repeat(2001) },
+		{ rawProviderResponse: {} },
+		{ workspaceId: id }
+	])('rejects incomplete or foreign requisites %j', change => {
+		const bytes = jsonBytes('companies', [{ ...company, ...change }], {
+			schemaVersion: 2
+		})
+		expect(() =>
+			validateExportBody(bytes, {
+				...metadata('companies', 'json', bytes.length),
+				schemaVersion: 2
+			})
+		).toThrow()
+	})
+	it('never accepts v1 JSON as a v2 export', () => {
+		const bytes = jsonBytes('companies')
+		expect(() =>
+			validateExportBody(bytes, {
+				...metadata('companies', 'json', bytes.length),
+				schemaVersion: 2
+			})
+		).toThrow()
+	})
+	it('keeps all five requisite columns in the v2 CSV header', () => {
+		const bytes = new TextEncoder().encode(
+			'\uFEFF' +
+				companyExportV2Columns.map(key => `"${key}"`).join(',') +
+				'\r\n'
+		)
+		expect(() =>
+			validateExportBody(bytes, {
+				...metadata('companies', 'csv', bytes.length, 0),
+				schemaVersion: 2
+			})
+		).not.toThrow()
+		expect(() =>
+			validateExportBody(
+				bytes,
+				metadata('companies', 'csv', bytes.length, 0)
+			)
+		).toThrow()
+	})
+})
 const quote = (value: unknown) => {
 	let text = value === null ? '' : String(value)
 	if (/^[\s\x00-\x1f\x7f]*[=+\-@]/u.test(text) || /^[\t\r\n]/.test(text))

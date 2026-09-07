@@ -29,6 +29,7 @@ import { useState, type FormEvent } from 'react'
 import { useForm, useWatch } from 'react-hook-form'
 import toast from 'react-hot-toast'
 import styles from './CustomerEditor.module.scss'
+import { CompanyLookup } from './CompanyLookup'
 
 interface EditorProps {
 	workspaceId: string
@@ -48,6 +49,11 @@ interface Draft {
 	notes: string
 	inn: string
 	website: string
+	legalName: string
+	kpp: string
+	ogrn: string
+	legalAddress: string
+	entityType: '' | 'LEGAL' | 'INDIVIDUAL'
 }
 
 export const CustomerEditor = (props: EditorProps) => {
@@ -61,6 +67,7 @@ export const CustomerEditor = (props: EditorProps) => {
 			revision,
 			props.scopeKey,
 			props.kind,
+			props.kind === 'companies' ? 2 : 1,
 			props.id
 		],
 		enabled: !!props.id && !!session,
@@ -105,9 +112,12 @@ export const CustomerEditor = (props: EditorProps) => {
 	return (
 		<CustomerForm
 			key={
-				record.data
+				(props.kind === 'companies'
+					? `${props.workspaceId}:${session?.userId}:${revision}:${props.scopeKey}:v2:`
+					: '') +
+				(record.data
 					? `${record.data.id}:${record.data.version}`
-					: `new:${props.kind}`
+					: `new:${props.kind}`)
 			}
 			{...props}
 			record={record.data}
@@ -142,13 +152,22 @@ const CustomerForm = ({
 			companyId:
 				record?.kind === 'contacts' ? (record.companyId ?? '') : '',
 			inn: record?.kind === 'companies' ? (record.inn ?? '') : '',
-			website: record?.kind === 'companies' ? (record.website ?? '') : ''
+			website: record?.kind === 'companies' ? (record.website ?? '') : '',
+			legalName:
+				record?.kind === 'companies' ? (record.legalName ?? '') : '',
+			kpp: record?.kind === 'companies' ? (record.kpp ?? '') : '',
+			ogrn: record?.kind === 'companies' ? (record.ogrn ?? '') : '',
+			legalAddress:
+				record?.kind === 'companies' ? (record.legalAddress ?? '') : '',
+			entityType:
+				record?.kind === 'companies' ? (record.entityType ?? '') : ''
 		}
 	})
 	const companies = useQuery({
 		queryKey: [
 			'crm-company-picker',
 			workspaceId,
+			2,
 			session?.userId,
 			revision,
 			scopeKey,
@@ -174,6 +193,7 @@ const CustomerForm = ({
 		queryKey: [
 			'crm-company-link',
 			workspaceId,
+			2,
 			session?.userId,
 			revision,
 			scopeKey,
@@ -196,7 +216,7 @@ const CustomerForm = ({
 			workspaceId,
 			view: scopeKey
 		},
-		`customers:${kind}:${id ?? 'new'}`,
+		`customers:${kind === 'companies' ? 'v2:' : ''}${kind}:${id ?? 'new'}`,
 		canWrite,
 		async () => {
 			if (!session || !navigator.onLine)
@@ -282,6 +302,7 @@ const CustomerForm = ({
 				const nullable = (value: string) => value.trim() || null
 				dispatch({
 					kind,
+					...(kind === 'companies' ? { schemaVersion: 2 as const } : {}),
 					workspaceId,
 					id,
 					commandId: crypto.randomUUID(),
@@ -298,7 +319,12 @@ const CustomerForm = ({
 								}
 							: {
 									inn: nullable(draft.inn),
-									website: nullable(draft.website)
+									website: nullable(draft.website),
+									legalName: nullable(draft.legalName),
+									kpp: nullable(draft.kpp),
+									ogrn: nullable(draft.ogrn),
+									legalAddress: nullable(draft.legalAddress),
+									entityType: draft.entityType || null
 								})
 					}
 				})
@@ -329,6 +355,18 @@ const CustomerForm = ({
 		!memory.uncertain &&
 		mutation.error instanceof AuthenticatedApiError &&
 		mutation.error.kind === 'conflict'
+	const requisites = useWatch({
+		control: form.control,
+		name: [
+			'inn',
+			'name',
+			'legalName',
+			'kpp',
+			'ogrn',
+			'legalAddress',
+			'entityType'
+		]
+	})
 	return (
 		<Drawer
 			isOpen
@@ -585,6 +623,103 @@ const CustomerForm = ({
 								}
 							})}
 						/>
+						<CompanyLookup
+							workspaceId={workspaceId}
+							scopeKey={scopeKey}
+							inn={requisites[0] ?? ''}
+							canWrite={editable && !conflict}
+							hasExisting={requisites
+								.slice(1)
+								.some(value => !!value?.trim())}
+							hasKpp={!!requisites[3]?.trim()}
+							onApply={(item, replace) => {
+								const draft = form.getValues()
+								if (
+									!editable ||
+									conflict ||
+									draft.inn !== item.inn ||
+									(item.entityType === 'INDIVIDUAL' &&
+										draft.kpp.trim() &&
+										!replace)
+								)
+									return false
+								const values = {
+									name: item.name,
+									legalName: item.legalName,
+									kpp: item.kpp ?? '',
+									ogrn: item.ogrn ?? '',
+									legalAddress: item.legalAddress ?? '',
+									entityType: item.entityType
+								}
+								let changed = false
+								for (const key of Object.keys(
+									values
+								) as (keyof typeof values)[]) {
+									if (
+										(replace || !draft[key].trim()) &&
+										draft[key] !== values[key]
+									) {
+										form.setValue(key, values[key], {
+											shouldDirty: true,
+											shouldValidate: true
+										})
+										changed = true
+									}
+								}
+								return changed
+							}}
+						/>
+						<SelectField
+							label="Тип организации"
+							disabled={!editable}
+							{...form.register('entityType')}
+						>
+							<option value="">Не указан</option>
+							<option value="LEGAL">Юридическое лицо</option>
+							<option value="INDIVIDUAL">
+								Индивидуальный предприниматель
+							</option>
+						</SelectField>
+						<TextareaField
+							label="Полное наименование"
+							rows={2}
+							maxLength={2000}
+							readOnly={!editable}
+							{...form.register('legalName')}
+						/>
+						<TextField
+							label="КПП"
+							inputMode="numeric"
+							maxLength={9}
+							readOnly={!editable}
+							error={form.formState.errors.kpp?.message}
+							{...form.register('kpp', {
+								pattern: {
+									value: /^\d{9}$/,
+									message: 'КПП должен содержать 9 цифр'
+								}
+							})}
+						/>
+						<TextField
+							label="ОГРН / ОГРНИП"
+							inputMode="numeric"
+							maxLength={15}
+							readOnly={!editable}
+							error={form.formState.errors.ogrn?.message}
+							{...form.register('ogrn', {
+								pattern: {
+									value: /^(?:\d{13}|\d{15})$/,
+									message: 'ОГРН — 13 цифр, ОГРНИП — 15 цифр'
+								}
+							})}
+						/>
+						<TextareaField
+							label="Юридический адрес"
+							rows={3}
+							maxLength={2000}
+							readOnly={!editable}
+							{...form.register('legalAddress')}
+						/>
 						<TextField
 							label="Сайт"
 							type="url"
@@ -646,6 +781,9 @@ const CustomerForm = ({
 										onClick={() =>
 											dispatch({
 												kind,
+												...(kind === 'companies'
+													? { schemaVersion: 2 as const }
+													: {}),
 												workspaceId,
 												id,
 												expectedVersion: record.version,

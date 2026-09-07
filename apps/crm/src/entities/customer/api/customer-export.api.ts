@@ -13,17 +13,20 @@ export const downloadCustomerExport = (
 	workspaceId: string,
 	format: DownloadFormat,
 	signal: AbortSignal,
-	inspectHeaders: DownloadRequest['inspectHeaders']
+	inspectHeaders: DownloadRequest['inspectHeaders'],
+	schemaVersion: 1 | 2 = 1
 ) => {
 	if (
 		!isUuidV4(workspaceId) ||
 		!['contacts', 'companies'].includes(kind) ||
-		!['json', 'csv'].includes(format)
+		!['json', 'csv'].includes(format) ||
+		![1, 2].includes(schemaVersion) ||
+		(schemaVersion === 2 && kind !== 'companies')
 	)
 		throw invalidContractError()
 	return authenticatedDownload({
 		accessToken,
-		path: `/crm/customers/exports/${kind}`,
+		path: `/crm/customers/exports/${schemaVersion === 2 ? 'v2/' : ''}${kind}`,
 		params: { workspaceId, format },
 		signal,
 		inspectHeaders,

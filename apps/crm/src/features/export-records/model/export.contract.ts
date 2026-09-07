@@ -1,4 +1,4 @@
-import { parseCustomer } from '@/entities/customer'
+import { parseCompanyV2, parseCustomer } from '@/entities/customer'
 import { parseInboxEntry } from '@/entities/intake'
 import {
 	isSalesExportDeal,
@@ -81,6 +81,7 @@ export const exportColumns: Record<ExportEntity, readonly string[]> = {
 	]
 }
 export interface ExportMetadata {
+	schemaVersion?: 1 | 2
 	entity: ExportEntity
 	format: DownloadFormat
 	workspaceId: string
@@ -90,6 +91,14 @@ export interface ExportMetadata {
 	rowCount: number
 	bytes: number
 }
+export const companyExportV2Columns = [
+	...exportColumns.companies,
+	'legalName',
+	'kpp',
+	'ogrn',
+	'legalAddress',
+	'entityType'
+] as const
 const decimal = (value: string | null, max: number) =>
 	value !== null &&
 	/^(?:0|[1-9][0-9]*)$/.test(value) &&
@@ -110,7 +119,8 @@ export const parseExportHeaders = (
 	entity: ExportEntity,
 	format: DownloadFormat,
 	workspaceId: string,
-	actorHash: string
+	actorHash: string,
+	schemaVersion: 1 | 2 = 1
 ): ExportMetadata => {
 	const rowCount = headers.get('X-WinCRM-Export-Rows')
 	const bytes = headers.get('X-WinCRM-Export-Bytes')
@@ -122,6 +132,8 @@ export const parseExportHeaders = (
 			: 'application/json; charset=utf-8'
 	if (
 		!Object.hasOwn(exportColumns, entity) ||
+		![1, 2].includes(schemaVersion) ||
+		(schemaVersion === 2 && entity !== 'companies') ||
 		!['json', 'csv'].includes(format) ||
 		!isUuidV4(workspaceId) ||
 		!decimal(rowCount, 10000) ||
@@ -132,7 +144,7 @@ export const parseExportHeaders = (
 		headers.get('X-WinCRM-Export-Actor-SHA256') !== actorHash ||
 		headers.get('X-WinCRM-Workspace-Id') !== workspaceId ||
 		headers.get('X-WinCRM-Export-Entity') !== entity ||
-		headers.get('X-WinCRM-Export-Schema') !== '1' ||
+		headers.get('X-WinCRM-Export-Schema') !== String(schemaVersion) ||
 		headers.get('Content-Type')?.toLowerCase() !== mediaType ||
 		headers.get('Content-Disposition') !==
 			`attachment; filename="${filename}"` ||
@@ -141,6 +153,7 @@ export const parseExportHeaders = (
 	)
 		throw invalidContractError()
 	return {
+		...(schemaVersion === 2 ? { schemaVersion } : {}),
 		entity,
 		format,
 		workspaceId,
@@ -154,8 +167,13 @@ export const parseExportHeaders = (
 const validItem = (
 	value: unknown,
 	entity: ExportEntity,
-	workspaceId: string
+	workspaceId: string,
+	schemaVersion: 1 | 2 = 1
 ) => {
+	if (schemaVersion === 2)
+		return (
+			entity === 'companies' && parseCompanyV2(value, workspaceId) !== null
+		)
 	switch (entity) {
 		case 'contacts':
 		case 'companies':
@@ -185,7 +203,7 @@ const checkJson = (text: string, metadata: ExportMetadata) => {
 			'rowCount',
 			'items'
 		]) ||
-		parsed.schemaVersion !== 1 ||
+		parsed.schemaVersion !== (metadata.schemaVersion ?? 1) ||
 		parsed.workspaceId !== metadata.workspaceId ||
 		parsed.entity !== metadata.entity ||
 		parsed.snapshotAt !== metadata.snapshotAt ||
@@ -197,7 +215,12 @@ const checkJson = (text: string, metadata: ExportMetadata) => {
 	const ids = new Set<string>()
 	for (const row of parsed.items) {
 		if (
-			!validItem(row, metadata.entity, metadata.workspaceId) ||
+			!validItem(
+				row,
+				metadata.entity,
+				metadata.workspaceId,
+				metadata.schemaVersion
+			) ||
 			!isRecord(row) ||
 			!isUuidV4(row.id) ||
 			ids.has(row.id)
@@ -210,7 +233,10 @@ const checkJson = (text: string, metadata: ExportMetadata) => {
 // embedded CR/LF and doubled quotes. Values never enter diagnostics or caches.
 const checkCsv = (text: string, metadata: ExportMetadata) => {
 	if (!text.startsWith('\uFEFF')) throw invalidContractError()
-	const columns = exportColumns[metadata.entity]
+	const columns =
+		metadata.schemaVersion === 2
+			? companyExportV2Columns
+			: exportColumns[metadata.entity]
 	let offset = 1
 	let record = 0
 	const ids = new Set<string>()
@@ -272,6 +298,9 @@ export const validateExportBody = (
 	metadata: ExportMetadata
 ) => {
 	if (
+		(metadata.schemaVersion !== undefined &&
+			![1, 2].includes(metadata.schemaVersion)) ||
+		(metadata.schemaVersion === 2 && metadata.entity !== 'companies') ||
 		bytes.byteLength !== metadata.bytes ||
 		bytes.byteLength > 16 * 1024 * 1024
 	)

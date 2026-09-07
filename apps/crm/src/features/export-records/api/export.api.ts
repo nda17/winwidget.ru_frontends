@@ -18,11 +18,14 @@ export const prepareRecordExport = async (
 	workspaceId: string,
 	subject: string,
 	format: DownloadFormat,
-	signal: AbortSignal
+	signal: AbortSignal,
+	schemaVersion: 1 | 2 = 1
 ) => {
 	if (
 		!Object.hasOwn(exportColumns, entity) ||
-		!['json', 'csv'].includes(format)
+		!['json', 'csv'].includes(format) ||
+		![1, 2].includes(schemaVersion) ||
+		(schemaVersion === 2 && entity !== 'companies')
 	)
 		throw invalidContractError()
 	const actorHash = await exportActorHash(subject)
@@ -34,7 +37,8 @@ export const prepareRecordExport = async (
 			entity,
 			format,
 			workspaceId,
-			actorHash
+			actorHash,
+			schemaVersion
 		)
 		return metadata.bytes
 	}
@@ -46,7 +50,8 @@ export const prepareRecordExport = async (
 					workspaceId,
 					format,
 					signal,
-					inspect
+					inspect,
+					schemaVersion
 				)
 			: entity === 'deals' || entity === 'tasks'
 				? await downloadSalesExport(

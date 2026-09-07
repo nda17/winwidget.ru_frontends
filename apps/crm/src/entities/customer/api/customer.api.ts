@@ -21,7 +21,7 @@ export const listCustomers = async (
 		await authenticatedRequest({
 			accessToken,
 			method: 'GET',
-			url: `/crm/customers/${kind}`,
+			url: `/crm/customers/${kind === 'companies' ? 'v2/' : ''}${kind}`,
 			params: {
 				workspaceId,
 				page: String(page),
@@ -32,7 +32,8 @@ export const listCustomers = async (
 		kind,
 		workspaceId,
 		page,
-		pageSize
+		pageSize,
+		kind === 'companies' ? 2 : 1
 	)
 	if (!result) throw invalidContractError()
 	return result
@@ -48,18 +49,21 @@ export const getCustomer = async (
 		await authenticatedRequest({
 			accessToken,
 			method: 'GET',
-			url: `/crm/customers/${kind}/${id}`,
+			url: `/crm/customers/${kind === 'companies' ? 'v2/' : ''}${kind}/${id}`,
 			params: { workspaceId }
 		}),
 		kind,
 		workspaceId,
-		id
+		id,
+		kind === 'companies' ? 2 : 1
 	)
 	if (!result || result.archivedAt !== null) throw invalidContractError()
 	return result
 }
 
 export interface CustomerMutation {
+	/** Missing version belongs to the original v1 command, never upgraded on replay. */
+	schemaVersion?: 1 | 2
 	kind: CustomerKind
 	workspaceId: string
 	commandId: string
@@ -110,14 +114,20 @@ export const mutateCustomer = async (
 		fields,
 		archive
 	} = command
+	const schemaVersion = command.schemaVersion ?? 1
+	if (
+		![1, 2].includes(schemaVersion) ||
+		(schemaVersion === 2 && kind !== 'companies')
+	)
+		throw invalidContractError()
 	const result = parseCustomerResult(
 		await authenticatedRequest({
 			accessToken,
 			method: id && !archive ? 'PUT' : 'POST',
-			url: `/crm/customers/${kind}${id ? `/${id}` : ''}${archive ? '/archive' : ''}`,
+			url: `/crm/customers/${schemaVersion === 2 ? 'v2/' : ''}${kind}${id ? `/${id}` : ''}${archive ? '/archive' : ''}`,
 			headers: { 'Idempotency-Key': commandId },
 			data: {
-				schemaVersion: 1,
+				schemaVersion,
 				workspaceId,
 				commandId,
 				...(id ? { expectedVersion } : {}),
@@ -126,7 +136,8 @@ export const mutateCustomer = async (
 		}),
 		kind,
 		workspaceId,
-		id
+		id,
+		schemaVersion
 	)
 	if (
 		!result ||

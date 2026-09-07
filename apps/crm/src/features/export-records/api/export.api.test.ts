@@ -3,6 +3,7 @@ import { authenticatedDownload } from '@/shared/api/authenticated-download'
 import { prepareRecordExport } from './export.api'
 import {
 	exportActorHash,
+	companyExportV2Columns,
 	exportColumns,
 	type ExportEntity
 } from '../model/export.contract'
@@ -15,12 +16,13 @@ const date = '2026-09-05T00:00:00.000Z'
 const fields = async (
 	entity: ExportEntity,
 	format: string,
-	workspace = workspaceId
+	workspace = workspaceId,
+	schemaVersion: 1 | 2 = 1
 ) => {
 	const text =
 		format === 'json'
 			? JSON.stringify({
-					schemaVersion: 1,
+					schemaVersion,
 					workspaceId: workspace,
 					entity,
 					snapshotAt: date,
@@ -28,7 +30,12 @@ const fields = async (
 					items: []
 				})
 			: '\uFEFF' +
-				exportColumns[entity].map(name => `"${name}"`).join(',') +
+				(schemaVersion === 2
+					? companyExportV2Columns
+					: exportColumns[entity]
+				)
+					.map(name => `"${name}"`)
+					.join(',') +
 				'\r\n'
 	const bytes = new TextEncoder().encode(text)
 	return {
@@ -41,7 +48,7 @@ const fields = async (
 			'Content-Disposition': `attachment; filename="wincrm-${entity}.${format}"`,
 			'Cache-Control': 'no-store',
 			'X-Content-Type-Options': 'nosniff',
-			'X-WinCRM-Export-Schema': '1',
+			'X-WinCRM-Export-Schema': String(schemaVersion),
 			'X-WinCRM-Workspace-Id': workspace,
 			'X-WinCRM-Export-Entity': entity,
 			'X-WinCRM-Export-Rows': '0',
@@ -62,6 +69,62 @@ beforeEach(() => {
 })
 afterEach(() => vi.restoreAllMocks())
 describe('Domain-owned export routes', () => {
+	it.each(['json', 'csv'] as const)(
+		'uses the explicit v2 company %s route without a legacy fallback',
+		async format => {
+			vi.mocked(authenticatedDownload).mockImplementation(
+				async request => {
+					const result = await fields('companies', format, workspaceId, 2)
+					request.inspectHeaders(result.headers)
+					return result.bytes
+				}
+			)
+			const result = await prepareRecordExport(
+				'token',
+				'companies',
+				workspaceId,
+				'owner',
+				format,
+				new AbortController().signal,
+				2
+			)
+			expect(result.metadata.schemaVersion).toBe(2)
+			expect(authenticatedDownload).toHaveBeenCalledWith(
+				expect.objectContaining({
+					path: '/crm/customers/exports/v2/companies'
+				})
+			)
+			expect(authenticatedDownload).toHaveBeenCalledTimes(1)
+		}
+	)
+	it('rejects old headers for the explicit v2 company download', async () => {
+		await expect(
+			prepareRecordExport(
+				'token',
+				'companies',
+				workspaceId,
+				'owner',
+				'json',
+				new AbortController().signal,
+				2
+			)
+		).rejects.toThrow()
+		expect(authenticatedDownload).toHaveBeenCalledTimes(1)
+	})
+	it('rejects a nonexistent v2 contacts contract before the request', async () => {
+		await expect(
+			prepareRecordExport(
+				'token',
+				'contacts',
+				workspaceId,
+				'owner',
+				'json',
+				new AbortController().signal,
+				2
+			)
+		).rejects.toThrow()
+		expect(authenticatedDownload).not.toHaveBeenCalled()
+	})
 	it.each(
 		(
 			['contacts', 'companies', 'deals', 'tasks', 'inbox'] as const

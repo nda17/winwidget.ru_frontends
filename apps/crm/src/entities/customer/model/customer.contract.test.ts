@@ -1,5 +1,6 @@
 import { describe, expect, it } from 'vitest'
 import {
+	parseCompanyV2,
 	parseCustomer,
 	parseCustomerPage,
 	parseCustomerResult
@@ -119,4 +120,107 @@ describe('customer exact contracts', () => {
 			)?.kind
 		).toBe('companies')
 	})
+})
+
+describe('additive company v2 contract', () => {
+	const {
+		phone: _phone,
+		email: _email,
+		companyId: _companyId,
+		...base
+	} = contact
+	void _phone
+	void _email
+	void _companyId
+	const legacy = { ...base, inn: '1234567890', website: null }
+	const company = {
+		...legacy,
+		legalName: null,
+		kpp: null,
+		ogrn: null,
+		legalAddress: null,
+		entityType: null
+	}
+	it('keeps old v1 companies exact and accepts all required nullable v2 fields', () => {
+		expect(parseCustomer(legacy, 'companies', workspaceId)).toEqual({
+			...legacy,
+			kind: 'companies'
+		})
+		expect(parseCustomer(company, 'companies', workspaceId)).toBeNull()
+		expect(parseCompanyV2(legacy, workspaceId)).toBeNull()
+		expect(parseCompanyV2(company, workspaceId)).toEqual({
+			...company,
+			kind: 'companies'
+		})
+	})
+	it('binds version, workspace, ID, pagination and archive status', () => {
+		const response = { schemaVersion: 2, company }
+		expect(
+			parseCustomerResult(
+				response,
+				'companies',
+				workspaceId,
+				company.id,
+				2
+			)?.id
+		).toBe(company.id)
+		expect(
+			parseCustomerResult(response, 'companies', workspaceId, company.id)
+		).toBeNull()
+		expect(
+			parseCustomerResult(
+				response,
+				'companies',
+				workspaceId,
+				workspaceId,
+				2
+			)
+		).toBeNull()
+		expect(
+			parseCompanyV2({ ...company, workspaceId: company.id }, workspaceId)
+		).toBeNull()
+		const pageV2 = { ...page, schemaVersion: 2, items: [company] }
+		expect(
+			parseCustomerPage(pageV2, 'companies', workspaceId, 1, 25, 2)?.items
+		).toHaveLength(1)
+		expect(
+			parseCustomerPage(pageV2, 'companies', workspaceId, 2, 25, 2)
+		).toBeNull()
+		expect(
+			parseCustomerPage(
+				{
+					...pageV2,
+					items: [{ ...company, archivedAt: company.updatedAt }]
+				},
+				'companies',
+				workspaceId,
+				1,
+				25,
+				2
+			)
+		).toBeNull()
+		expect(
+			parseCustomerPage(
+				{ ...page, schemaVersion: 2 },
+				'contacts',
+				workspaceId,
+				1,
+				25,
+				2
+			)
+		).toBeNull()
+	})
+	it.each([
+		{ legalName: 'x'.repeat(2001) },
+		{ legalAddress: 'x'.repeat(2001) },
+		{ kpp: '123' },
+		{ ogrn: '123' },
+		{ entityType: 'OTHER' },
+		{ legalName: undefined },
+		{ secret: true }
+	])('rejects invalid v2 requisites', patch =>
+		expect(
+			parseCompanyV2({ ...company, ...patch }, workspaceId)
+		).toBeNull()
+	)
 })

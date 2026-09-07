@@ -28,11 +28,20 @@ export interface CompanyFields {
 	inn: string | null
 	website: string | null
 }
+export interface CompanyRequisites {
+	legalName: string | null
+	kpp: string | null
+	ogrn: string | null
+	legalAddress: string | null
+	entityType: 'LEGAL' | 'INDIVIDUAL' | null
+}
 export type Customer =
 	| (CustomerBase & ContactFields & { kind: 'contacts' })
-	| (CustomerBase & CompanyFields & { kind: 'companies' })
+	| (CustomerBase &
+			CompanyFields &
+			Partial<CompanyRequisites> & { kind: 'companies' })
 export interface CustomerPage {
-	schemaVersion: 1
+	schemaVersion: 1 | 2
 	page: number
 	pageSize: number
 	total: number
@@ -42,7 +51,7 @@ export type CustomerFields = Pick<
 	CustomerBase,
 	'name' | 'notes' | 'teamId'
 > &
-	(ContactFields | CompanyFields)
+	(ContactFields | (CompanyFields & Partial<CompanyRequisites>))
 
 const nullableText = (value: unknown, length: number) =>
 	value === null || (typeof value === 'string' && value.length <= length)
@@ -130,16 +139,21 @@ export const parseCustomerResult = (
 	value: unknown,
 	kind: CustomerKind,
 	workspaceId: string,
-	expectedId?: string
+	expectedId?: string,
+	schemaVersion: 1 | 2 = 1
 ) => {
 	const key = kind === 'contacts' ? 'contact' : 'company'
 	if (
 		!isRecord(value) ||
 		!hasExactKeys(value, ['schemaVersion', key]) ||
-		value.schemaVersion !== 1
+		value.schemaVersion !== schemaVersion ||
+		(schemaVersion === 2 && kind !== 'companies')
 	)
 		return null
-	const result = parseCustomer(value[key], kind, workspaceId)
+	const result =
+		schemaVersion === 2
+			? parseCompanyV2(value[key], workspaceId)
+			: parseCustomer(value[key], kind, workspaceId)
 	return result && (!expectedId || result.id === expectedId)
 		? result
 		: null
@@ -150,7 +164,8 @@ export const parseCustomerPage = (
 	kind: CustomerKind,
 	workspaceId: string,
 	page: number,
-	pageSize: number
+	pageSize: number,
+	schemaVersion: 1 | 2 = 1
 ): CustomerPage | null => {
 	if (
 		!isRecord(value) ||
@@ -161,7 +176,8 @@ export const parseCustomerPage = (
 			'pageSize',
 			'total'
 		]) ||
-		value.schemaVersion !== 1 ||
+		value.schemaVersion !== schemaVersion ||
+		(schemaVersion === 2 && kind !== 'companies') ||
 		value.page !== page ||
 		value.pageSize !== pageSize ||
 		!Number.isSafeInteger(value.total) ||
@@ -172,7 +188,9 @@ export const parseCustomerPage = (
 	)
 		return null
 	const items = value.items.map(item =>
-		parseCustomer(item, kind, workspaceId)
+		schemaVersion === 2
+			? parseCompanyV2(item, workspaceId)
+			: parseCustomer(item, kind, workspaceId)
 	)
 	if (
 		items.some(item => !item || item.archivedAt !== null) ||
@@ -180,10 +198,59 @@ export const parseCustomerPage = (
 	)
 		return null
 	return {
-		schemaVersion: 1,
+		schemaVersion,
 		page,
 		pageSize,
 		total: Number(value.total),
 		items: items as Customer[]
 	}
+}
+
+/** v1 stays exact for published exports and legacy command receipts. */
+export const parseCompanyV2 = (
+	value: unknown,
+	workspaceId: string
+): Customer | null => {
+	if (
+		!isRecord(value) ||
+		!hasExactKeys(value, [
+			...baseKeys,
+			'inn',
+			'website',
+			'legalName',
+			'kpp',
+			'ogrn',
+			'legalAddress',
+			'entityType'
+		])
+	)
+		return null
+	const { legalName, kpp, ogrn, legalAddress, entityType, ...legacy } =
+		value
+	if (
+		!nullableText(legalName, 2000) ||
+		!nullableText(legalAddress, 2000) ||
+		!(kpp === null || (typeof kpp === 'string' && /^\d{9}$/.test(kpp))) ||
+		!(
+			ogrn === null ||
+			(typeof ogrn === 'string' && /^(?:\d{13}|\d{15})$/.test(ogrn))
+		) ||
+		!(
+			entityType === null ||
+			entityType === 'LEGAL' ||
+			entityType === 'INDIVIDUAL'
+		)
+	)
+		return null
+	const parsed = parseCustomer(legacy, 'companies', workspaceId)
+	return parsed
+		? ({
+				...parsed,
+				legalName,
+				kpp,
+				ogrn,
+				legalAddress,
+				entityType
+			} as Customer)
+		: null
 }
