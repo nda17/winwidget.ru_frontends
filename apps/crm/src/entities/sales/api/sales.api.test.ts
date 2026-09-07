@@ -69,6 +69,128 @@ const execute = (mutation: SalesMutation) =>
 
 describe('Sales API request and response binding', () => {
 	beforeEach(() => vi.clearAllMocks())
+	it.each([undefined, false])(
+		'omits the additive flag for the unchanged default request: %s',
+		async flag => {
+			request.mockResolvedValue({
+				schemaVersion: 1,
+				page: 1,
+				pageSize: 20,
+				total: 1,
+				items: [deal]
+			})
+			await listSalesDeals('token', workspaceId, 1, 20, '', '', '', flag)
+			expect(request).toHaveBeenCalledExactlyOnceWith({
+				accessToken: 'token',
+				method: 'GET',
+				url: '/crm/sales/deals',
+				params: { workspaceId, page: '1', pageSize: '20', search: '' }
+			})
+		}
+	)
+	it('sends true as an exact query string while preserving all server filters and schema v1', async () => {
+		const response = {
+			schemaVersion: 1,
+			page: 2,
+			pageSize: 20,
+			total: 21,
+			items: [{ ...deal, nextTask: null }]
+		}
+		request.mockResolvedValue(response)
+		await expect(
+			listSalesDeals(
+				'token',
+				workspaceId,
+				2,
+				20,
+				'Заказ',
+				pipelineId,
+				'OPEN',
+				true
+			)
+		).resolves.toEqual(response)
+		expect(request.mock.calls[0][0]).toMatchObject({
+			method: 'GET',
+			params: {
+				workspaceId,
+				page: '2',
+				pageSize: '20',
+				search: 'Заказ',
+				pipelineId,
+				status: 'OPEN',
+				withoutNextAction: 'true'
+			}
+		})
+	})
+	it.each(['false', 'true', 1, null, {}])(
+		'rejects a non-boolean filter without issuing HTTP: %p',
+		async flag => {
+			await expect(
+				listSalesDeals(
+					'token',
+					workspaceId,
+					1,
+					20,
+					'',
+					'',
+					'',
+					flag as boolean
+				)
+			).rejects.toMatchObject({ kind: 'temporary' })
+			expect(request).not.toHaveBeenCalled()
+		}
+	)
+	it.each([
+		{ ...deal, status: 'WON', nextTask: null },
+		{ ...deal, status: 'LOST', nextTask: null },
+		deal,
+		{ ...deal, nextTask: { ...task, status: 'IN_PROGRESS' } },
+		{ ...deal, workspaceId: id, nextTask: null },
+		{ ...deal, archivedAt: date, nextTask: null }
+	])(
+		'rejects rows outside the confirmed without-action response contract',
+		async row => {
+			request.mockResolvedValue({
+				schemaVersion: 1,
+				page: 1,
+				pageSize: 20,
+				total: 1,
+				items: [row]
+			})
+			await expect(
+				listSalesDeals('token', workspaceId, 1, 20, '', '', '', true)
+			).rejects.toMatchObject({ kind: 'temporary' })
+		}
+	)
+	it('accepts an empty contradictory closed-status result without ignoring the status', async () => {
+		const response = {
+			schemaVersion: 1,
+			page: 1,
+			pageSize: 20,
+			total: 0,
+			items: []
+		}
+		request.mockResolvedValue(response)
+		await expect(
+			listSalesDeals('token', workspaceId, 1, 20, '', '', 'LOST', true)
+		).resolves.toEqual(response)
+		expect(request.mock.calls[0][0].params).toMatchObject({
+			status: 'LOST',
+			withoutNextAction: 'true'
+		})
+	})
+	it('rejects an open row if the server ignored the contradictory requested status', async () => {
+		request.mockResolvedValue({
+			schemaVersion: 1,
+			page: 1,
+			pageSize: 20,
+			total: 1,
+			items: [{ ...deal, nextTask: null }]
+		})
+		await expect(
+			listSalesDeals('token', workspaceId, 1, 20, '', '', 'WON', true)
+		).rejects.toMatchObject({ kind: 'temporary' })
+	})
 	it('sends exact create fields and ties Idempotency-Key to commandId', async () => {
 		request.mockResolvedValue({ schemaVersion: 1, deal })
 		await expect(execute(create)).resolves.toEqual(deal)

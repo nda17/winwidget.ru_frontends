@@ -34,8 +34,10 @@ export const listSalesDeals = async (
 	pageSize: number,
 	search: string,
 	pipelineId: string,
-	status: string
+	status: string,
+	withoutNextAction = false
 ) => {
+	if (typeof withoutNextAction !== 'boolean') throw invalidContractError()
 	const result = parseSalesPage(
 		await authenticatedRequest({
 			accessToken,
@@ -47,13 +49,21 @@ export const listSalesDeals = async (
 				pageSize: String(pageSize),
 				search,
 				...(pipelineId ? { pipelineId } : {}),
-				...(status ? { status } : {})
+				...(status ? { status } : {}),
+				...(withoutNextAction ? { withoutNextAction: 'true' } : {})
 			}
 		}),
 		page,
 		pageSize,
 		row => {
 			const deal = parseSalesDeal(row, workspaceId)
+			if (
+				withoutNextAction &&
+				(deal?.status !== 'OPEN' ||
+					deal.nextTask !== null ||
+					(status && deal.status !== status))
+			)
+				return null
 			return deal?.archivedAt === null ? deal : null
 		}
 	)

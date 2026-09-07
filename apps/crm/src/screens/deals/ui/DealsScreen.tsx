@@ -38,6 +38,7 @@ const DealsScreen = () => {
 	const [search, setSearch] = useState('')
 	const [pipelineId, setPipelineId] = useState('')
 	const [status, setStatus] = useState('')
+	const [withoutNextAction, setWithoutNextAction] = useState(false)
 	const [selected, setSelected] = useState<string | null>(null)
 	const [createOpen, setCreateOpen] = useState(false)
 	const pipelines = useQuery({
@@ -59,7 +60,8 @@ const DealsScreen = () => {
 			page,
 			search,
 			pipelineId,
-			status
+			status,
+			withoutNextAction
 		],
 		enabled: context.canRead && !!context.session,
 		queryFn: () =>
@@ -70,11 +72,14 @@ const DealsScreen = () => {
 				20,
 				search,
 				pipelineId,
-				status
+				status,
+				withoutNextAction
 			),
 		retry: false,
 		gcTime: 0
 	})
+	const emptyPage =
+		!!deals.data && deals.data.total > 0 && deals.data.items.length === 0
 	const reload = async () => {
 		const result = await Promise.all([
 			context.permissions.refetch(),
@@ -149,7 +154,11 @@ const DealsScreen = () => {
 						) : null}
 					</div>
 				) : (
-					<span className={styles.muted}>Сделка закрыта</span>
+					<span className={styles.muted}>
+						{deal.status === 'OPEN'
+							? 'Нет следующего действия'
+							: 'Сделка закрыта'}
+					</span>
 				)
 		}
 	]
@@ -246,6 +255,25 @@ const DealsScreen = () => {
 						<Button type="submit" variant="secondary">
 							Найти
 						</Button>
+						<label className={styles.nextActionFilter}>
+							<input
+								type="checkbox"
+								checked={withoutNextAction}
+								disabled={!context.canRead}
+								onChange={event => {
+									if (!context.canRead) return
+									const enabled = event.target.checked
+									setWithoutNextAction(enabled)
+									setPage(1)
+									toast(
+										enabled
+											? 'Фильтр «Без следующего действия» включён'
+											: 'Фильтр «Без следующего действия» выключен'
+									)
+								}}
+							/>
+							<span>Без следующего действия</span>
+						</label>
 					</form>
 					{deals.isError || pipelines.isError ? (
 						<ScreenState
@@ -255,17 +283,40 @@ const DealsScreen = () => {
 								<Button onClick={() => void reload()}>Повторить</Button>
 							}
 						/>
-					) : deals.isPending || pipelines.isPending ? (
+					) : deals.isPending || pipelines.isPending || !deals.data ? (
 						<ScreenState variant="loading" />
-					) : !deals.data?.items.length ? (
+					) : emptyPage ? (
+						<ScreenState
+							variant="empty"
+							title="На этой странице больше нет сделок"
+							description="Список изменился. Подходящие сделки есть на других страницах — вернитесь на первую страницу."
+							action={
+								<Button
+									disabled={!context.canRead || deals.isFetching}
+									onClick={() => {
+										if (!context.canRead || deals.isFetching) return
+										if (page === 1) void deals.refetch()
+										else setPage(1)
+										toast('Переход на первую страницу сделок')
+									}}
+								>
+									На первую страницу
+								</Button>
+							}
+						/>
+					) : deals.data.total === 0 ? (
 						<ScreenState
 							variant="empty"
 							title={
-								search || status || pipelineId
+								search || status || pipelineId || withoutNextAction
 									? 'Подходящих сделок нет'
 									: 'Создайте первую сделку'
 							}
-							description="Выберите контакт, сумму и первое действие — и начните работу с клиентом."
+							description={
+								withoutNextAction
+									? 'Нет открытых сделок без запланированных задач по выбранным условиям. Измените фильтры, чтобы увидеть другие сделки.'
+									: 'Выберите контакт, сумму и первое действие — и начните работу с клиентом.'
+							}
 							action={
 								<Button
 									disabled={!context.canWrite || !pipelines.data?.length}
@@ -287,7 +338,10 @@ const DealsScreen = () => {
 					{deals.data && !deals.isError ? (
 						<div className={styles.pagination}>
 							<span>
-								Всего {deals.data.total} · страница {page}
+								Всего {deals.data.total} ·{' '}
+								{emptyPage
+									? `страница ${page} больше не содержит сделок`
+									: `страница ${page}`}
 							</span>
 							<div className={styles.actions}>
 								<Button
