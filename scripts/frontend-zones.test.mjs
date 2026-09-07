@@ -54,7 +54,30 @@ test('canonical CRM planner uses the existing guarded screen and preserves legac
 	}
 	const page = read('apps/crm/src/app/(workspace)/planner/page.tsx')
 	assert.match(page, /from '@\/screens\/my-day'/)
-	assert.match(page, /return <MyDayScreen \/>/)
+	const guardedScreen = Symbol('MyDayScreen')
+	const plannerPage = compile(
+		'apps/crm/src/app/(workspace)/planner/page.tsx',
+		{
+			'@/screens/my-day': { MyDayScreen: guardedScreen },
+			'@/shared/lib/contract': compile(
+				'apps/crm/src/shared/lib/contract.ts'
+			),
+			'react/jsx-runtime': jsxRuntime
+		}
+	).default
+	const taskId = '11111111-1111-4111-8111-111111111111'
+	for (const [task, expected] of [
+		[undefined, null],
+		[taskId, taskId],
+		['not-a-uuid', null],
+		[[taskId, taskId], null]
+	]) {
+		const rendered = await plannerPage({
+			searchParams: Promise.resolve({ task, workspaceId: 'untrusted' })
+		})
+		assert.equal(rendered.type, guardedScreen)
+		assert.deepEqual(rendered.props, { initialTaskId: expected })
+	}
 	assert.match(page, /title: 'Планировщик'/)
 	assert.match(
 		read('apps/crm/src/app/(workspace)/layout.tsx'),
