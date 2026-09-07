@@ -77,6 +77,75 @@ const mainNavigation = () =>
 	screen.getByRole('navigation', { name: 'Основная навигация CRM' })
 
 describe('honest WinCRM application shell', () => {
+	it('collapses and reopens the desktop sidebar without hiding the control or main content', () => {
+		mount()
+		const sidebar = screen.getByRole('complementary', { name: 'CRM' })
+		const toggle = screen.getByRole('button', {
+			name: 'Свернуть боковую панель'
+		})
+		expect(toggle.getAttribute('aria-controls')).toBe(sidebar.id)
+		expect(toggle.getAttribute('aria-expanded')).toBe('true')
+		expect(sidebar.hasAttribute('inert')).toBe(false)
+		fireEvent.click(toggle)
+		expect(toggle.getAttribute('aria-expanded')).toBe('false')
+		expect(toggle.getAttribute('aria-label')).toBe(
+			'Развернуть боковую панель'
+		)
+		expect(sidebar.hasAttribute('inert')).toBe(true)
+		expect(sidebar.getAttribute('aria-hidden')).toBe('true')
+		expect(
+			screen.queryByRole('navigation', { name: 'Основная навигация CRM' })
+		).toBeNull()
+		expect(document.activeElement).toBe(toggle)
+		expect(sidebar.contains(toggle)).toBe(false)
+		expect(screen.getByRole('main').textContent).toContain(
+			'Содержимое раздела'
+		)
+		fireEvent.click(toggle)
+		expect(toggle.getAttribute('aria-expanded')).toBe('true')
+		expect(sidebar.hasAttribute('inert')).toBe(false)
+		expect(sidebar.hasAttribute('aria-hidden')).toBe(false)
+		expect(mainNavigation()).toBeTruthy()
+		expect(toast).not.toHaveBeenCalled()
+	})
+	it('preserves desktop collapse on navigation and keeps the mobile drawer independent', () => {
+		const view = mount()
+		fireEvent.click(
+			screen.getByRole('button', { name: 'Свернуть боковую панель' })
+		)
+		fixture.pathname = '/tasks'
+		view.rerender(
+			<CrmAppShell>
+				<h1>Задачи сегодня</h1>
+			</CrmAppShell>
+		)
+		expect(
+			screen
+				.getByRole('button', { name: 'Развернуть боковую панель' })
+				.getAttribute('aria-expanded')
+		).toBe('false')
+		fireEvent.click(
+			screen.getByRole('button', { name: 'Открыть навигацию CRM' })
+		)
+		const mobileNavigation = screen.getByRole('navigation', {
+			name: 'Мобильная навигация CRM'
+		})
+		expect(
+			within(mobileNavigation)
+				.getByRole('link', { name: 'Задачи' })
+				.getAttribute('aria-current')
+		).toBe('page')
+		expect(mobileNavigation.closest('[inert]')).toBeNull()
+		fireEvent.click(
+			within(mobileNavigation).getByRole('link', { name: 'Входящие' })
+		)
+		expect(screen.queryByRole('dialog')).toBeNull()
+		expect(
+			screen
+				.getByRole('button', { name: 'Развернуть боковую панель' })
+				.getAttribute('aria-expanded')
+		).toBe('false')
+	})
 	it('includes the compact vector brand in the mobile section context', () => {
 		mount()
 		const context = document.querySelector(

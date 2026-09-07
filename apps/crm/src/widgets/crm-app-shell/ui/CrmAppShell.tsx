@@ -20,6 +20,7 @@ import { usePathname } from 'next/navigation'
 import {
 	type KeyboardEvent,
 	type PropsWithChildren,
+	useId,
 	useRef,
 	useState
 } from 'react'
@@ -193,6 +194,11 @@ const CrmProductSwitch = () => {
 const CrmAppShell = ({ children }: PropsWithChildren) => {
 	const pathname = usePathname()
 	const access = useCrmWorkspaceAccess()
+	const sidebarId = useId()
+	const [isSidebarCollapsed, setIsSidebarCollapsed] = useState(false)
+	const sidebarToggleLabel = isSidebarCollapsed
+		? 'Развернуть боковую панель'
+		: 'Свернуть боковую панель'
 	const section =
 		CRM_NAVIGATION.find(item => isNavigationItemActive(pathname, item))
 			?.label ?? 'Рабочее пространство'
@@ -208,26 +214,65 @@ const CrmAppShell = ({ children }: PropsWithChildren) => {
 			: 'Участник пространства'
 
 	return (
-		<div className={styles.shell}>
+		<div
+			className={clsx(
+				styles.shell,
+				isSidebarCollapsed && styles.shellCollapsed
+			)}
+		>
 			<a className={styles.skipLink} href="#crm-main-content">
 				Перейти к содержимому
 			</a>
 
-			<aside className={styles.sidebar} aria-label="CRM">
-				<div className={styles.sidebarBrand}>
-					<BrandLogo href="/inbox" />
+			<aside
+				id={sidebarId}
+				className={styles.sidebar}
+				aria-label="CRM"
+				aria-hidden={isSidebarCollapsed || undefined}
+				inert={isSidebarCollapsed}
+			>
+				<div
+					className={clsx(
+						styles.sidebarContent,
+						isSidebarCollapsed && styles.sidebarContentCollapsed
+					)}
+				>
+					<div className={styles.sidebarBrand}>
+						<BrandLogo href="/inbox" />
+					</div>
+					<div className={styles.sidebarNavigation}>
+						<CrmNavigation ariaLabel="Основная навигация CRM" />
+					</div>
+					<p className={styles.sidebarCaption}>
+						WinCRM · рабочее пространство
+					</p>
 				</div>
-				<div className={styles.sidebarNavigation}>
-					<CrmNavigation ariaLabel="Основная навигация CRM" />
-				</div>
-				<p className={styles.sidebarCaption}>
-					WinCRM · рабочее пространство
-				</p>
 			</aside>
 
 			<div className={styles.workspace}>
 				<header className={styles.topbar}>
 					<CrmMobileNavigation key={pathname} />
+					<button
+						type="button"
+						className={styles.sidebarToggle}
+						aria-label={sidebarToggleLabel}
+						title={sidebarToggleLabel}
+						aria-controls={sidebarId}
+						aria-expanded={!isSidebarCollapsed}
+						onClick={event => {
+							event.currentTarget.focus({ preventScroll: true })
+							setIsSidebarCollapsed(collapsed => !collapsed)
+						}}
+					>
+						<AppIcon
+							name="chevronDown"
+							size={20}
+							className={clsx(
+								styles.sidebarToggleIcon,
+								isSidebarCollapsed && styles.sidebarToggleIconCollapsed
+							)}
+						/>
+					</button>
 
 					<div
 						className={styles.sectionContext}

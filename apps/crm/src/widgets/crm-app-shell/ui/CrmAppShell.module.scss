@@ -1,5 +1,9 @@
 .shell {
-	@apply min-h-screen bg-crm-bg text-crm-text lg:grid lg:grid-cols-[17rem_minmax(0,1fr)];
+	@apply min-h-screen bg-crm-bg text-crm-text lg:grid lg:grid-cols-[17rem_minmax(0,1fr)] lg:transition-[grid-template-columns] lg:duration-300 lg:ease-in-out motion-reduce:transition-none;
+}
+
+.shellCollapsed {
+	@apply lg:grid-cols-[0rem_minmax(0,1fr)];
 }
 
 .skipLink {
@@ -7,7 +11,15 @@
 }
 
 .sidebar {
-	@apply hidden min-h-screen border-r border-crm-border bg-crm-surface lg:sticky lg:top-0 lg:flex lg:h-screen lg:flex-col;
+	@apply hidden min-h-screen min-w-0 overflow-hidden lg:sticky lg:top-0 lg:block lg:h-screen;
+}
+
+.sidebarContent {
+	@apply flex h-full w-[17rem] flex-col border-r border-crm-border bg-crm-surface transition-transform duration-300 ease-in-out motion-reduce:transition-none;
+}
+
+.sidebarContentCollapsed {
+	@apply -translate-x-full;
 }
 
 .sidebarBrand {
@@ -52,6 +64,18 @@
 
 .mobileMenuButton {
 	@apply flex h-10 w-10 shrink-0 items-center justify-center rounded-xl border border-crm-border bg-crm-surface text-primary transition-colors hover:border-crm-border-strong hover:bg-crm-surface-muted focus-visible:outline-none focus-visible:ring-2 focus-visible:ring-primary focus-visible:ring-offset-2 lg:hidden;
+}
+
+.sidebarToggle {
+	@apply hidden h-10 w-10 shrink-0 items-center justify-center rounded-xl border border-crm-border bg-crm-surface text-primary transition-colors hover:border-crm-border-strong hover:bg-crm-surface-muted focus-visible:outline-none focus-visible:ring-2 focus-visible:ring-primary focus-visible:ring-offset-2 lg:flex;
+}
+
+.sidebarToggleIcon {
+	@apply rotate-90 transition-transform duration-300 ease-in-out motion-reduce:transition-none;
+}
+
+.sidebarToggleIconCollapsed {
+	@apply -rotate-90;
 }
 
 .sectionContext {
