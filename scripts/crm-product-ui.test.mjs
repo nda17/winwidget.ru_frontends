@@ -7,7 +7,7 @@ import ts from 'typescript'
 const require = createRequire(import.meta.url)
 const root = new URL('../', import.meta.url)
 const read = path => readFile(new URL(path, root), 'utf8')
-const compile = (source, imports = {}) => {
+const compile = (source, imports = {}, env = {}) => {
 	const compiled = ts.transpileModule(source, {
 		compilerOptions: {
 			target: ts.ScriptTarget.ES2022,
@@ -16,14 +16,15 @@ const compile = (source, imports = {}) => {
 		}
 	}).outputText
 	const module = { exports: {} }
-	new Function('exports', 'module', 'require', compiled)(
+	new Function('exports', 'module', 'require', 'process', compiled)(
 		module.exports,
 		module,
 		name => {
 			if (Object.hasOwn(imports, name)) return imports[name]
 			if (name === 'react/jsx-runtime') return require(name)
 			throw new Error(`Unexpected import: ${name}`)
-		}
+		},
+		{ env }
 	)
 	return module.exports
 }
@@ -274,6 +275,19 @@ test('profile rejects stale DTOs, foreign workspace membership and malformed ent
 		const value = access()
 		delete value.entitlement[key]
 		assert.throws(() => contract.parseCrmProfileStatus(value))
+	}
+})
+
+test('shared CRM release follows the exact build flag and remains closed by default', async () => {
+	const source = await read(
+		'packages/winwidget-web/src/shared/config/crm-release.config.ts'
+	)
+	for (const value of [undefined, 'false', '1', 'TRUE', 'true']) {
+		assert.equal(
+			compile(source, {}, { NEXT_PUBLIC_WINCRM_ENABLED: value })
+				.CRM_RELEASE.apiEnabled,
+			value === 'true'
+		)
 	}
 })
 

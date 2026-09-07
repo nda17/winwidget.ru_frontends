@@ -110,7 +110,7 @@ jobs:
             --build-arg NEXT_PUBLIC_RECAPTCHA_HOST="$NEXT_PUBLIC_RECAPTCHA_HOST" \
             --build-arg NEXT_PUBLIC_APP_URL="$NEXT_PUBLIC_APP_URL" \
             --build-arg NEXT_PUBLIC_MAIN_APP_URL="$NEXT_PUBLIC_MAIN_APP_URL" \
-            --build-arg NEXT_PUBLIC_WINCRM_ENABLED=false \
+            --build-arg NEXT_PUBLIC_WINCRM_ENABLED=true \
             --build-arg NEXT_PUBLIC_WINCRM_BILLING_ENABLED=false \
             --tag "$IMAGE" .
       - name: Check exact revision and runtime ownership
