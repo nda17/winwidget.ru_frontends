@@ -35,6 +35,18 @@ export interface AdminTelegramBotSettings {
 	operationsDatabaseBackupDelayMinutes: number
 	operationsDatabaseBackupTime: string
 	operationsDatabaseBackupTimeLabel: string
+	crmAccessDatabaseBackupDelayMinutes: number
+	crmAccessDatabaseBackupTime: string
+	crmAccessDatabaseBackupTimeLabel: string
+	crmIntakeDatabaseBackupDelayMinutes: number
+	crmIntakeDatabaseBackupTime: string
+	crmIntakeDatabaseBackupTimeLabel: string
+	crmCustomersDatabaseBackupDelayMinutes: number
+	crmCustomersDatabaseBackupTime: string
+	crmCustomersDatabaseBackupTimeLabel: string
+	crmSalesDatabaseBackupDelayMinutes: number
+	crmSalesDatabaseBackupTime: string
+	crmSalesDatabaseBackupTimeLabel: string
 	databaseBackupLastSentPeriodStart: string | null
 	databaseBackupLastSentAt: string | null
 	telegramBotTokenConfigured: boolean
@@ -144,6 +156,10 @@ export type TelegramDatabaseBackupTarget =
 	| 'platform'
 	| 'support'
 	| 'operations'
+	| 'crm-access'
+	| 'crm-intake'
+	| 'crm-customers'
+	| 'crm-sales'
 
 export interface TelegramDatabaseBackupAcceptedJob {
 	target: TelegramDatabaseBackupTarget

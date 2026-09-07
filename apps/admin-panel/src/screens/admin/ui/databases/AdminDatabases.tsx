@@ -104,7 +104,11 @@ const DATABASE_BACKUP_TARGET_OPTIONS: readonly TelegramDatabaseBackupTarget[] =
 		'identity',
 		'platform',
 		'support',
-		'operations'
+		'operations',
+		'crm-access',
+		'crm-intake',
+		'crm-customers',
+		'crm-sales'
 	]
 const DATABASE_BACKUP_SCHEDULE_FIELDS = {
 	'notification-delivery': 'notificationDeliveryDatabaseBackupTimeLabel',
@@ -115,7 +119,11 @@ const DATABASE_BACKUP_SCHEDULE_FIELDS = {
 	identity: 'identityDatabaseBackupTimeLabel',
 	platform: 'platformDatabaseBackupTimeLabel',
 	support: 'supportDatabaseBackupTimeLabel',
-	operations: 'operationsDatabaseBackupTimeLabel'
+	operations: 'operationsDatabaseBackupTimeLabel',
+	'crm-access': 'crmAccessDatabaseBackupTimeLabel',
+	'crm-intake': 'crmIntakeDatabaseBackupTimeLabel',
+	'crm-customers': 'crmCustomersDatabaseBackupTimeLabel',
+	'crm-sales': 'crmSalesDatabaseBackupTimeLabel'
 } as const
 const DATABASE_BACKUP_TRIGGER_LABELS: Record<
 	TelegramDatabaseBackupJobTrigger,
@@ -502,7 +510,11 @@ const getDatabaseBackupTargetLabel = (
 		identity: 'БД Identity',
 		platform: 'БД Platform',
 		support: 'БД Support',
-		operations: 'БД Operations'
+		operations: 'БД Operations',
+		'crm-access': 'БД CRM Access',
+		'crm-intake': 'БД CRM Intake',
+		'crm-customers': 'БД CRM Customers',
+		'crm-sales': 'БД CRM Sales'
 	})[target]
 
 const formatDatabaseBackupDate = (value: string | null) => {

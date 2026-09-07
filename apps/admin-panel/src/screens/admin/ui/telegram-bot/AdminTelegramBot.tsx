@@ -625,7 +625,11 @@ const AdminTelegramBot: NextPage = () => {
 				settings.identityDatabaseBackupDelayMinutes,
 				settings.platformDatabaseBackupDelayMinutes,
 				settings.supportDatabaseBackupDelayMinutes,
-				settings.operationsDatabaseBackupDelayMinutes
+				settings.operationsDatabaseBackupDelayMinutes,
+				settings.crmAccessDatabaseBackupDelayMinutes,
+				settings.crmIntakeDatabaseBackupDelayMinutes,
+				settings.crmCustomersDatabaseBackupDelayMinutes,
+				settings.crmSalesDatabaseBackupDelayMinutes
 			])
 		) {
 			toast.error(
@@ -712,7 +716,11 @@ const AdminTelegramBot: NextPage = () => {
 					settings.identityDatabaseBackupDelayMinutes,
 					settings.platformDatabaseBackupDelayMinutes,
 					settings.supportDatabaseBackupDelayMinutes,
-					settings.operationsDatabaseBackupDelayMinutes
+					settings.operationsDatabaseBackupDelayMinutes,
+					settings.crmAccessDatabaseBackupDelayMinutes,
+					settings.crmIntakeDatabaseBackupDelayMinutes,
+					settings.crmCustomersDatabaseBackupDelayMinutes,
+					settings.crmSalesDatabaseBackupDelayMinutes
 				]
 			)
 		) {
@@ -801,6 +809,30 @@ const AdminTelegramBot: NextPage = () => {
 				backupTime,
 				settings.operationsDatabaseBackupDelayMinutes
 			) ?? settings.operationsDatabaseBackupTime)
+		: null
+	const crmAccessBackupTime = settings
+		? (addMinutesToTime(
+				backupTime,
+				settings.crmAccessDatabaseBackupDelayMinutes
+			) ?? settings.crmAccessDatabaseBackupTime)
+		: null
+	const crmIntakeBackupTime = settings
+		? (addMinutesToTime(
+				backupTime,
+				settings.crmIntakeDatabaseBackupDelayMinutes
+			) ?? settings.crmIntakeDatabaseBackupTime)
+		: null
+	const crmCustomersBackupTime = settings
+		? (addMinutesToTime(
+				backupTime,
+				settings.crmCustomersDatabaseBackupDelayMinutes
+			) ?? settings.crmCustomersDatabaseBackupTime)
+		: null
+	const crmSalesBackupTime = settings
+		? (addMinutesToTime(
+				backupTime,
+				settings.crmSalesDatabaseBackupDelayMinutes
+			) ?? settings.crmSalesDatabaseBackupTime)
 		: null
 	const isLoading = isTelegramSettingsLoading
 	const isDailySummarySettingsChanged = Boolean(
@@ -1374,7 +1406,12 @@ const AdminTelegramBot: NextPage = () => {
 									{settings.identityDatabaseBackupTimeLabel}, Platform — в{' '}
 									{settings.platformDatabaseBackupTimeLabel}, Support — в{' '}
 									{settings.supportDatabaseBackupTimeLabel}, Operations — в{' '}
-									{settings.operationsDatabaseBackupTimeLabel}. Базовое
+									{settings.operationsDatabaseBackupTimeLabel}, CRM Access
+									— в {settings.crmAccessDatabaseBackupTimeLabel}, CRM
+									Intake — в {settings.crmIntakeDatabaseBackupTimeLabel},
+									CRM Customers — в{' '}
+									{settings.crmCustomersDatabaseBackupTimeLabel}, CRM Sales
+									— в {settings.crmSalesDatabaseBackupTimeLabel}. Базовое
 									время {settings.databaseBackupTimeLabel} задаёт
 									расписание, но все файлы приходят отдельно в топик
 									Backups.
@@ -1480,6 +1517,40 @@ const AdminTelegramBot: NextPage = () => {
 											: '—'}
 									</p>
 								</div>
+								<div className={styles.field}>
+									<span className={styles.label}>Backup CRM Access</span>
+									<p className={styles.derivedTime}>
+										{crmAccessBackupTime
+											? `${crmAccessBackupTime} МСК`
+											: '—'}
+									</p>
+								</div>
+								<div className={styles.field}>
+									<span className={styles.label}>Backup CRM Intake</span>
+									<p className={styles.derivedTime}>
+										{crmIntakeBackupTime
+											? `${crmIntakeBackupTime} МСК`
+											: '—'}
+									</p>
+								</div>
+								<div className={styles.field}>
+									<span className={styles.label}>
+										Backup CRM Customers
+									</span>
+									<p className={styles.derivedTime}>
+										{crmCustomersBackupTime
+											? `${crmCustomersBackupTime} МСК`
+											: '—'}
+									</p>
+								</div>
+								<div className={styles.field}>
+									<span className={styles.label}>Backup CRM Sales</span>
+									<p className={styles.derivedTime}>
+										{crmSalesBackupTime
+											? `${crmSalesBackupTime} МСК`
+											: '—'}
+									</p>
+								</div>
 								<button
 									type="button"
 									className={`${styles.saveBtn} ${styles.scheduleSaveBtn}`}
@@ -1495,7 +1566,8 @@ const AdminTelegramBot: NextPage = () => {
 							<p className={styles.hint}>
 								Время указывается по Москве. Notification Delivery,
 								Campaigns, Reporting, Widgets, Billing, Identity, Platform,
-								Support и Operations запускаются через{' '}
+								Support, Operations, CRM Access, CRM Intake, CRM Customers
+								и CRM Sales запускаются через{' '}
 								{settings.notificationDeliveryDatabaseBackupDelayMinutes}
 								{', '}
 								{settings.campaignsDatabaseBackupDelayMinutes}
@@ -1511,8 +1583,16 @@ const AdminTelegramBot: NextPage = () => {
 								{settings.platformDatabaseBackupDelayMinutes}
 								{', '}
 								{settings.supportDatabaseBackupDelayMinutes}
+								{', '}
+								{settings.operationsDatabaseBackupDelayMinutes}
+								{', '}
+								{settings.crmAccessDatabaseBackupDelayMinutes}
+								{', '}
+								{settings.crmIntakeDatabaseBackupDelayMinutes}
+								{', '}
+								{settings.crmCustomersDatabaseBackupDelayMinutes}
 								{' и '}
-								{settings.operationsDatabaseBackupDelayMinutes} минут после
+								{settings.crmSalesDatabaseBackupDelayMinutes} минут после
 								базового времени соответственно. Сводка должна быть
 								разнесена с каждым backup минимум на{' '}
 								{MIN_TASK_TIME_GAP_MINUTES} минут.

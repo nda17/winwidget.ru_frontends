@@ -43,7 +43,7 @@ const compile = (value, fileName) =>
 			jsx: ts.JsxEmit.ReactJSX
 		}
 	}).outputText
-const targets = [
+const legacyTargets = [
 	'notification-delivery',
 	'campaigns',
 	'reporting',
@@ -54,6 +54,15 @@ const targets = [
 	'support',
 	'operations'
 ]
+const crmTargets = [
+	'crm-access',
+	'crm-intake',
+	'crm-customers',
+	'crm-sales'
+]
+const targets = [...legacyTargets, ...crmTargets]
+const schedulePrefix = target =>
+	target.replace(/-([a-z])/g, (_, letter) => letter.toUpperCase())
 
 test('presentation keeps the approved backup/restore state machines and all 44 restore control bindings unchanged', () => {
 	// AST fingerprints from reviewed baseline 213dd3516eab83fbf5510dcdaff3b1a3b5b591d8.
@@ -153,11 +162,8 @@ async function mount(
 		databaseBackupThreadId: 1
 	}
 	for (const target of targets)
-		settings[
-			(target === 'notification-delivery'
-				? 'notificationDelivery'
-				: target) + 'DatabaseBackupTimeLabel'
-		] = '03:00'
+		settings[schedulePrefix(target) + 'DatabaseBackupTimeLabel'] =
+			'03:' + String(targets.indexOf(target)).padStart(2, '0')
 	const restoreSettings = {
 		enabled: false,
 		currentServicesSha: 'a'.repeat(40),
@@ -165,7 +171,7 @@ async function mount(
 		permitRequired: true,
 		maxFileSizeBytes: 1000000,
 		allowedFileExtension: '.dump',
-		targets: targets
+		targets: legacyTargets
 			.filter(target => !['billing', 'operations'].includes(target))
 			.map(id => ({
 				id,
@@ -382,7 +388,7 @@ test('real React18 page exposes four accessible panels and actually hides inacti
 			tab.textContent !== 'Обзор'
 		)
 	}
-	assert.equal(ui.container.querySelectorAll('.targetPanel').length, 9)
+	assert.equal(ui.container.querySelectorAll('.targetPanel').length, 13)
 	assert.equal(
 		[...ui.container.querySelectorAll('.targetPanel')].filter(
 			panel => ui.dom.window.getComputedStyle(panel).display !== 'none'
@@ -407,7 +413,7 @@ test('keyboard tab navigation supports arrows/Home/End with focus and one select
 	assert.ok(ui.calls.toast.length > 0)
 })
 
-test('tab and target changes retain mounted restore inputs, file nodes, history filters and all nine backup observers', async t => {
+test('tab and target changes retain mounted restore inputs, file nodes, history filters and all thirteen backup observers', async t => {
 	const ui = await mount(t)
 	await ui.clickTab('Восстановление')
 	const lookup = ui
@@ -432,7 +438,7 @@ test('tab and target changes retain mounted restore inputs, file nodes, history 
 			.getQueryCache()
 			.findAll({ queryKey: ['admin-telegram-database-backup-active'] })
 			.filter(query => query.getObserversCount() > 0).length,
-		9
+		13
 	)
 	await ui.clickTab('Восстановление')
 	assert.equal(
@@ -499,7 +505,7 @@ test('schedule uses current settings and the existing Telegram settings route, n
 	const ui = await mount(t)
 	await ui.clickTab('Расписание')
 	const panel = ui.panel('Расписание')
-	assert.equal(panel.querySelectorAll('li').length, 9)
+	assert.equal(panel.querySelectorAll('li').length, 13)
 	assert.equal(
 		panel.querySelector('a').getAttribute('href'),
 		'/admin/telegram-bot'
@@ -510,3 +516,66 @@ test('schedule uses current settings and the existing Telegram settings route, n
 	)
 	assert.deepEqual(ui.calls.mutations, [])
 })
+
+for (const role of ['ADMIN', 'DEV'])
+	test(
+		role + ' sees all thirteen backup targets but no CRM restore target',
+		async t => {
+			const ui = await mount(t, { role })
+			const overview = ui.panel('Обзор')
+			const select = overview.querySelector('select')
+			assert.deepEqual(
+				[...select.options].map(option => option.value),
+				targets
+			)
+			assert.match(overview.textContent, /13 баз/)
+			for (const target of crmTargets) {
+				await ui.change(select, target)
+				const visible = [
+					...overview.querySelectorAll('.targetPanel')
+				].filter(
+					panel => ui.dom.window.getComputedStyle(panel).display !== 'none'
+				)
+				assert.equal(visible.length, 1)
+				assert.ok(
+					visible[0].textContent.includes(
+						select.selectedOptions[0].textContent
+					)
+				)
+			}
+			await ui.clickTab('История')
+			const history = ui.panel('История').querySelector('select')
+			assert.deepEqual(
+				[...history.options].map(option => option.value),
+				['', ...targets]
+			)
+			await ui.change(history, 'crm-sales')
+			assert.equal(history.value, 'crm-sales')
+			await ui.clickTab('Расписание')
+			const entries = [...ui.panel('Расписание').querySelectorAll('li')]
+			for (let index = 0; index < crmTargets.length; index++) {
+				assert.ok(
+					entries[index + 9].textContent.includes(
+						select.options[index + 9].textContent
+					)
+				)
+				assert.match(
+					entries[index + 9].textContent,
+					new RegExp('03:' + String(index + 9).padStart(2, '0'))
+				)
+			}
+			await ui.clickTab('Восстановление')
+			const restore = ui.panel('Восстановление')
+			assert.doesNotMatch(
+				restore.textContent,
+				/CRM (?:Access|Intake|Customers|Sales)/
+			)
+			for (const select of restore.querySelectorAll('select'))
+				assert.ok(
+					[...select.options].every(
+						option => !option.value.startsWith('crm-')
+					)
+				)
+			assert.deepEqual(ui.calls.mutations, [])
+		}
+	)
