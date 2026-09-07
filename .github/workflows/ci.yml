@@ -161,7 +161,7 @@ jobs:
               await new Promise(resolve => setTimeout(resolve, 500));
             }
             assert.ok(ready, "Exact CRM image did not become ready");
-            for (const path of ["/", "/inbox", "/billing", "/billing/return", "/settings", "/invitations/11111111-1111-4111-8111-111111111111"]) {
+            for (const path of ["/", "/inbox", "/planner", "/billing", "/billing/return", "/settings", "/invitations/11111111-1111-4111-8111-111111111111"]) {
               const response = await fetch(`${origin}${path}`, { redirect: "manual", signal: AbortSignal.timeout(5000) });
               assert.equal(response.status, 200, `Prelaunch ${path} must not redirect to a session-protected route`);
               const html = await response.text();
@@ -195,11 +195,18 @@ jobs:
             const root = await fetch(origin, { redirect: "manual" });
             assert.equal(root.status, 307);
             assert.equal(root.headers.get("location"), "/inbox");
-            for (const path of ["/inbox", "/billing", "/settings"]) {
+            for (const path of ["/inbox", "/planner", "/billing", "/settings"]) {
               const response = await fetch(`${origin}${path}`, { redirect: "manual", signal: AbortSignal.timeout(5000) });
               assert.equal(response.status, 200);
               const html = await response.text();
               assert.doesNotMatch(html, /Готовимся к запуску|Не удалось проверить сессию/);
             }
+            const legacyQuery = "date=2026-09-07&view=board&tag=first&tag=second&returnTo=https%3A%2F%2Fexample.invalid";
+            const legacyPlanner = await fetch(`${origin}/my-day?${legacyQuery}`, { redirect: "manual", signal: AbortSignal.timeout(5000) });
+            assert.equal(legacyPlanner.status, 308);
+            const plannerLocation = new URL(legacyPlanner.headers.get("location"), origin);
+            assert.equal(plannerLocation.origin, origin);
+            assert.equal(plannerLocation.pathname, "/planner");
+            assert.deepEqual([...plannerLocation.searchParams], [...new URLSearchParams(legacyQuery)]);
             console.log("Working CRM entry verified; authenticated browser workflows remain a separate release check");
           '

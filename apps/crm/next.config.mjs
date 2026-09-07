@@ -13,6 +13,11 @@ const nextConfig = {
 	async redirects() {
 		return [
 			{
+				source: '/my-day',
+				destination: '/planner',
+				permanent: true
+			},
+			{
 				source: '/favicon.ico',
 				destination: '/icon',
 				permanent: true

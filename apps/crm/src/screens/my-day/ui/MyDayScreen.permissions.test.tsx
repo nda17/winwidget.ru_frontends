@@ -34,7 +34,7 @@ import {
 	PendingCommandProvider
 } from '@/shared/lib/pending-command'
 import MyDayScreen from './MyDayScreen'
-import { metadata } from '@/app/(workspace)/my-day/page'
+import { metadata } from '@/app/(workspace)/planner/page'
 
 let client: QueryClient
 let permissions: CrmPermissions

@@ -4,6 +4,67 @@ import { createRequire } from 'node:module'
 import test from 'node:test'
 
 const require = createRequire(import.meta.url)
+
+test('canonical CRM planner uses the existing guarded screen and preserves legacy query data in a fixed same-origin 308', async () => {
+	const { default: config } = await import('../apps/crm/next.config.mjs')
+	const redirects = await config.redirects()
+	const planner = redirects.filter(route => route.source === '/my-day')
+	assert.deepEqual(planner, [
+		{ source: '/my-day', destination: '/planner', permanent: true }
+	])
+	assert.ok(
+		redirects.some(
+			route =>
+				route.source === '/favicon.ico' &&
+				route.destination === '/icon' &&
+				route.permanent
+		)
+	)
+	const crmRequire = createRequire(
+		new URL('../apps/crm/package.json', import.meta.url)
+	)
+	// Exercise the installed CRM Next.js redirect implementation, not an invented serializer.
+	const { prepareDestination } = crmRequire(
+		'next/dist/shared/lib/router/utils/prepare-destination.js'
+	)
+	const { getRedirectStatus } = crmRequire(
+		'next/dist/lib/redirect-status.js'
+	)
+	for (const query of [
+		{},
+		{ date: '2026-09-07', view: 'board', tag: ['first', 'second'] },
+		{
+			returnTo: 'https://example.invalid',
+			next: '//example.invalid',
+			search: 'текст & значение?',
+			empty: ''
+		}
+	]) {
+		const { parsedDestination } = prepareDestination({
+			destination: planner[0].destination,
+			params: {},
+			query,
+			appendParamsToQuery: false
+		})
+		assert.equal(getRedirectStatus(planner[0]), 308)
+		assert.equal(parsedDestination.pathname, '/planner')
+		assert.equal(parsedDestination.hostname, null)
+		assert.equal(parsedDestination.protocol, null)
+		assert.deepEqual(parsedDestination.query, query)
+	}
+	const page = read('apps/crm/src/app/(workspace)/planner/page.tsx')
+	assert.match(page, /from '@\/screens\/my-day'/)
+	assert.match(page, /return <MyDayScreen \/>/)
+	assert.match(page, /title: 'Планировщик'/)
+	assert.match(
+		read('apps/crm/src/app/(workspace)/layout.tsx'),
+		/<SessionGate>[\s\S]*<AccessGate>/
+	)
+	assert.doesNotMatch(
+		read('apps/crm/src/widgets/crm-app-shell/model/crm-navigation.ts'),
+		/href: '\/my-day'/
+	)
+})
 const ts = require('typescript')
 const read = relative =>
 	readFileSync(new URL(`../${relative}`, import.meta.url), 'utf8')

@@ -16,7 +16,7 @@ export interface CrmNavigationItem {
 
 export const CRM_NAVIGATION = [
 	{
-		href: '/my-day',
+		href: '/planner',
 		icon: 'clock',
 		label: 'Планировщик',
 		description:

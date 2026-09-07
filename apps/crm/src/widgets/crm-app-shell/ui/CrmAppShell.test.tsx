@@ -257,7 +257,7 @@ describe('CRM navigation descriptions', () => {
 		act(() => vi.advanceTimersByTime(300))
 		expect(screen.queryByRole('tooltip')).toBeNull()
 		fireEvent.click(link)
-		expect(link.getAttribute('href')).toBe('/my-day')
+		expect(link.getAttribute('href')).toBe('/planner')
 		expect(screen.queryByRole('dialog')).toBeNull()
 	})
 	it('keeps mobile keyboard descriptions inside the dialog top layer and consumes only the first Escape', () => {
@@ -321,13 +321,13 @@ describe('CRM navigation descriptions', () => {
 })
 
 describe('honest WinCRM application shell', () => {
-	it('names the planner consistently in desktop and mobile navigation while preserving /my-day links', () => {
-		fixture.pathname = '/my-day'
+	it('uses the canonical planner route consistently in desktop and mobile navigation', () => {
+		fixture.pathname = '/planner'
 		mount()
 		const desktopLink = within(mainNavigation()).getByRole('link', {
 			name: 'Планировщик'
 		})
-		expect(desktopLink.getAttribute('href')).toBe('/my-day')
+		expect(desktopLink.getAttribute('href')).toBe('/planner')
 		expect(desktopLink.getAttribute('aria-current')).toBe('page')
 		const context = document.querySelector(
 			'[aria-label="Текущий раздел"]'
@@ -343,7 +343,7 @@ describe('honest WinCRM application shell', () => {
 				name: 'Мобильная навигация CRM'
 			})
 		).getByRole('link', { name: 'Планировщик' })
-		expect(mobileLink.getAttribute('href')).toBe('/my-day')
+		expect(mobileLink.getAttribute('href')).toBe('/planner')
 		expect(mobileLink.getAttribute('aria-current')).toBe('page')
 		expect(screen.queryByText('Мой день')).toBeNull()
 	})
