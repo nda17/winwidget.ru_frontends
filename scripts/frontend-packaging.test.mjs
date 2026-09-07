@@ -253,7 +253,13 @@ test('verification CI covers all common consumers, root and CRM tests without de
 		workflow,
 		/--build-arg NEXT_PUBLIC_WINCRM_BILLING_ENABLED=false/
 	)
-	assert.match(workflow, /--build-arg NEXT_PUBLIC_WINCRM_ENABLED=true/)
+	assert.match(
+		workflow,
+		/--build-arg NEXT_PUBLIC_WINCRM_ENABLED="\$crm_enabled"/
+	)
+	assert.match(workflow, /build_image true "\$IMAGE"/)
+	assert.match(workflow, /build_image false "\$IMAGE-closed"/)
+	assert.match(workflow, /Verify working CRM image/)
 	assert.match(
 		repositoryFile('deploy/docker-compose.prod.yml'),
 		/NEXT_PUBLIC_WINCRM_ENABLED: 'true'/

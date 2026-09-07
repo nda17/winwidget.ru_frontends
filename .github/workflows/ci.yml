@@ -98,6 +98,8 @@ jobs:
       # script (CRM: --webpack), with network disabled after dependency install.
       - name: Build independent standalone image
         run: |
+          build_image() {
+          local crm_enabled="$1" image_tag="$2"
           docker build \
             --build-arg FRONTEND_APP="$FRONTEND_APP" \
             --build-arg APP_REVISION="$APP_REVISION" \
@@ -110,9 +112,12 @@ jobs:
             --build-arg NEXT_PUBLIC_RECAPTCHA_HOST="$NEXT_PUBLIC_RECAPTCHA_HOST" \
             --build-arg NEXT_PUBLIC_APP_URL="$NEXT_PUBLIC_APP_URL" \
             --build-arg NEXT_PUBLIC_MAIN_APP_URL="$NEXT_PUBLIC_MAIN_APP_URL" \
-            --build-arg NEXT_PUBLIC_WINCRM_ENABLED=true \
+            --build-arg NEXT_PUBLIC_WINCRM_ENABLED="$crm_enabled" \
             --build-arg NEXT_PUBLIC_WINCRM_BILLING_ENABLED=false \
-            --tag "$IMAGE" .
+            --tag "$image_tag" .
+          }
+          build_image true "$IMAGE"
+          if [ "$FRONTEND_APP" = crm ]; then build_image false "$IMAGE-closed"; fi
       - name: Check exact revision and runtime ownership
         run: |
           docker image inspect "$IMAGE" | node --input-type=module -e '
@@ -136,7 +141,7 @@ jobs:
           container=wincrm-prelaunch-ci
           trap 'docker rm -f "$container" >/dev/null 2>&1 || true' EXIT
           docker run --detach --network none --name "$container" \
-            --env HOSTNAME=0.0.0.0 --env PORT=3000 --env NODE_ENV=production "$IMAGE"
+            --env HOSTNAME=0.0.0.0 --env PORT=3000 --env NODE_ENV=production "$IMAGE-closed"
           docker exec "$container" node --input-type=module -e '
             import assert from "node:assert/strict";
             const origin = "http://127.0.0.1:3000";
@@ -160,4 +165,36 @@ jobs:
               assert.doesNotMatch(html, /Не удалось проверить сессию/);
             }
             console.log("CRM prelaunch root and deep links verified in a network-isolated release image");
+          '
+      - name: Verify working CRM image preserves application entry without server session errors
+        if: matrix.app == 'crm'
+        run: |
+          container=wincrm-working-ci
+          trap 'docker rm -f "$container" >/dev/null 2>&1 || true' EXIT
+          docker run --detach --network none --name "$container" \
+            --env HOSTNAME=0.0.0.0 --env PORT=3000 --env NODE_ENV=production "$IMAGE"
+          docker exec "$container" node --input-type=module -e '
+            import assert from "node:assert/strict";
+            const origin = "http://127.0.0.1:3000";
+            let ready = false;
+            for (let attempt = 0; attempt < 60; attempt++) {
+              try {
+                const response = await fetch(`${origin}/__frontend/health`, { signal: AbortSignal.timeout(1000) });
+                const body = await response.json();
+                ready = response.ok && body.application === "crm" && body.revision === process.env.APP_REVISION;
+                if (ready) break;
+              } catch {}
+              await new Promise(resolve => setTimeout(resolve, 500));
+            }
+            assert.ok(ready, "Exact working CRM image did not become ready");
+            const root = await fetch(origin, { redirect: "manual" });
+            assert.equal(root.status, 307);
+            assert.equal(root.headers.get("location"), "/inbox");
+            for (const path of ["/inbox", "/billing", "/settings"]) {
+              const response = await fetch(`${origin}${path}`, { redirect: "manual", signal: AbortSignal.timeout(5000) });
+              assert.equal(response.status, 200);
+              const html = await response.text();
+              assert.doesNotMatch(html, /Готовимся к запуску|Не удалось проверить сессию/);
+            }
+            console.log("Working CRM entry verified; authenticated browser workflows remain a separate release check");
           '
