@@ -137,9 +137,11 @@ export default function CrmPricingCards() {
 								type="button"
 								className={styles.soon}
 								disabled
-								title="Продажи откроются после запуска WinCRM"
+								title="Онлайн-оплата WinCRM пока недоступна"
 							>
-								{CRM_RELEASE.unavailableLabel}
+								{CRM_RELEASE.apiEnabled
+									? 'Оплата скоро'
+									: CRM_RELEASE.unavailableLabel}
 							</button>
 						</article>
 					)

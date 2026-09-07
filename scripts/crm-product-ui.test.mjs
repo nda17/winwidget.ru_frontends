@@ -443,4 +443,23 @@ test('unreleased cards and profile render honest status without inferred price o
 	assert.match(badge, /Скоро/)
 	assert.doesNotMatch(badge, /Активна|МСК|Hard|href=/)
 	assert.ok(queries.every(query => query.enabled === false))
+	const RunningCards = compile(
+		await read(
+			'apps/widgets/src/screens/payment/ui/pricing/CrmPricingCards.tsx'
+		),
+		{
+			...imports,
+			'@/shared/config/crm-release.config': {
+				CRM_RELEASE: { ...config.CRM_RELEASE, apiEnabled: true }
+			}
+		}
+	).default
+	const runningCards = renderToStaticMarkup(createElement(RunningCards))
+	assert.equal((runningCards.match(/Оплата скоро/g) ?? []).length, 2)
+	assert.equal((runningCards.match(/disabled=""/g) ?? []).length, 2)
+	assert.match(runningCards, /Онлайн-оплата WinCRM пока недоступна/)
+	assert.doesNotMatch(
+		runningCards,
+		/Продажи откроются после запуска WinCRM/
+	)
 })
