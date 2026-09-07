@@ -171,8 +171,7 @@ export const parseSalesDeal = (
 		value.nextTask !== null &&
 		(!nextTask ||
 			nextTask.dealId !== value.id ||
-			(nextTask.status !== 'OPEN' && nextTask.status !== 'IN_PROGRESS') ||
-			nextTask.assignedToSubject !== value.assignedToSubject)
+			(nextTask.status !== 'OPEN' && nextTask.status !== 'IN_PROGRESS'))
 	)
 		return null
 	if (

@@ -74,7 +74,6 @@ describe('Sales exact contracts', () => {
 		{ ...deal, createdAt: '2026-09-05T10:00:00Z' },
 		{ ...deal, nextTask: { ...task, workspaceId: contactId } },
 		{ ...deal, nextTask: { ...task, dealId: contactId } },
-		{ ...deal, nextTask: { ...task, assignedToSubject: 'other' } },
 		{ ...deal, nextTask: { ...task, completedAt: date } },
 		{
 			...deal,
@@ -82,6 +81,13 @@ describe('Sales exact contracts', () => {
 		}
 	])('rejects malformed or cross-scope deal %j', value => {
 		expect(parseSalesDeal(value, workspaceId)).toBeNull()
+	})
+	it('accepts an independently assigned next action without changing deal ownership', () => {
+		const assigned = {
+			...deal,
+			nextTask: { ...task, assignedToSubject: 'other' }
+		}
+		expect(parseSalesDeal(assigned, workspaceId)).toEqual(assigned)
 	})
 	it('accepts an OPEN deal without a next action and an in-progress next action', () => {
 		expect(
