@@ -378,7 +378,14 @@ test('source, synchronized env, legacy image and infra artifact have immutable r
 		/sha256:d28d1a696b7d8a5de242eee93cde55d5dd7332312c2393092bce38a339e3fda1/
 	)
 	assert.match(controller, /source_path=\/app\/\.next\/static/)
-	assert.match(controller, /NEXT_PUBLIC_WINCRM_BILLING_ENABLED!=="false"/)
+	assert.match(
+		controller,
+		/const billingUi=\(app==="crm"\|\|app==="widgets"\)\?"true":"false"/
+	)
+	assert.match(
+		controller,
+		/NEXT_PUBLIC_WINCRM_BILLING_ENABLED!==billingUi/
+	)
 	assert.match(controller, /NEXT_PUBLIC_WINCRM_ENABLED!=="true"/)
 	assert.match(controller, /set -o noclobber/)
 	assert.match(controller, /exec \{lock_fd\}<>/)

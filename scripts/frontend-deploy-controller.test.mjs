@@ -25,6 +25,108 @@ const runCiGate = new AsyncFunction(
 	ciScript
 )
 const revision = 'a'.repeat(40)
+
+test('actual Compose validator requires paid UI only in CRM/Widgets and preserves all other build/runtime bindings', () => {
+	const source = controller.match(
+		/compose config --format json 2>\/dev\/null \| node_validate '([\s\S]+?)\n' \|\| die 'Frontend-only Compose/
+	)[1]
+	const validate = new Function('require', 'process', source)
+	const args = {
+		APP_REVISION: revision,
+		NEXT_PUBLIC_MODE: 'production',
+		NEXT_PUBLIC_SITE_URL: 'https://winwidget.ru',
+		NEXT_PUBLIC_PRODUCTION_HOST: 'https://api.winwidget.ru',
+		NEXT_PUBLIC_WIDGETS_HOST: '',
+		NEXT_PUBLIC_API_URL: 'https://api.winwidget.ru/api/v1',
+		NEXT_PUBLIC_RECAPTCHA_SITE_KEY: 'synthetic-public-site-key',
+		NEXT_PUBLIC_RECAPTCHA_HOST: 'https://www.recaptcha.net',
+		NEXT_PUBLIC_APP_URL: 'https://crm.winwidget.ru',
+		NEXT_PUBLIC_MAIN_APP_URL: 'https://winwidget.ru',
+		NEXT_PUBLIC_WINCRM_ENABLED: 'true'
+	}
+	const runtime = {
+		HOSTNAME: '0.0.0.0',
+		NEXT_TELEMETRY_DISABLED: '1',
+		NODE_ENV: 'production',
+		PORT: '3000'
+	}
+	const auth = {
+		JWT_AUDIENCE: 'https://api.winwidget.ru',
+		JWT_ISSUER: 'https://api.winwidget.ru/auth',
+		JWT_JWKS_URL:
+			'https://api.winwidget.ru/api/v1/auth/.well-known/jwks.json',
+		JWT_MAX_TOKEN_LIFETIME_SECONDS: '900',
+		JWT_CLOCK_TOLERANCE_SECONDS: '5'
+	}
+	const services = Object.fromEntries(
+		Object.entries({
+			landing: 3000,
+			crm: 3001,
+			widgets: 3002,
+			'admin-panel': 3003
+		}).map(([app, port]) => [
+			app,
+			{
+				image: `winwidget-${app}:git-${revision}`,
+				build: {
+					args: {
+						...args,
+						FRONTEND_APP: app,
+						NEXT_PUBLIC_WINCRM_BILLING_ENABLED:
+							app === 'crm' || app === 'widgets' ? 'true' : 'false'
+					}
+				},
+				environment: {
+					...runtime,
+					...(app === 'widgets' || app === 'admin-panel' ? auth : {})
+				},
+				ports: [
+					{ host_ip: '127.0.0.1', published: String(port), target: 3000 }
+				]
+			}
+		])
+	)
+	const verify = input =>
+		validate(
+			name => {
+				assert.equal(name, 'node:fs')
+				return {
+					readFileSync: fd => {
+						assert.equal(fd, 0)
+						return JSON.stringify(input)
+					}
+				}
+			},
+			{
+				exit: () => {
+					throw new Error('rejected')
+				}
+			}
+		)
+	assert.doesNotThrow(() => verify({ services }))
+	for (const app of Object.keys(services)) {
+		for (const value of [
+			undefined,
+			'TRUE',
+			'1',
+			app === 'crm' || app === 'widgets' ? 'false' : 'true'
+		]) {
+			const altered = structuredClone(services)
+			altered[app].build.args.NEXT_PUBLIC_WINCRM_BILLING_ENABLED = value
+			assert.throws(
+				() => verify({ services: altered }),
+				/rejected/,
+				`${app}: ${value}`
+			)
+		}
+	}
+	const widgetsPayment = structuredClone(services)
+	widgetsPayment.widgets.build.args.PAYMENT_ENABLED = 'false'
+	assert.throws(() => verify({ services: widgetsPayment }), /rejected/)
+	const runtimeFlag = structuredClone(services)
+	runtimeFlag.crm.environment.NEXT_PUBLIC_WINCRM_BILLING_ENABLED = 'true'
+	assert.throws(() => verify({ services: runtimeFlag }), /rejected/)
+})
 const repository = 'synthetic/frontends'
 const jobNames = [
 	'Workspace contracts and shared package',

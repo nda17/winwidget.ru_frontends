@@ -2,6 +2,8 @@
 // Change only with the compatible Gateway, Identity, Billing and CRM rollout.
 export const CRM_RELEASE = {
 	apiEnabled: process.env.NEXT_PUBLIC_WINCRM_ENABLED === 'true',
+	billingEnabled:
+		process.env.NEXT_PUBLIC_WINCRM_BILLING_ENABLED === 'true',
 	appUrl: 'https://crm.winwidget.ru',
 	unavailableLabel: 'Скоро'
 } as const

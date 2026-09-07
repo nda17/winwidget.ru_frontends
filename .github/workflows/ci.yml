@@ -63,14 +63,19 @@ jobs:
         include:
           - app: landing
             package: '@winwidget/landing'
+            billing_enabled: 'false'
           - app: widgets
             package: '@winwidget/widgets'
+            billing_enabled: 'true'
           - app: admin-panel
             package: '@winwidget/admin-panel'
+            billing_enabled: 'false'
           - app: crm
             package: wincrm-client
+            billing_enabled: 'true'
     env:
       FRONTEND_APP: ${{ matrix.app }}
+      BILLING_UI_ENABLED: ${{ matrix.billing_enabled }}
       APP_REVISION: ${{ github.sha }}
       IMAGE: winwidget-${{ matrix.app }}:ci-${{ github.sha }}
     steps:
@@ -99,7 +104,7 @@ jobs:
       - name: Build independent standalone image
         run: |
           build_image() {
-          local crm_enabled="$1" image_tag="$2"
+          local crm_enabled="$1" billing_enabled="$2" image_tag="$3"
           docker build \
             --build-arg FRONTEND_APP="$FRONTEND_APP" \
             --build-arg APP_REVISION="$APP_REVISION" \
@@ -113,11 +118,11 @@ jobs:
             --build-arg NEXT_PUBLIC_APP_URL="$NEXT_PUBLIC_APP_URL" \
             --build-arg NEXT_PUBLIC_MAIN_APP_URL="$NEXT_PUBLIC_MAIN_APP_URL" \
             --build-arg NEXT_PUBLIC_WINCRM_ENABLED="$crm_enabled" \
-            --build-arg NEXT_PUBLIC_WINCRM_BILLING_ENABLED=false \
+            --build-arg NEXT_PUBLIC_WINCRM_BILLING_ENABLED="$billing_enabled" \
             --tag "$image_tag" .
           }
-          build_image true "$IMAGE"
-          if [ "$FRONTEND_APP" = crm ]; then build_image false "$IMAGE-closed"; fi
+          build_image true "$BILLING_UI_ENABLED" "$IMAGE"
+          if [ "$FRONTEND_APP" = crm ]; then build_image false false "$IMAGE-closed"; fi
       - name: Check exact revision and runtime ownership
         run: |
           docker image inspect "$IMAGE" | node --input-type=module -e '

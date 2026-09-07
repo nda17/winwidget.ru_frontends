@@ -53,6 +53,7 @@ services:
       args:
         <<: *frontend-build-args
         FRONTEND_APP: crm
+        NEXT_PUBLIC_WINCRM_BILLING_ENABLED: 'true'
     environment: *frontend-runtime
     restart: unless-stopped
     ports:
@@ -65,6 +66,7 @@ services:
       args:
         <<: *frontend-build-args
         FRONTEND_APP: widgets
+        NEXT_PUBLIC_WINCRM_BILLING_ENABLED: 'true'
     environment: *frontend-auth-runtime
     restart: unless-stopped
     ports:

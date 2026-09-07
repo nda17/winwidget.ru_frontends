@@ -251,14 +251,21 @@ test('verification CI covers all common consumers, root and CRM tests without de
 	assert.match(workflow, /APP_REVISION: \$\{\{ github.sha \}\}/)
 	assert.match(
 		workflow,
-		/--build-arg NEXT_PUBLIC_WINCRM_BILLING_ENABLED=false/
+		/--build-arg NEXT_PUBLIC_WINCRM_BILLING_ENABLED="\$billing_enabled"/
 	)
 	assert.match(
 		workflow,
 		/--build-arg NEXT_PUBLIC_WINCRM_ENABLED="\$crm_enabled"/
 	)
-	assert.match(workflow, /build_image true "\$IMAGE"/)
-	assert.match(workflow, /build_image false "\$IMAGE-closed"/)
+	assert.match(
+		workflow,
+		/build_image true "\$BILLING_UI_ENABLED" "\$IMAGE"/
+	)
+	assert.match(workflow, /build_image false false "\$IMAGE-closed"/)
+	assert.match(
+		workflow,
+		/BILLING_UI_ENABLED: \$\{\{ matrix.billing_enabled \}\}/
+	)
 	assert.match(workflow, /Verify working CRM image/)
 	assert.match(
 		repositoryFile('deploy/docker-compose.prod.yml'),
@@ -270,6 +277,44 @@ test('verification CI covers all common consumers, root and CRM tests without de
 		/secrets\.|workflow_dispatch|ssh-keyscan|scp\s|ssh\s|deploy-production\.sh/
 	)
 	assert.doesNotMatch(workflow, /run:.*verify-auth-settings-contract\.mjs/)
+})
+
+test('production Compose and CI activate only CRM and Widgets billing UIs, without changing closed defaults', () => {
+	const workflow = repositoryFile('.github/workflows/ci.yml')
+	const compose = repositoryFile('deploy/docker-compose.prod.yml')
+	const sharedArgs = compose.split('x-runtime:')[0]
+	assert.match(sharedArgs, /NEXT_PUBLIC_WINCRM_BILLING_ENABLED: 'false'/)
+	assert.equal(
+		(compose.match(/NEXT_PUBLIC_WINCRM_BILLING_ENABLED: 'true'/g) ?? [])
+			.length,
+		2
+	)
+	for (const app of FRONTEND_APPS) {
+		const enabled = app === 'crm' || app === 'widgets'
+		const matrixEntry = workflow.match(
+			new RegExp(
+				`- app: ${app}\\n\\s+package: [^\\n]+\\n\\s+billing_enabled: '(true|false)'`
+			)
+		)
+		assert.equal(
+			matrixEntry?.[1],
+			String(enabled),
+			`CI billing gate for ${app}`
+		)
+		const appBuild = compose.match(
+			new RegExp(`  ${app}:\\n([\\s\\S]+?)    environment:`)
+		)?.[1]
+		assert.ok(appBuild)
+		if (enabled)
+			assert.match(appBuild, /NEXT_PUBLIC_WINCRM_BILLING_ENABLED: 'true'/)
+		else
+			assert.doesNotMatch(appBuild, /NEXT_PUBLIC_WINCRM_BILLING_ENABLED/)
+	}
+	for (const relative of ['.env.example', 'apps/crm/.env.example'])
+		assert.match(
+			repositoryFile(relative),
+			/^NEXT_PUBLIC_WINCRM_BILLING_ENABLED=false$/m
+		)
 })
 
 test('each app owns standalone tracing and its correct framework generation', () => {

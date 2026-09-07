@@ -288,6 +288,13 @@ test('shared CRM release follows the exact build flag and remains closed by defa
 				.CRM_RELEASE.apiEnabled,
 			value === 'true'
 		)
+		const billing = compile(
+			source,
+			{},
+			{ NEXT_PUBLIC_WINCRM_BILLING_ENABLED: value }
+		).CRM_RELEASE
+		assert.equal(billing.billingEnabled, value === 'true')
+		assert.equal(billing.apiEnabled, false)
 	}
 })
 
@@ -461,5 +468,100 @@ test('unreleased cards and profile render honest status without inferred price o
 	assert.doesNotMatch(
 		runningCards,
 		/Продажи откроются после запуска WinCRM/
+	)
+})
+
+test('paid Widgets cards navigate to CRM settings only when both gates are open, never creating payments or forwarding guessed checkout fields', async () => {
+	const { renderToStaticMarkup } = require('react-dom/server')
+	const { createElement } = require('react')
+	const configSource = await read(
+		'packages/winwidget-web/src/shared/config/crm-release.config.ts'
+	)
+	const cardsSource = await read(
+		'apps/widgets/src/screens/payment/ui/pricing/CrmPricingCards.tsx'
+	)
+	const toasts = [],
+		queries = [],
+		links = []
+	const authState = { auth: true, isAuthResolved: true }
+	const imports = {
+		'@/entities/crm-product': {
+			crmProductService: { getPolicy: () => policy() }
+		},
+		'@/entities/user': {
+			useUser: () => ({
+				user: { id: 'synthetic-ui-user' },
+				isLoading: false
+			}),
+			useAuthStore: selector => selector(authState)
+		},
+		'@/shared/config/pages/public.config': {
+			PUBLIC_PAGES: { LOGIN: '/login' }
+		},
+		'@/shared/lib/navigation/ZoneLink': {
+			default: props => {
+				links.push(props)
+				return createElement('a', props)
+			}
+		},
+		'@tanstack/react-query': {
+			useQuery: options => {
+				queries.push(options)
+				return { data: policy(), isError: false }
+			}
+		},
+		'react-hot-toast': { default: value => toasts.push(value) },
+		'./CrmPricingCards.module.scss': { default: {} }
+	}
+	for (const [apiEnabled, billingEnabled] of [
+		[true, true],
+		[true, false],
+		[false, true],
+		[false, false]
+	]) {
+		links.length = 0
+		const config = compile(
+			configSource,
+			{},
+			{
+				NEXT_PUBLIC_WINCRM_ENABLED: String(apiEnabled),
+				NEXT_PUBLIC_WINCRM_BILLING_ENABLED: String(billingEnabled),
+				NODE_ENV: 'production'
+			}
+		)
+		const Cards = compile(cardsSource, {
+			...imports,
+			'@/shared/config/crm-release.config': config
+		}).default
+		const markup = renderToStaticMarkup(createElement(Cards))
+		if (apiEnabled && billingEnabled) {
+			assert.equal(links.length, 2)
+			for (const link of links) {
+				assert.equal(link.href, 'https://crm.winwidget.ru/settings')
+				assert.equal(link.children, 'Открыть оплату WinCRM')
+				assert.equal(link.target, undefined)
+				link.onClick()
+			}
+			assert.doesNotMatch(
+				markup,
+				/disabled=|Оплата скоро|workspaceId=|period=|amount=|commandId=/
+			)
+		} else {
+			assert.equal(links.length, 0)
+			assert.equal((markup.match(/disabled=""/g) ?? []).length, 2)
+		}
+	}
+	assert.deepEqual(toasts, [
+		'Открываем оплату WinCRM',
+		'Открываем оплату WinCRM'
+	])
+	assert.ok(
+		queries.every(
+			query => query.queryKey[0] === 'crm-public-commercial-policy'
+		)
+	)
+	assert.doesNotMatch(
+		cardsSource,
+		/useMutation|\.post\(|\.put\(|subscriptionService|paymentEnabled|autoRenewalSignupEnabled/
 	)
 })

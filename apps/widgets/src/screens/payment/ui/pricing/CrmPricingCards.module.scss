@@ -52,6 +52,12 @@
 .soon {
 	@apply min-h-[44px] w-full cursor-not-allowed rounded-xl border border-[#e1d8eb] bg-[#f1ecf7] px-5 py-3 text-sm font-semibold text-[#796387];
 }
+.paymentLink {
+	@apply flex min-h-[44px] w-full items-center justify-center rounded-xl bg-[#7b3fa0] px-5 py-3 text-center text-sm font-semibold text-white transition-colors hover:bg-[#6b3289];
+	&:focus-visible {
+		@apply outline-none ring-2 ring-[#7b3fa0] ring-offset-2;
+	}
+}
 .footnote {
 	@apply mt-6 max-w-[720px] text-center text-xs leading-relaxed text-[#81728f];
 }

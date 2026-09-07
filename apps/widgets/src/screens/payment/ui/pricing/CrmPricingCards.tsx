@@ -2,7 +2,10 @@
 
 import { crmProductService } from '@/entities/crm-product'
 import { useAuthStore, useUser } from '@/entities/user'
-import { CRM_RELEASE } from '@/shared/config/crm-release.config'
+import {
+	CRM_RELEASE,
+	getCrmAppUrl
+} from '@/shared/config/crm-release.config'
 import { PUBLIC_PAGES } from '@/shared/config/pages/public.config'
 import Link from '@/shared/lib/navigation/ZoneLink'
 import { useQuery } from '@tanstack/react-query'
@@ -133,16 +136,26 @@ export default function CrmPricingCards() {
 									</li>
 								)}
 							</ul>
-							<button
-								type="button"
-								className={styles.soon}
-								disabled
-								title="Онлайн-оплата WinCRM пока недоступна"
-							>
-								{CRM_RELEASE.apiEnabled
-									? 'Оплата скоро'
-									: CRM_RELEASE.unavailableLabel}
-							</button>
+							{CRM_RELEASE.apiEnabled && CRM_RELEASE.billingEnabled ? (
+								<Link
+									href={`${getCrmAppUrl()}/settings`}
+									className={styles.paymentLink}
+									onClick={() => toast('Открываем оплату WinCRM')}
+								>
+									Открыть оплату WinCRM
+								</Link>
+							) : (
+								<button
+									type="button"
+									className={styles.soon}
+									disabled
+									title="Онлайн-оплата WinCRM пока недоступна"
+								>
+									{CRM_RELEASE.apiEnabled
+										? 'Оплата скоро'
+										: CRM_RELEASE.unavailableLabel}
+								</button>
+							)}
 						</article>
 					)
 				})}
