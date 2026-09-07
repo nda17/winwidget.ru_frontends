@@ -10,13 +10,15 @@ export const TeamSelect = ({
 	value,
 	onChange,
 	disabled,
-	label = 'Отдел'
+	label = 'Отдел',
+	emptyLabel = 'Без отдела'
 }: {
 	options: ReturnType<typeof useTeamOptions>
 	value: string
-	onChange: (id: string) => void
+	onChange: (id: string) => boolean | void
 	disabled: boolean
 	label?: string
+	emptyLabel?: string
 }) => {
 	const items = options.data?.items ?? []
 	const selected = options.data?.selected
@@ -32,7 +34,7 @@ export const TeamSelect = ({
 					options.error
 						? 'Не удалось загрузить отделы. Выбор не изменён.'
 						: unavailable
-							? 'Выбранный отдел недоступен. Выберите другой отдел или «Без отдела».'
+							? `Выбранный отдел недоступен. Выберите другой отдел или «${emptyLabel}».`
 							: undefined
 				}
 				hint={
@@ -43,15 +45,11 @@ export const TeamSelect = ({
 							: undefined
 				}
 				onChange={event => {
-					onChange(event.target.value)
-					toast(
-						event.target.value
-							? 'Отдел выбран для обращения'
-							: 'Обращение без отдела'
-					)
+					if (onChange(event.target.value) !== false)
+						toast(event.target.value ? 'Отдел выбран' : emptyLabel)
 				}}
 			>
-				<option value="">Без отдела</option>
+				<option value="">{emptyLabel}</option>
 				{value && !items.some(item => item.id === value) ? (
 					<option value={value} disabled={!selected}>
 						{selected?.name ??

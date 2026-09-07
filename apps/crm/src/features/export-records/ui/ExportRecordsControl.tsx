@@ -24,6 +24,7 @@ import {
 } from 'react'
 import toast from 'react-hot-toast'
 import { prepareRecordExport } from '../api/export.api'
+import { prepareWorkdayExport } from '../api/workday-export.api'
 import { exportNames, type ExportEntity } from '../model/export.contract'
 import styles from './ExportRecordsControl.module.scss'
 
@@ -53,12 +54,46 @@ const permitted = (
 	data.permissions.includes(`${permissionPrefix(entity)}:read`) &&
 	data.permissions.includes(`${permissionPrefix(entity)}:export`)
 
+// Losing write access alone must not prevent an OWNER's v2 export in READ_ONLY.
+// Preserve the existing v1 fingerprint; v2 tracks only its relevant privileges.
+const exportPermissionScope = (
+	data: CrmPermissions | undefined,
+	workday: boolean
+) =>
+	crmPermissionScope(
+		workday && data
+			? {
+					...data,
+					permissions: data.permissions.filter(
+						permission =>
+							permission === 'sales:read' || permission === 'sales:export'
+					)
+				}
+			: data
+	)
+
 export const ExportRecordsControl = ({
 	entity,
 	disabled = false
 }: {
 	entity: ExportEntity
 	disabled?: boolean
+}) => <ExportControl entity={entity} disabled={disabled} workday={false} />
+
+export const WorkdayExportControl = ({
+	disabled = false
+}: {
+	disabled?: boolean
+}) => <ExportControl entity="tasks" disabled={disabled} workday />
+
+const ExportControl = ({
+	entity,
+	disabled,
+	workday
+}: {
+	entity: ExportEntity
+	disabled: boolean
+	workday: boolean
 }) => {
 	const workspace = useCrmWorkspaceAccess()
 	const { session, sessionRevision } = useSessionStore()
@@ -67,7 +102,7 @@ export const ExportRecordsControl = ({
 		session,
 		sessionRevision
 	)
-	const scopeKey = crmPermissionScope(permissions.data)
+	const scopeKey = exportPermissionScope(permissions.data, workday)
 	const online = useSyncExternalStore(
 		subscribe,
 		() => navigator.onLine,
@@ -78,6 +113,8 @@ export const ExportRecordsControl = ({
 		online &&
 		permissions.isSuccess &&
 		!permissions.isFetching &&
+		(!workday ||
+			permissions.data?.workspaceId === workspace.workspaceId) &&
 		permitted(permissions.data, entity, session?.userId)
 	return (
 		<ExportPanel
@@ -86,9 +123,11 @@ export const ExportRecordsControl = ({
 				session?.userId,
 				sessionRevision,
 				scopeKey,
-				entity
+				entity,
+				workday
 			])}
 			entity={entity}
+			workday={workday}
 			workspaceId={workspace.workspaceId}
 			session={session}
 			revision={sessionRevision}
@@ -99,6 +138,7 @@ export const ExportRecordsControl = ({
 }
 const ExportPanel = ({
 	entity,
+	workday,
 	workspaceId,
 	session,
 	revision,
@@ -106,6 +146,7 @@ const ExportPanel = ({
 	available
 }: {
 	entity: ExportEntity
+	workday: boolean
 	workspaceId: string
 	session: { userId: string; accessToken: string } | null
 	revision: number
@@ -173,7 +214,7 @@ const ExportPanel = ({
 		client.setQueryData(key, fresh)
 		if (
 			!permitted(fresh, entity, session.userId) ||
-			crmPermissionScope(fresh) !== scopeKey
+			exportPermissionScope(fresh, workday) !== scopeKey
 		)
 			throw new AuthenticatedApiError(
 				'forbidden',
@@ -188,18 +229,30 @@ const ExportPanel = ({
 		setLoading(true)
 		setError(null)
 		setCompleted(null)
-		toast('Подготавливаем выгрузку выбранного раздела')
+		toast(
+			workday
+				? 'Подготавливаем выгрузку всех доступных задач'
+				: 'Подготавливаем выгрузку выбранного раздела'
+		)
 		try {
 			await authorize(request)
 			if (!current(request)) return
-			const result = await prepareRecordExport(
-				session.accessToken,
-				entity,
-				workspaceId,
-				session.userId,
-				format,
-				request.signal
-			)
+			const result = workday
+				? await prepareWorkdayExport(
+						session.accessToken,
+						workspaceId,
+						session.userId,
+						format,
+						request.signal
+					)
+				: await prepareRecordExport(
+						session.accessToken,
+						entity,
+						workspaceId,
+						session.userId,
+						format,
+						request.signal
+					)
 			if (!current(request)) return
 			await authorize(request)
 			if (!current(request)) return
@@ -252,13 +305,19 @@ const ExportPanel = ({
 					isOpen
 					onClose={close}
 					title={`Экспорт ${exportNames[entity]}`}
-					description="Полная выгрузка выбранного раздела рабочего пространства; текущие фильтры списка не применяются."
+					description={
+						workday
+							? 'Все доступные задачи рабочего пространства; выбранные период, статус и фильтры «Моего дня» не применяются.'
+							: 'Полная выгрузка выбранного раздела рабочего пространства; текущие фильтры списка не применяются.'
+					}
 				>
 					<div className={styles.content}>
 						<p className={styles.notice}>
-							Выгружаются все записи, включая архивные; для задач — все
-							статусы. До 10 000 записей и 16 МиБ. При превышении лимита
-							частичный файл не создаётся.
+							{workday
+								? 'Самостоятельные задачи и задачи доступных неархивных сделок, во всех статусах.'
+								: 'Выгружаются все записи, включая архивные; для задач — все статусы.'}{' '}
+							До 10 000 записей и 16 МиБ. При превышении лимита частичный
+							файл не создаётся.
 						</p>
 						<p className={styles.note}>
 							Экспорт доступен владельцу, в том числе в режиме чтения.

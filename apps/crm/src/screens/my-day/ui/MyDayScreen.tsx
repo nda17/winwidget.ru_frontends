@@ -1,0 +1,341 @@
+'use client'
+
+import { useState } from 'react'
+import { useQueryClient } from '@tanstack/react-query'
+import toast from 'react-hot-toast'
+import {
+	useWorkdaySession,
+	useWorkdayTasks,
+	type WorkdayFilters as Filters,
+	type WorkdayTask,
+	type WorkdayStatus
+} from '@/entities/crm-workday'
+import {
+	useWorkdayCommand,
+	WorkdayCreateTaskDrawer,
+	WorkdayTaskDrawer
+} from '@/features/manage-workday'
+import { WorkdayExportControl } from '@/features/export-records'
+import {
+	Button,
+	PageHeader,
+	ReadOnlyBanner,
+	ScreenState
+} from '@/shared/ui'
+import {
+	initialWorkdayFilters,
+	type WorkdayView
+} from '../model/workday-view'
+import { WorkdayCollection } from './WorkdayCollection'
+import { WorkdayFilters } from './WorkdayFilters'
+import { WorkdayInboxSummary } from './WorkdayInboxSummary'
+import styles from './MyDayScreen.module.scss'
+
+const MyDayContent = () => {
+	const context = useWorkdaySession()
+	const client = useQueryClient()
+	const [filters, setFilters] = useState<Filters>(initialWorkdayFilters)
+	const [view, setView] = useState<WorkdayView>('list')
+	const [selected, setSelected] = useState<string | null>(null)
+	const [creating, setCreating] = useState(false)
+	const command = useWorkdayCommand('quick-status', () =>
+		setSelected(null)
+	)
+	const overview = useWorkdayTasks({
+		...filters,
+		status: undefined,
+		page: 1,
+		pageSize: 1
+	})
+	// A newly mounted child observes the same stale permissions query and may
+	// trigger a background refetch. Keep that bound subtree mounted (but hidden
+	// and inert) until verification finishes; unmounting would refetch forever.
+	const verifyingBoundAccess =
+		context.permissions.isFetching &&
+		context.permissions.isSuccess &&
+		context.session !== null &&
+		context.permissions.data.subject === context.session.userId &&
+		context.permissions.data.workspaceId ===
+			context.workspace.workspaceId &&
+		context.permissions.data.role !== 'ANALYST' &&
+		context.permissions.data.permissions.includes('sales:read')
+	const updateStatus = (task: WorkdayTask, status: WorkdayStatus) => {
+		if (command.locked || task.status === status) return
+		if (command.hasPendingTask(task.id)) {
+			setSelected(task.id)
+			toast('Сначала подтвердите исходное сохранение этой задачи')
+			return
+		}
+		void command.execute({
+			kind: 'status',
+			id: task.id,
+			expectedVersion: task.version,
+			status
+		})
+	}
+	const reload = async () => {
+		const auth = await context.permissions.refetch()
+		if (auth.isError) {
+			toast.error('Не удалось проверить доступ')
+			return
+		}
+		if (
+			auth.data?.subject !== context.session?.userId ||
+			auth.data?.workspaceId !== context.workspace.workspaceId
+		)
+			return
+		await client.invalidateQueries(
+			{ queryKey: ['crm-workday'], refetchType: 'active' },
+			{ throwOnError: true }
+		)
+		if (!context.current()) return
+		await client.invalidateQueries(
+			{
+				queryKey: ['crm-inbox', context.workspace.workspaceId],
+				refetchType: 'active'
+			},
+			{ throwOnError: true }
+		)
+		if (!context.current()) return
+		command.resetAfterReview()
+		toast.success('Задачи обновлены')
+	}
+	if (context.permissions.isError)
+		return (
+			<ScreenState
+				variant="error"
+				description="Не удалось проверить права на задачи."
+				action={
+					<Button onClick={() => void context.permissions.refetch()}>
+						Повторить
+					</Button>
+				}
+			/>
+		)
+	if (context.permissions.isPending)
+		return <ScreenState variant="loading" />
+	if (!context.canRead && !verifyingBoundAccess)
+		return (
+			<ScreenState
+				variant="permission"
+				description="Ваша роль не даёт доступа к задачам сотрудников."
+			/>
+		)
+	return (
+		<>
+			{verifyingBoundAccess ? (
+				<ScreenState
+					variant="loading"
+					description="Проверяем актуальные права доступа. Несохранённые поля остаются в открытой форме."
+				/>
+			) : null}
+			<div
+				hidden={verifyingBoundAccess}
+				inert={verifyingBoundAccess}
+				aria-hidden={verifyingBoundAccess}
+			>
+				<div className={styles.screen}>
+					<PageHeader
+						eyebrow="Рабочий день"
+						title="Мой день"
+						description="Сосредоточьтесь на задачах: выберите день, период или все сроки."
+						actions={
+							<>
+								<WorkdayExportControl
+									disabled={command.pending || command.ambiguous}
+								/>
+								<Button
+									variant="secondary"
+									disabled={command.pending || command.ambiguous}
+									onClick={() =>
+										void reload().catch(() =>
+											toast.error('Не удалось обновить задачи')
+										)
+									}
+								>
+									Обновить
+								</Button>
+								<Button
+									disabled={!context.canWrite || command.locked}
+									onClick={() => setCreating(true)}
+								>
+									Новая задача
+								</Button>
+							</>
+						}
+					/>
+					{!context.canWrite ? (
+						<ReadOnlyBanner description="Задачи доступны для просмотра. Изменения требуют соответствующих прав и действующего доступа." />
+					) : null}
+					{command.error ? (
+						<div className={styles.error} role="alert">
+							<p>{command.error.message}</p>
+							{command.ambiguous ? (
+								<>
+									<p>
+										Результат ещё не подтверждён. Повторная проверка
+										использует ту же команду, без второго изменения.
+									</p>
+									<Button
+										variant="secondary"
+										disabled={!command.canRetry}
+										isLoading={command.pending}
+										onClick={() => void command.execute()}
+									>
+										Проверить сохранение
+									</Button>
+								</>
+							) : command.blocked ? (
+								<Button
+									variant="secondary"
+									onClick={() =>
+										void reload().catch(() =>
+											toast.error('Не удалось обновить задачи')
+										)
+									}
+								>
+									Обновить данные и проверить
+								</Button>
+							) : null}
+						</div>
+					) : null}
+					<WorkdayFilters
+						key={JSON.stringify(filters)}
+						value={filters}
+						view={view}
+						allowedScopes={context.scopes}
+						peopleContext={{
+							workspaceId: context.workspace.workspaceId,
+							subject: context.session?.userId,
+							accessToken: context.session?.accessToken,
+							sessionRevision: context.sessionRevision,
+							canRead: context.canRead,
+							isCurrent: context.current,
+							authority: context.permissions.data
+						}}
+						onChange={next => {
+							if (!command.canClose()) return false
+							setSelected(null)
+							setFilters(next)
+							return true
+						}}
+						onViewChange={next => {
+							if (!command.canClose()) return false
+							setSelected(null)
+							setView(next)
+							setFilters(value => ({
+								...value,
+								status: undefined,
+								page: 1
+							}))
+							return true
+						}}
+					/>
+					{overview.data ? (
+						<p className={styles.hint}>
+							Данные на{' '}
+							{new Intl.DateTimeFormat('ru-RU', {
+								dateStyle: 'medium',
+								timeStyle: 'medium',
+								timeZone: filters.timeZone
+							}).format(new Date(overview.data.asOf))}{' '}
+							({filters.timeZone}). Для актуальных сроков и счётчиков
+							нажмите «Обновить».
+						</p>
+					) : null}
+					{overview.query.isError ? (
+						<div role="alert" className={styles.error}>
+							Счётчики временно недоступны.
+							<Button
+								variant="secondary"
+								onClick={() => void overview.query.refetch()}
+							>
+								Повторить
+							</Button>
+						</div>
+					) : (
+						<section
+							className={styles.summary}
+							aria-label="Сводка по выбранному периоду"
+							aria-busy={overview.query.isFetching}
+						>
+							{(
+								[
+									['OPEN', 'К выполнению'],
+									['IN_PROGRESS', 'В работе'],
+									['COMPLETED', 'Готово']
+								] as const
+							).map(([status, label]) => (
+								<div className={styles.summaryItem} key={status}>
+									<span className={styles.hint}>{label}</span>
+									<strong className={styles.summaryValue}>
+										{overview.data?.counts[status] ?? '—'}
+									</strong>
+								</div>
+							))}
+							<button
+								className={`${styles.summaryItem} ${styles.overdue}`}
+								disabled={command.pending || command.ambiguous}
+								onClick={() => {
+									setFilters(value => ({
+										...value,
+										period: 'OVERDUE',
+										from: undefined,
+										to: undefined,
+										status: undefined,
+										page: 1
+									}))
+									toast('Показаны просроченные задачи')
+								}}
+							>
+								<span>Просрочено за все дни</span>
+								<strong className={styles.summaryValue}>
+									{overview.data?.overdueCount ?? '—'}
+								</strong>
+							</button>
+						</section>
+					)}
+					<WorkdayCollection
+						key={JSON.stringify([
+							context.key,
+							{ ...filters, page: undefined },
+							view
+						])}
+						filters={filters}
+						view={view}
+						canWrite={context.canWrite && !command.locked}
+						onOpen={task => {
+							if (command.canClose()) setSelected(task.id)
+						}}
+						onStatus={updateStatus}
+						onPage={page => {
+							if (command.canClose())
+								setFilters(value => ({ ...value, page }))
+						}}
+					/>
+					<WorkdayInboxSummary
+						disabled={command.pending || command.ambiguous}
+					/>
+					{selected ? (
+						<WorkdayTaskDrawer
+							taskId={selected}
+							timeZone={filters.timeZone}
+							onClose={() => {
+								if (command.canClose()) setSelected(null)
+							}}
+						/>
+					) : null}
+					{creating ? (
+						<WorkdayCreateTaskDrawer onClose={() => setCreating(false)} />
+					) : null}
+				</div>
+			</div>
+		</>
+	)
+}
+
+const MyDayScreen = () => {
+	const context = useWorkdaySession()
+	return <MyDayContent key={JSON.stringify(context.key)} />
+}
+export default MyDayScreen

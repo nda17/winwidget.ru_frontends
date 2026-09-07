@@ -2,6 +2,7 @@
 
 import { useQuery } from '@tanstack/react-query'
 import { useState } from 'react'
+import { invalidContractError } from '@/shared/api/authenticated-http-client'
 import { listTeamOptions } from '../api/team.api'
 
 interface Context {
@@ -12,6 +13,7 @@ interface Context {
 	permissionScope: string
 	teamIds: readonly string[]
 	enabled: boolean
+	isCurrent?: () => boolean
 }
 
 export const useTeamOptions = (context: Context, selectedId: string) => {
@@ -29,24 +31,29 @@ export const useTeamOptions = (context: Context, selectedId: string) => {
 		!!context.subject &&
 		!!context.accessToken &&
 		context.teamIds.length > 0
+	const current = () => enabled && (context.isCurrent?.() ?? true)
 	const records = useQuery({
 		queryKey: ['crm-team-options', scope, page, selectedId],
 		enabled,
-		queryFn: () =>
-			listTeamOptions(context.accessToken!, {
+		queryFn: async () => {
+			if (!current()) throw invalidContractError()
+			const response = await listTeamOptions(context.accessToken!, {
 				workspaceId: context.workspaceId,
 				subject: context.subject!,
 				teamIds: context.teamIds,
 				page,
 				pageSize: 20,
 				selectedId
-			}),
+			})
+			if (!current()) throw invalidContractError()
+			return response
+		},
 		retry: false,
 		staleTime: 0,
 		gcTime: 0
 	})
 	// Never display stale names from an old actor, scope or failed refresh.
-	const confirmed = enabled && records.isSuccess && !records.isFetching
+	const confirmed = current() && records.isSuccess && !records.isFetching
 	const data = confirmed ? records.data : undefined
 	return {
 		data,
@@ -61,6 +68,8 @@ export const useTeamOptions = (context: Context, selectedId: string) => {
 				context.teamIds.includes(selectedId)
 			),
 		refetch: records.refetch,
-		setPage: (next: number) => setPagination({ scope, page: next })
+		setPage: (next: number) => {
+			if (current()) setPagination({ scope, page: next })
+		}
 	}
 }

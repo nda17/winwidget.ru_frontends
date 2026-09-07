@@ -1,1 +1,4 @@
-export { ExportRecordsControl } from './ui/ExportRecordsControl'
+export {
+	ExportRecordsControl,
+	WorkdayExportControl
+} from './ui/ExportRecordsControl'

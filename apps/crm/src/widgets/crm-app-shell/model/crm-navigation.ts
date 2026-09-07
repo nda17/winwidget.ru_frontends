@@ -1,4 +1,5 @@
 export type CrmNavigationIcon =
+	| 'clock'
 	| 'inbox'
 	| 'deals'
 	| 'tasks'
@@ -13,6 +14,11 @@ export interface CrmNavigationItem {
 }
 
 export const CRM_NAVIGATION = [
+	{
+		href: '/my-day',
+		icon: 'clock',
+		label: 'Мой день'
+	},
 	{
 		href: '/inbox',
 		icon: 'inbox',

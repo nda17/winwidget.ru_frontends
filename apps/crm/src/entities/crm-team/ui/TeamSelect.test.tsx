@@ -8,6 +8,7 @@ import {
 	waitFor
 } from '@testing-library/react'
 import { useState } from 'react'
+import toast from 'react-hot-toast'
 import { afterEach, beforeEach, describe, expect, it, vi } from 'vitest'
 import { listTeamOptions } from '../api/team.api'
 import { useTeamOptions } from '../model/use-team-options'
@@ -220,5 +221,22 @@ describe('shared department selector', () => {
 			(screen.getByRole('combobox') as HTMLSelectElement).disabled
 		).toBe(true)
 		expect(screen.queryByRole('navigation')).toBeNull()
+	})
+	it('uses product-neutral notifications when selecting and clearing a department', async () => {
+		render(view())
+		await screen.findByRole('option', { name: 'Отдел 1' })
+		fireEvent.change(screen.getByRole('combobox'), {
+			target: { value: ids[0] }
+		})
+		expect(toast).toHaveBeenLastCalledWith('Отдел выбран')
+		await waitFor(() =>
+			expect(
+				(screen.getByRole('combobox') as HTMLSelectElement).disabled
+			).toBe(false)
+		)
+		fireEvent.change(screen.getByRole('combobox'), {
+			target: { value: '' }
+		})
+		expect(toast).toHaveBeenLastCalledWith('Без отдела')
 	})
 })
