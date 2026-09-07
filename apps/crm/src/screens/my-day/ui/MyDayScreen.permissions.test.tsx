@@ -7,7 +7,11 @@ import {
 	screen,
 	waitFor
 } from '@testing-library/react'
-import type { PropsWithChildren } from 'react'
+import {
+	forwardRef,
+	useImperativeHandle,
+	type PropsWithChildren
+} from 'react'
 import { afterEach, beforeEach, describe, expect, it, vi } from 'vitest'
 import toast from 'react-hot-toast'
 import type { CrmPermissions } from '@/entities/crm-access'
@@ -81,7 +85,12 @@ vi.mock('@/entities/crm-team', async () => ({
 	TeamSelect: () => null
 }))
 vi.mock('./WorkdayPeopleFilters', () => ({
-	WorkdayPeopleFilters: () => null
+	WorkdayPeopleFilters: forwardRef(
+		function PeopleFilterFixture(_props, ref) {
+			useImperativeHandle(ref, () => ({ resolve: () => ({}) }))
+			return null
+		}
+	)
 }))
 vi.mock('react-hot-toast', () => ({
 	default: Object.assign(vi.fn(), { success: vi.fn(), error: vi.fn() })
@@ -208,6 +217,30 @@ describe('MyDay actual permission query lifecycle', () => {
 			await screen.findByRole('heading', { level: 1, name: 'Планировщик' })
 		).toBeTruthy()
 		expect(screen.queryByRole('heading', { name: 'Мой день' })).toBeNull()
+	})
+	it('allows timezone filtering with READ_ONLY access without a task mutation', async () => {
+		permissions = {
+			...permissions,
+			state: 'READ_ONLY',
+			permissions: ['sales:read']
+		}
+		render(<MyDayScreen />, { wrapper: Wrapper })
+		await screen.findByRole('button', { name: task.title })
+		fireEvent.click(screen.getByText('Поиск и дополнительные фильтры'))
+		const select = screen.getByRole('combobox', { name: 'Часовой пояс' })
+		expect(select).toHaveProperty('disabled', false)
+		fireEvent.change(select, { target: { value: 'Asia/Vladivostok' } })
+		fireEvent.click(screen.getByRole('button', { name: 'Применить' }))
+		await waitFor(() =>
+			expect(listWorkdayTasks).toHaveBeenCalledWith(
+				'token',
+				expect.objectContaining({ timeZone: 'Asia/Vladivostok' })
+			)
+		)
+		expect(mutateWorkdayTask).not.toHaveBeenCalled()
+		expect(
+			screen.getByRole('button', { name: 'Новая задача' })
+		).toHaveProperty('disabled', true)
 	})
 	it.each(['list', 'board', 'drawer'] as const)(
 		'offers a blank new draft only after confirmed completion from %s with real permission observers',

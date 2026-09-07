@@ -18,6 +18,7 @@ import {
 	type WorkdayView
 } from '../model/workday-view'
 import styles from './MyDayScreen.module.scss'
+import { WorkdayTimeZoneSelect } from './WorkdayTimeZoneSelect'
 import {
 	WorkdayPeopleFilters,
 	type WorkdayPeopleFilterValue,
@@ -182,17 +183,9 @@ export const WorkdayFilters = ({
 				<details className={styles.advanced}>
 					<summary>Поиск и дополнительные фильтры</summary>
 					<div className={styles.advancedGrid}>
-						<TextField
-							label="Часовой пояс"
+						<WorkdayTimeZoneSelect
 							value={timeZone}
-							maxLength={64}
-							onChange={e => setTimeZone(e.target.value)}
-							placeholder="Europe/Moscow"
-							error={
-								!isWorkdayTimeZone(timeZone)
-									? 'Укажите часовой пояс IANA, например Europe/Moscow'
-									: undefined
-							}
+							onChange={setTimeZone}
 						/>
 						{view === 'list' ? (
 							<SelectField

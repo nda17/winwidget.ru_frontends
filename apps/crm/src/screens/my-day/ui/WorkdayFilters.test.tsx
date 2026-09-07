@@ -84,15 +84,32 @@ describe('MyDay filters', () => {
 			to: '2026-09-08'
 		})
 	})
-	it('does not submit unknown timezones', () => {
+	it('cannot select an unknown timezone and leaves the valid filter unchanged', () => {
 		const { onChange } = setup()
 		fireEvent.click(screen.getByText('Поиск и дополнительные фильтры'))
 		fireEvent.change(screen.getByLabelText('Часовой пояс'), {
 			target: { value: 'unknown' }
 		})
 		fireEvent.click(screen.getByRole('button', { name: 'Применить' }))
+		expect(onChange).toHaveBeenCalledWith(initialWorkdayFilters())
+		expect(screen.getByLabelText('Часовой пояс')).toHaveProperty(
+			'value',
+			'Europe/Moscow'
+		)
+		expect(screen.queryByRole('alert')).toBeNull()
+	})
+	it('changes timezone only on apply, preserving the existing date/filter contract', () => {
+		const { onChange } = setup()
+		fireEvent.click(screen.getByText('Поиск и дополнительные фильтры'))
+		fireEvent.change(screen.getByLabelText('Часовой пояс'), {
+			target: { value: 'Asia/Vladivostok' }
+		})
 		expect(onChange).not.toHaveBeenCalled()
-		expect(screen.getByRole('alert').textContent).toContain('IANA')
+		fireEvent.click(screen.getByRole('button', { name: 'Применить' }))
+		expect(onChange).toHaveBeenCalledWith({
+			...initialWorkdayFilters(),
+			timeZone: 'Asia/Vladivostok'
+		})
 	})
 	it('board offers an accessible view switch, without cancelled-status column filter', () => {
 		const { onViewChange } = setup('board')
