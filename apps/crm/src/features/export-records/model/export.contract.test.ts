@@ -160,6 +160,28 @@ const csvText = (
 	].join('\r\n') +
 	'\r\n'
 describe('Export metadata and body validation', () => {
+	it('exports an OPEN deal without a next action and an in-progress linked task', () => {
+		for (const [entity, row] of [
+			['deals', { ...rows.deals, archivedAt: null, nextTaskId: null }],
+			[
+				'tasks',
+				{ ...rows.tasks, status: 'IN_PROGRESS', completedAt: null }
+			]
+		] as const) {
+			const bytes = jsonBytes(entity, [row])
+			expect(() =>
+				validateExportBody(bytes, metadata(entity, 'json', bytes.length))
+			).not.toThrow()
+		}
+	})
+	it('does not export a closed deal with a next action', () => {
+		const bytes = jsonBytes('deals', [
+			{ ...rows.deals, status: 'WON', archivedAt: null, nextTaskId: id }
+		])
+		expect(() =>
+			validateExportBody(bytes, metadata('deals', 'json', bytes.length))
+		).toThrow()
+	})
 	it('exports native sourceId and null name through the original 20-column schema without a payload', () => {
 		const row = {
 			...rows.inbox,

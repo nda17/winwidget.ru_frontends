@@ -14,7 +14,7 @@ export interface SalesTask {
 	version: number
 	title: string
 	dueAt: string
-	status: 'OPEN' | 'COMPLETED' | 'CANCELLED'
+	status: 'OPEN' | 'IN_PROGRESS' | 'COMPLETED' | 'CANCELLED'
 	assignedToSubject: string
 	completedAt: string | null
 	createdAt: string
@@ -104,12 +104,15 @@ export const parseSalesTask = (
 		!version(value.version) ||
 		!isNonEmptyString(value.title, 200) ||
 		!isIsoDate(value.dueAt) ||
-		!['OPEN', 'COMPLETED', 'CANCELLED'].includes(String(value.status)) ||
+		!['OPEN', 'IN_PROGRESS', 'COMPLETED', 'CANCELLED'].includes(
+			String(value.status)
+		) ||
 		!isNonEmptyString(value.assignedToSubject, 256) ||
 		!nullableDate(value.completedAt) ||
 		!isIsoDate(value.createdAt) ||
 		!isIsoDate(value.updatedAt) ||
-		(value.status === 'OPEN') !== (value.completedAt === null)
+		(value.status === 'OPEN' || value.status === 'IN_PROGRESS') !==
+			(value.completedAt === null)
 	)
 		return null
 	return value as unknown as SalesTask
@@ -168,13 +171,13 @@ export const parseSalesDeal = (
 		value.nextTask !== null &&
 		(!nextTask ||
 			nextTask.dealId !== value.id ||
-			nextTask.status !== 'OPEN' ||
+			(nextTask.status !== 'OPEN' && nextTask.status !== 'IN_PROGRESS') ||
 			nextTask.assignedToSubject !== value.assignedToSubject)
 	)
 		return null
 	if (
-		(value.status === 'OPEN' && value.archivedAt === null) !==
-		(nextTask !== null)
+		(value.status !== 'OPEN' || value.archivedAt !== null) &&
+		nextTask !== null
 	)
 		return null
 	return { ...value, nextTask } as unknown as SalesDeal

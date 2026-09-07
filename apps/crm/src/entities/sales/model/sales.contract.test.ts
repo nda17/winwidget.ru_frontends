@@ -66,7 +66,6 @@ describe('Sales exact contracts', () => {
 	it.each([
 		{ ...deal, extra: true },
 		{ ...deal, workspaceId: contactId },
-		{ ...deal, nextTask: null },
 		{ ...deal, status: 'WON' },
 		{ ...deal, amountMinor: 0.5 },
 		{ ...deal, amountMinor: -1 },
@@ -84,6 +83,28 @@ describe('Sales exact contracts', () => {
 	])('rejects malformed or cross-scope deal %j', value => {
 		expect(parseSalesDeal(value, workspaceId)).toBeNull()
 	})
+	it('accepts an OPEN deal without a next action and an in-progress next action', () => {
+		expect(
+			parseSalesDeal({ ...deal, nextTask: null }, workspaceId)
+		).toEqual({ ...deal, nextTask: null })
+		const inProgress = { ...task, status: 'IN_PROGRESS' }
+		expect(parseSalesTask(inProgress, workspaceId)).toEqual(inProgress)
+		expect(
+			parseSalesDeal({ ...deal, nextTask: inProgress }, workspaceId)
+		).toEqual({ ...deal, nextTask: inProgress })
+	})
+	it.each([
+		{ ...task, status: 'IN_PROGRESS', completedAt: date },
+		{ ...task, status: 'COMPLETED', completedAt: null },
+		{ ...task, status: 'CANCELLED', completedAt: null },
+		{ ...task, status: 'UNKNOWN' },
+		{ ...task, dealId: null }
+	])(
+		'keeps legacy deal-task identity and lifecycle validation for %j',
+		value => {
+			expect(parseSalesTask(value, workspaceId)).toBeNull()
+		}
+	)
 	it('accepts closed and archived OPEN history without an open action', () => {
 		expect(
 			parseSalesDeal(

@@ -74,7 +74,7 @@ export const isSalesExportDeal = (
 	)
 		return false
 	return (
-		(value.status === 'OPEN' && value.archivedAt === null) ===
-		(value.nextTaskId !== null)
+		(value.status === 'OPEN' && value.archivedAt === null) ||
+		value.nextTaskId === null
 	)
 }
