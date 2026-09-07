@@ -77,6 +77,18 @@ const mainNavigation = () =>
 	screen.getByRole('navigation', { name: 'Основная навигация CRM' })
 
 describe('honest WinCRM application shell', () => {
+	it('includes the compact vector brand in the mobile section context', () => {
+		mount()
+		const context = document.querySelector(
+			'[aria-label="Текущий раздел"]'
+		)!
+		expect(context.querySelector('svg')?.getAttribute('viewBox')).toBe(
+			'0 0 86800 10622.79'
+		)
+		expect(
+			within(context as HTMLElement).getByText('Входящие')
+		).toBeTruthy()
+	})
 	it('shows current access and membership without demo copy, fake search or paid claims', () => {
 		mount()
 		expect(screen.getByText('Доступ активен')).toBeTruthy()
@@ -135,16 +147,16 @@ describe('honest WinCRM application shell', () => {
 		).toBe('page')
 		expect(
 			document.querySelector('[aria-label="Текущий раздел"]')?.textContent
-		).toBe('WinCRMКонтакты')
+		).toContain('Контакты')
 	})
 	it('uses a neutral context for unknown paths, never a fabricated workspace name', () => {
 		fixture.pathname = '/unknown'
 		mount()
 		expect(
 			document.querySelector('[aria-label="Текущий раздел"]')?.textContent
-		).toBe('WinCRMРабочее пространство')
+		).toContain('Рабочее пространство')
 	})
-	it('toasts ordinary navigation once, but not active or modified clicks', () => {
+	it('navigates without redundant transition notifications', () => {
 		mount()
 		fireEvent.click(
 			within(mainNavigation()).getByRole('link', { name: 'Входящие' })
@@ -157,10 +169,7 @@ describe('honest WinCRM application shell', () => {
 		fireEvent.click(
 			within(mainNavigation()).getByRole('link', { name: 'Задачи' })
 		)
-		expect(toast).toHaveBeenCalledExactlyOnceWith(
-			'Переход в раздел «Задачи»',
-			{ id: 'crm-navigation' }
-		)
+		expect(toast).not.toHaveBeenCalled()
 	})
 	it('keeps accessible mobile navigation and closes the drawer on ordinary navigation', () => {
 		mount()
@@ -182,10 +191,7 @@ describe('honest WinCRM application shell', () => {
 		)
 		expect(toggle.getAttribute('aria-expanded')).toBe('false')
 		expect(screen.queryByRole('dialog')).toBeNull()
-		expect(toast).toHaveBeenCalledExactlyOnceWith(
-			'Переход в раздел «Сделки»',
-			{ id: 'crm-navigation' }
-		)
+		expect(toast).not.toHaveBeenCalled()
 	})
 	it('offers both independent products even when CRM is read-only, without a forced chooser', () => {
 		fixture.access.state = 'READ_ONLY'
@@ -230,9 +236,7 @@ describe('honest WinCRM application shell', () => {
 		expect(toast).not.toHaveBeenCalled()
 		fireEvent.click(crm)
 		expect(details.open).toBe(false)
-		expect(toast).toHaveBeenCalledExactlyOnceWith('Переход в WinCRM', {
-			id: 'product-navigation'
-		})
+		expect(toast).not.toHaveBeenCalled()
 		details.open = true
 		crm.focus()
 		fireEvent.keyDown(crm, { key: 'Escape' })

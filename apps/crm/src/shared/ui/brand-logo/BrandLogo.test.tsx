@@ -10,6 +10,18 @@ import styles from './BrandLogo.module.scss'
 afterEach(cleanup)
 
 describe('WinCRM vector wordmark', () => {
+	it('uses the same vector and unchanged brand color in its mobile size', () => {
+		const { container } = render(<BrandLogo size="compact" />)
+		expect(
+			container
+				.querySelector('svg')
+				?.classList.contains(styles.wordmarkCompact)
+		).toBe(true)
+		expect(container.querySelector('svg')?.getAttribute('fill')).toBe(
+			'currentColor'
+		)
+		expect(screen.getByText('WinCRM').className).toBe(styles.srOnly)
+	})
 	it('renders one accessible brand without a tile, visible text or font dependency', () => {
 		const { container } = render(<BrandLogo />)
 		const label = screen.getByText('WinCRM')

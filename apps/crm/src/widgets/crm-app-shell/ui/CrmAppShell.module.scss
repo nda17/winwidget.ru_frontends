@@ -59,7 +59,11 @@
 }
 
 .productName {
-	@apply text-xs font-medium text-crm-muted;
+	@apply hidden text-xs font-medium text-crm-muted lg:block;
+}
+
+.mobileBrand {
+	@apply inline-flex py-0.5 lg:hidden;
 }
 
 .sectionName {

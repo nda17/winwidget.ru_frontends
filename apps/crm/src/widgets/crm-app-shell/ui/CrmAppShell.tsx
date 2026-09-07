@@ -23,7 +23,6 @@ import {
 	useRef,
 	useState
 } from 'react'
-import toast from 'react-hot-toast'
 
 interface CrmNavigationProps {
 	ariaLabel: string
@@ -64,10 +63,6 @@ const CrmNavigation = ({ ariaLabel, onNavigate }: CrmNavigationProps) => {
 									)
 										return
 									onNavigate?.()
-									if (!isActive)
-										toast(`Переход в раздел «${item.label}»`, {
-											id: 'crm-navigation'
-										})
 								}}
 							>
 								<span className={styles.navigationIcon}>
@@ -165,7 +160,6 @@ const CrmProductSwitch = () => {
 						)
 							return
 						if (details.current) details.current.open = false
-						toast('Переход в WinWidget', { id: 'product-navigation' })
 					}}
 				>
 					<strong>WinWidget</strong>
@@ -186,7 +180,6 @@ const CrmProductSwitch = () => {
 						)
 							return
 						if (details.current) details.current.open = false
-						toast('Переход в WinCRM', { id: 'product-navigation' })
 					}}
 				>
 					<strong>WinCRM</strong>
@@ -240,6 +233,7 @@ const CrmAppShell = ({ children }: PropsWithChildren) => {
 						className={styles.sectionContext}
 						aria-label="Текущий раздел"
 					>
+						<BrandLogo size="compact" className={styles.mobileBrand} />
 						<span className={styles.productName}>WinCRM</span>
 						<span className={styles.sectionName}>{section}</span>
 					</div>

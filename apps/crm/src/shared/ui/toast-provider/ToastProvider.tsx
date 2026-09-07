@@ -30,7 +30,7 @@ export const ToastProvider = ({ children }: PropsWithChildren) => {
 	const host = hosts.at(-1)?.element
 	const toaster = (
 		<Toaster
-			position="top-right"
+			position="top-center"
 			containerClassName={host ? styles.modalViewport : undefined}
 		/>
 	)

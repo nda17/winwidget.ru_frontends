@@ -7,15 +7,19 @@ import styles from './BrandLogo.module.scss'
 export interface BrandLogoProps {
 	href?: string
 	className?: string
+	size?: 'default' | 'compact'
 }
 
-const LogoContent = () => {
+const LogoContent = ({ compact }: { compact: boolean }) => {
 	const cutId = useId()
 
 	return (
 		<>
 			<svg
-				className={styles.wordmark}
+				className={clsx(
+					styles.wordmark,
+					compact && styles.wordmarkCompact
+				)}
 				viewBox="0 0 86800 10622.79"
 				fill="currentColor"
 				aria-hidden="true"
@@ -52,20 +56,24 @@ const LogoContent = () => {
 	)
 }
 
-export const BrandLogo = ({ href, className }: BrandLogoProps) => {
+export const BrandLogo = ({
+	href,
+	className,
+	size = 'default'
+}: BrandLogoProps) => {
 	const logoClassName = clsx(styles.logo, className)
 
 	if (href) {
 		return (
 			<Link href={href} className={logoClassName} aria-label="WinCRM">
-				<LogoContent />
+				<LogoContent compact={size === 'compact'} />
 			</Link>
 		)
 	}
 
 	return (
 		<span className={logoClassName}>
-			<LogoContent />
+			<LogoContent compact={size === 'compact'} />
 		</span>
 	)
 }
