@@ -244,6 +244,11 @@ export const ContactCallPanel = ({
 							Сейчас вне удобных часов клиента.
 						</p>
 					) : null}
+					{state?.status === 'UNKNOWN' ? (
+						<p className={styles.lookupWarning}>
+							Время звонка не настроено
+						</p>
+					) : null}
 					{record.phone ? (
 						<Button
 							variant="secondary"

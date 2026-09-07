@@ -133,6 +133,7 @@ describe('contact call action', () => {
 		vi.mocked(getCustomer).mockResolvedValue(unknown)
 		const confirm = vi.spyOn(window, 'confirm').mockReturnValue(false)
 		mount(unknown)
+		expect(screen.getByText('Время звонка не настроено')).toBeTruthy()
 		expect(
 			screen.getByText(
 				/по сохранённой карточке: часовой пояс клиента не указан/i

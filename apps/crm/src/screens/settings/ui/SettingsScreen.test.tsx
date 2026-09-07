@@ -21,6 +21,9 @@ vi.mock('@/features/view-crm-commercial-policy', () => ({
 vi.mock('@/features/manage-workspace-branding', () => ({
 	WorkspaceBrandingSettings: () => <div>Название компании в CRM</div>
 }))
+vi.mock('@/features/manage-reminders', () => ({
+	ReminderSettings: () => <div>Напоминания о задачах</div>
+}))
 vi.mock('@/features/manage-crm-billing', () => ({
 	BillingEntryCard: () => <div>Управление оплатой владельца</div>
 }))
