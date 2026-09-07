@@ -1,5 +1,6 @@
 'use client'
 
+import { TeamSelect, useTeamOptions } from '@/entities/crm-team'
 import {
 	csvImportCommandError,
 	type CsvImportSummary
@@ -10,7 +11,6 @@ import {
 	DataTable,
 	Drawer,
 	ScreenState,
-	SelectField,
 	TextField,
 	type DataTableColumn
 } from '@/shared/ui'
@@ -53,6 +53,18 @@ const CsvImportPanel = ({ access, onClose, onSaved }: Props) => {
 	const [rows, setRows] = useState<InboxCsvRow[]>([])
 	const [label, setLabel] = useState('Импорт CSV')
 	const [teamId, setTeamId] = useState('')
+	const teams = useTeamOptions(
+		{
+			workspaceId: access.workspaceId,
+			subject: access.session?.userId,
+			accessToken: access.session?.accessToken,
+			sessionRevision: access.revision,
+			permissionScope: access.scopeKey,
+			teamIds: access.permissions.data?.teamIds ?? [],
+			enabled: access.canRead
+		},
+		teamId
+	)
 	const [reading, setReading] = useState(false)
 	const [error, setError] = useState<string | null>(null)
 	const [summary, setSummary] = useState<CsvImportSummary | null>(null)
@@ -162,9 +174,9 @@ const CsvImportPanel = ({ access, onClose, onSaved }: Props) => {
 	}
 	const submit = () => {
 		if (!editable || !current() || !navigator.onLine) return
-		if (teamId && !access.permissions.data?.teamIds.includes(teamId)) {
-			setError('Выберите команду из текущего списка доступа.')
-			toast.error('Выберите доступную команду')
+		if (!teams.validSelection) {
+			setError('Выберите доступный отдел или «Без отдела».')
+			toast.error('Выберите доступный отдел')
 			return
 		}
 		const input = {
@@ -242,20 +254,14 @@ const CsvImportPanel = ({ access, onClose, onSaved }: Props) => {
 							readOnly={!editable}
 							onChange={event => setLabel(event.target.value)}
 						/>
-						{access.permissions.data?.teamIds.length ? (
-							<SelectField
-								label="Команда импорта"
-								disabled={!editable}
+						{access.permissions.data?.teamIds.length || teamId ? (
+							<TeamSelect
+								label="Отдел импорта"
+								options={teams}
 								value={teamId}
-								onChange={event => setTeamId(event.target.value)}
-							>
-								<option value="">Без команды</option>
-								{access.permissions.data.teamIds.map(id => (
-									<option value={id} key={id}>
-										{id}
-									</option>
-								))}
-							</SelectField>
+								disabled={!editable}
+								onChange={setTeamId}
+							/>
 						) : null}
 						<TextField
 							label="Файл CSV"
@@ -317,7 +323,9 @@ const CsvImportPanel = ({ access, onClose, onSaved }: Props) => {
 								</Button>
 							) : (
 								<Button
-									disabled={!editable || !rows.length}
+									disabled={
+										!editable || !rows.length || !teams.validSelection
+									}
 									onClick={submit}
 								>
 									Импортировать обращения

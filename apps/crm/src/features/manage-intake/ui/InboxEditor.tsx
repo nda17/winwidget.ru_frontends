@@ -1,5 +1,6 @@
 'use client'
 
+import { TeamSelect, useTeamOptions } from '@/entities/crm-team'
 import {
 	getInboxEntry,
 	listIntakeActivities,
@@ -10,13 +11,12 @@ import {
 	Button,
 	Drawer,
 	ScreenState,
-	SelectField,
 	TextField,
 	TextareaField
 } from '@/shared/ui'
 import { useQuery } from '@tanstack/react-query'
 import { useState } from 'react'
-import { useForm } from 'react-hook-form'
+import { useForm, useWatch } from 'react-hook-form'
 import toast from 'react-hot-toast'
 import type { IntakeAccess } from '../model/use-intake-access'
 import { useIntakeCommand } from '../model/use-intake-command'
@@ -69,6 +69,19 @@ export const InboxEditor = ({ access, id, onClose, onSaved }: Props) => {
 			reason: ''
 		}
 	})
+	const teamId = useWatch({ control: form.control, name: 'teamId' })
+	const teams = useTeamOptions(
+		{
+			workspaceId: access.workspaceId,
+			subject: access.session?.userId,
+			accessToken: access.session?.accessToken,
+			sessionRevision: access.revision,
+			permissionScope: access.scopeKey,
+			teamIds: access.permissions.data?.teamIds ?? [],
+			enabled: !id && access.canRead
+		},
+		teamId
+	)
 	const record = useQuery({
 		queryKey: [
 			'crm-intake-entry',
@@ -142,6 +155,10 @@ export const InboxEditor = ({ access, id, onClose, onSaved }: Props) => {
 	const submit = form.handleSubmit(
 		draft => {
 			if (!editable) return
+			if (!id && !teams.validSelection) {
+				toast.error('Выберите доступный отдел или «Без отдела»')
+				return
+			}
 			void command.run(() =>
 				id
 					? {
@@ -366,19 +383,17 @@ export const InboxEditor = ({ access, id, onClose, onSaved }: Props) => {
 											readOnly={!editable}
 											{...form.register('message')}
 										/>
-										{access.permissions.data?.teamIds.length ? (
-											<SelectField
-												label="Команда"
+										{access.permissions.data?.teamIds.length || teamId ? (
+											<TeamSelect
+												options={teams}
+												value={teamId}
 												disabled={!editable}
-												{...form.register('teamId')}
-											>
-												<option value="">Без команды</option>
-												{access.permissions.data.teamIds.map(team => (
-													<option key={team} value={team}>
-														{team}
-													</option>
-												))}
-											</SelectField>
+												onChange={value =>
+													form.setValue('teamId', value, {
+														shouldDirty: true
+													})
+												}
+											/>
 										) : null}
 									</>
 								) : (
@@ -408,6 +423,7 @@ export const InboxEditor = ({ access, id, onClose, onSaved }: Props) => {
 										!access.canWrite ||
 										!!denied ||
 										conflict ||
+										(!id && !command.uncertain && !teams.validSelection) ||
 										acceptance.blocksEntry
 									}
 								>

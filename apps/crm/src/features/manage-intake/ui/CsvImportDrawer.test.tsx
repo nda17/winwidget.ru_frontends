@@ -19,6 +19,7 @@ import {
 	type CrmPermissions
 } from '@/entities/crm-access'
 import { importInboxCsv } from '@/entities/intake'
+import { listTeamOptions } from '@/entities/crm-team'
 import { useSessionStore } from '@/entities/session'
 import { AuthenticatedApiError } from '@/shared/api/authenticated-http-client'
 import {
@@ -35,6 +36,10 @@ vi.mock('@/entities/crm-access', async original => ({
 vi.mock('@/entities/intake', async original => ({
 	...(await original<typeof import('@/entities/intake')>()),
 	importInboxCsv: vi.fn()
+}))
+vi.mock('@/entities/crm-team/api/team.api', async original => ({
+	...(await original<typeof import('@/entities/crm-team/api/team.api')>()),
+	listTeamOptions: vi.fn()
 }))
 vi.mock('react-hot-toast', () => ({
 	default: Object.assign(vi.fn(), { success: vi.fn(), error: vi.fn() })
@@ -481,11 +486,34 @@ describe('CsvImportDrawer', () => {
 	it('takes team assignment only from current authorized choices', async () => {
 		const withTeam = { ...permissions, teamIds: [secondWorkspace] }
 		vi.mocked(getCrmPermissions).mockResolvedValue(withTeam)
+		const item = { id: secondWorkspace, name: 'Отдел продаж' }
+		vi.mocked(listTeamOptions).mockImplementation(
+			async (_token, request) => ({
+				schemaVersion: 1,
+				workspaceId,
+				subject: 'owner',
+				page: request.page,
+				pageSize: request.pageSize,
+				total: 1,
+				items: [item],
+				selected: request.selectedId ? item : null
+			})
+		)
 		render(view({ initial: withTeam }))
 		await confirmFile()
-		fireEvent.change(screen.getByLabelText('Команда импорта'), {
+		await screen.findByRole('option', { name: 'Отдел продаж' })
+		fireEvent.change(screen.getByLabelText('Отдел импорта'), {
 			target: { value: secondWorkspace }
 		})
+		await waitFor(() =>
+			expect(
+				(
+					screen.getByRole('button', {
+						name: 'Импортировать обращения'
+					}) as HTMLButtonElement
+				).disabled
+			).toBe(false)
+		)
 		submit()
 		await screen.findByText('Импорт подтверждён сервером')
 		expect(vi.mocked(importInboxCsv).mock.calls[0][1].teamId).toBe(

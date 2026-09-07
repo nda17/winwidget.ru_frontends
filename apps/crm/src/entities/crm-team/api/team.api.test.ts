@@ -1,6 +1,11 @@
 import { beforeEach, describe, expect, it, vi } from 'vitest'
 import { authenticatedRequest } from '@/shared/api/authenticated-http-client'
-import { listTeamRecords, mutateTeam, type TeamCommand } from './team.api'
+import {
+	listTeamOptions,
+	listTeamRecords,
+	mutateTeam,
+	type TeamCommand
+} from './team.api'
 
 vi.mock('@/shared/api/authenticated-http-client', async original => ({
 	...(await original<object>()),
@@ -12,6 +17,44 @@ const workspaceId = '11111111-1111-4111-8111-111111111111',
 const now = '2026-09-05T12:00:00.000Z'
 beforeEach(() => vi.clearAllMocks())
 describe('CRM team commands', () => {
+	it('reads actor-bound department labels without sending client authority or changing commands', async () => {
+		const request = {
+			workspaceId,
+			subject: 'owner',
+			teamIds: [id],
+			page: 1,
+			pageSize: 20,
+			selectedId: id
+		}
+		const item = { id, name: 'Продажи' }
+		const result = {
+			schemaVersion: 1,
+			workspaceId,
+			subject: 'owner',
+			page: 1,
+			pageSize: 20,
+			total: 1,
+			items: [item],
+			selected: item
+		}
+		vi.mocked(authenticatedRequest).mockResolvedValue(result)
+		await expect(listTeamOptions('token', request)).resolves.toEqual(
+			result
+		)
+		expect(authenticatedRequest).toHaveBeenCalledWith({
+			accessToken: 'token',
+			method: 'GET',
+			url: '/crm/access/team/options',
+			params: { workspaceId, page: '1', pageSize: '20', selectedId: id }
+		})
+		vi.mocked(authenticatedRequest).mockResolvedValue({
+			...result,
+			subject: 'another-user'
+		})
+		await expect(listTeamOptions('token', request)).rejects.toMatchObject({
+			kind: 'temporary'
+		})
+	})
 	it('sends exact UUID/CAS body and accepts only WAITING acknowledgment for enable', async () => {
 		const command: TeamCommand = {
 			workspaceId,

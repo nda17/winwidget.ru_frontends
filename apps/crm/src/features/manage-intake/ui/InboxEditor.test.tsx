@@ -26,6 +26,7 @@ import { resetSessionStore, useSessionStore } from '@/entities/session'
 import toast from 'react-hot-toast'
 import { listSalesPipelines } from '@/entities/sales'
 import { listCustomers } from '@/entities/customer'
+import { listTeamOptions } from '@/entities/crm-team'
 import {
 	PendingCommandProvider,
 	commandOwner
@@ -41,6 +42,10 @@ vi.mock('@/entities/intake', async () => ({
 }))
 vi.mock('@/entities/sales', () => ({ listSalesPipelines: vi.fn() }))
 vi.mock('@/entities/customer', () => ({ listCustomers: vi.fn() }))
+vi.mock('@/entities/crm-team/api/team.api', async original => ({
+	...(await original<typeof import('@/entities/crm-team/api/team.api')>()),
+	listTeamOptions: vi.fn()
+}))
 vi.mock('react-hot-toast', () => ({
 	default: Object.assign(vi.fn(), { success: vi.fn(), error: vi.fn() })
 }))
@@ -178,6 +183,54 @@ const mount = (
 	return onClose
 }
 describe('InboxEditor real command states', () => {
+	it('submits the authorized department UUID while displaying its name', async () => {
+		const context = access()
+		context.permissions.data!.teamIds = [entry.id]
+		const item = { id: entry.id, name: 'Отдел продаж' }
+		vi.mocked(listTeamOptions).mockImplementation(
+			async (_token, request) => ({
+				schemaVersion: 1,
+				workspaceId,
+				subject: 'owner',
+				page: request.page,
+				pageSize: request.pageSize,
+				total: 1,
+				items: [item],
+				selected: request.selectedId ? item : null
+			})
+		)
+		const onClose = mount(undefined, true, context)
+		await screen.findByRole('option', { name: 'Отдел продаж' })
+		fireEvent.change(screen.getByRole('combobox', { name: 'Отдел' }), {
+			target: { value: entry.id }
+		})
+		fireEvent.change(
+			screen.getByRole('textbox', { name: 'Тема обращения' }),
+			{ target: { value: 'Запрос QA' } }
+		)
+		fireEvent.change(
+			screen.getByRole('textbox', { name: 'Имя клиента' }),
+			{ target: { value: 'Клиент' } }
+		)
+		await waitFor(() =>
+			expect(
+				(
+					screen.getByRole('button', {
+						name: 'Создать обращение'
+					}) as HTMLButtonElement
+				).disabled
+			).toBe(false)
+		)
+		expect(document.body.textContent).not.toContain(entry.id)
+		fireEvent.click(
+			screen.getByRole('button', { name: 'Создать обращение' })
+		)
+		await waitFor(() => expect(onClose).toHaveBeenCalledOnce())
+		expect(vi.mocked(mutateInbox).mock.calls[0][1]).toMatchObject({
+			operation: 'create',
+			teamId: entry.id
+		})
+	})
 	it('renders CSV provenance without inventing an API source identifier', async () => {
 		vi.mocked(getInboxEntry).mockResolvedValue({ ...entry, origin: 'CSV' })
 		mount(entry.id, false)

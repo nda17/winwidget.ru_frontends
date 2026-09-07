@@ -17,6 +17,32 @@ import {
 	type CrmRole,
 	type TeamCollection
 } from '../model/team.contract'
+import {
+	parseTeamOptions,
+	type TeamOptionsRequest
+} from '../model/team-options.contract'
+
+export const listTeamOptions = async (
+	accessToken: string,
+	request: TeamOptionsRequest
+) => {
+	const result = parseTeamOptions(
+		await authenticatedRequest({
+			accessToken,
+			method: 'GET',
+			url: '/crm/access/team/options',
+			params: {
+				workspaceId: request.workspaceId,
+				page: String(request.page),
+				pageSize: String(request.pageSize),
+				...(request.selectedId ? { selectedId: request.selectedId } : {})
+			}
+		}),
+		request
+	)
+	if (!result) throw invalidContractError()
+	return result
+}
 
 export const listTeamRecords = async (
 	accessToken: string,
