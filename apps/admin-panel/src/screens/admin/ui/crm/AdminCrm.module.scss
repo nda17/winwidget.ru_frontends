@@ -1,9 +1,9 @@
 .wrapper {
-	@apply relative flex w-full flex-col;
+	@apply relative flex w-full min-w-0 flex-col;
 }
 
 .summaryGrid {
-	@apply mx-auto mb-6 grid w-full max-w-[920px] grid-cols-3 gap-3;
+	@apply mx-auto mb-6 grid w-full min-w-0 grid-cols-3 gap-3;
 
 	@media (max-width: 760px) {
 		@apply grid-cols-1;
@@ -27,7 +27,7 @@
 }
 
 .section {
-	@apply mx-auto mb-6 flex w-full max-w-[920px] flex-col gap-4 rounded-xl border border-[#e0d6f0] bg-white p-5;
+	@apply mx-auto mb-6 flex w-full min-w-0 flex-col gap-4 rounded-xl border border-[#e0d6f0] bg-white p-5;
 
 	@media (max-width: 480px) {
 		@apply gap-[14px] rounded-[10px] p-3;
@@ -256,11 +256,11 @@
 }
 
 .releaseNote {
-	@apply mx-auto mb-6 flex w-full max-w-[920px] flex-col gap-2 rounded-xl border border-[#ddd0ed] bg-[#f5effb] p-4 text-sm leading-relaxed text-[#655171];
+	@apply mx-auto mb-6 flex w-full min-w-0 flex-col gap-2 rounded-xl border border-[#ddd0ed] bg-[#f5effb] p-4 text-sm leading-relaxed text-[#655171];
 }
 
 .architecture {
-	@apply mx-auto mb-6 w-full max-w-[920px] rounded-xl border border-[#e0d6f0] bg-white p-4;
+	@apply mx-auto mb-6 w-full min-w-0 rounded-xl border border-[#e0d6f0] bg-white p-4;
 
 	> p {
 		@apply mb-4;

@@ -1,5 +1,5 @@
 .wrapper {
-	@apply w-full max-w-[88rem] mx-auto px-4 flex flex-col items-center relative;
+	@apply relative flex w-full min-w-0 flex-col;
 
 	.list-section {
 		@apply w-full rounded-layout border border-gray-300 bg-white shadow-sm overflow-hidden;

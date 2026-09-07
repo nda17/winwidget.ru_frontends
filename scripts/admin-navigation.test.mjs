@@ -129,6 +129,54 @@ test('navigation has current-location semantics, keyboard focus and mobile touch
 	assert.doesNotMatch(styles, /white-space:\s*nowrap|whitespace-nowrap/)
 })
 
+test('admin workspaces share fluid width without nested panel caps or extra page gutters', () => {
+	const base = 'apps/admin-panel/src/screens/admin/ui/'
+	for (const path of [
+		'Admin',
+		'widgets/AdminWidgets',
+		'crm/AdminCrm',
+		'payments/AdminPayments',
+		'affiliate/AdminAffiliate',
+		'alerts/AdminAlerts',
+		'subscriptions/AdminSubscriptions',
+		'user-list/UserList',
+		'user/edit/UserEdit',
+		'event-log/AdminEventLog',
+		'mailings/AdminMailings',
+		'messaging/AdminMessaging',
+		'databases/AdminDatabases',
+		'system/AdminSystem',
+		'settings/AdminSettings',
+		'tariffs/AdminTariffs',
+		'telegram-bot/AdminTelegramBot',
+		'content-settings/AdminContentSettings'
+	]) {
+		const styles = read(`${base}${path}.module.scss`)
+		const wrapper = styles.match(/^\.wrapper \{([^}]+)\}/)?.[1]
+		assert.ok(wrapper, path)
+		assert.match(
+			wrapper,
+			/@apply relative flex w-full min-w-0 flex-col;/,
+			path
+		)
+		assert.doesNotMatch(
+			styles,
+			/max-w-\[(?:88rem|600px|680px|760px|900px|920px|1100px)\]/,
+			path
+		)
+	}
+	assert.doesNotMatch(
+		read(
+			`${base}content-settings/home-content-editor/HomeContentEditor.module.scss`
+		),
+		/max-w-\[1100px\]/
+	)
+	assert.match(
+		read(`${base}messaging/AdminMessaging.module.scss`),
+		/@media \(max-width: 480px\) \{\s*@apply grid-cols-1;/
+	)
+})
+
 test('unreleased CRM keeps its reference screen but never starts backend queries', () => {
 	const base = 'apps/admin-panel/src/screens/admin/ui/crm/'
 	assert.match(

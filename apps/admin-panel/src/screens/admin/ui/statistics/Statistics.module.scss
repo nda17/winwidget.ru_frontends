@@ -1,5 +1,5 @@
 .wrapper {
-	@apply flex flex-col;
+	@apply flex w-full min-w-0 flex-col;
 
 	.section {
 		@apply mb-6;

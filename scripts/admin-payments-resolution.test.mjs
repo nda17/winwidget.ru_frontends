@@ -78,6 +78,20 @@ test('uses the frozen readiness and DEV resolution endpoints', () => {
 	)
 })
 
+test('keeps live provider configuration and errors without release checklist clutter', () => {
+	assert.match(sources.adminPayments, /Настройки платёжного провайдера/)
+	assert.match(sources.adminPayments, /isProviderReadinessError/)
+	assert.match(
+		sources.adminPayments,
+		/Не удалось загрузить настройки платёжного провайдера/
+	)
+	assert.match(sources.adminPayments, /providerReadiness\.provider\.mode/)
+	assert.doesNotMatch(
+		sources.adminPayments,
+		/Не проверено внешне|Внешняя проверка|readinessExternal/
+	)
+})
+
 test('labels normalized and raw provider receipt persistence honestly', () => {
 	assert.match(
 		sources.billingSettingsTypes,

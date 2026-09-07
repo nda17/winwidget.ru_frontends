@@ -1,9 +1,9 @@
 .wrapper {
-	@apply w-full flex flex-col relative;
+	@apply relative flex w-full min-w-0 flex-col;
 }
 
 .card {
-	@apply flex flex-col gap-5 bg-white border border-[#e0d6f0] rounded-xl p-5 max-w-[920px] mx-auto w-full mb-6;
+	@apply flex flex-col gap-5 bg-white border border-[#e0d6f0] rounded-xl p-5 min-w-0 mx-auto w-full mb-6;
 
 	@media (max-width: 480px) {
 		@apply p-3 rounded-[10px] gap-[14px];

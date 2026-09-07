@@ -1,9 +1,9 @@
 .wrapper {
-	@apply relative mx-auto flex w-full max-w-[88rem] flex-col items-center px-4;
+	@apply relative flex w-full min-w-0 flex-col;
 }
 
 .sections {
-	@apply w-full min-w-0 max-w-[920px];
+	@apply w-full min-w-0;
 }
 
 .sectionTabs {
@@ -83,7 +83,7 @@
 }
 
 .card {
-	@apply mx-auto mb-6 flex w-full max-w-[920px] flex-col gap-5 rounded-xl border border-[#e0d6f0] bg-white p-5;
+	@apply mx-auto mb-6 flex w-full min-w-0 flex-col gap-5 rounded-xl border border-[#e0d6f0] bg-white p-5;
 
 	@media (max-width: 480px) {
 		@apply gap-[14px] rounded-[10px] p-3;

@@ -475,11 +475,9 @@ const AdminPayments: NextPage = () => {
 			)}
 
 			<AdminSectionHeading
-				text="Готовность платёжного провайдера"
-				title="Read-only готовность YooKassa"
-				description="Показывает только безопасные признаки конфигурации, включённые Billing-функции и зафиксированные кодом контракты чеков и webhook. Значения ключей и Shop ID endpoint не возвращает."
-				risk="medium"
-				riskText="Статус «Не проверено внешне» означает, что кабинет YooKassa, онлайн-касса или ОФД не подтверждены этим endpoint и требуют отдельной проверки."
+				text="Настройки платёжного провайдера"
+				title="Конфигурация YooKassa"
+				description="Сохранённая конфигурация, включённые платёжные функции и параметры обработки чеков и webhook. Секретные ключи и Shop ID не отображаются. Этот блок не изменяет настройки."
 			/>
 			{isProviderReadinessLoading ? (
 				<div className={styles.readinessCard}>
@@ -494,7 +492,7 @@ const AdminPayments: NextPage = () => {
 			) : isProviderReadinessError ? (
 				<div className={styles.readinessCard} role="alert">
 					<p className={styles.readinessError}>
-						Не удалось загрузить безопасный отчёт готовности Billing.
+						Не удалось загрузить настройки платёжного провайдера.
 					</p>
 				</div>
 			) : providerReadiness ? (
@@ -642,39 +640,6 @@ const AdminPayments: NextPage = () => {
 								{providerReadiness.webhook.duplicateDeliveryFence}
 							</p>
 						</div>
-					</div>
-
-					<div className={styles.readinessExternal} role="note">
-						<p className={styles.readinessGroupTitle}>Внешняя проверка</p>
-						<p>
-							Автоплатежи мерчанта:{' '}
-							<strong>
-								{providerReadiness.externalVerification
-									.merchantAutoPayments === 'NOT_VERIFIED'
-									? 'Не проверено внешне'
-									: providerReadiness.externalVerification
-											.merchantAutoPayments}
-							</strong>
-						</p>
-						<p>
-							Онлайн-касса:{' '}
-							<strong>
-								{providerReadiness.externalVerification
-									.onlineCashRegister === 'NOT_VERIFIED'
-									? 'Не проверено внешне'
-									: providerReadiness.externalVerification
-											.onlineCashRegister}
-							</strong>
-						</p>
-						<p>
-							ОФД:{' '}
-							<strong>
-								{providerReadiness.externalVerification.ofd ===
-								'NOT_VERIFIED'
-									? 'Не проверено внешне'
-									: providerReadiness.externalVerification.ofd}
-							</strong>
-						</p>
 					</div>
 				</div>
 			) : null}

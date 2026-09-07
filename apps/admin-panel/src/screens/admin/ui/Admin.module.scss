@@ -1,5 +1,5 @@
 .wrapper {
-	@apply w-full flex flex-col relative;
+	@apply relative flex w-full min-w-0 flex-col;
 
 	.user {
 		@apply text-red-700;

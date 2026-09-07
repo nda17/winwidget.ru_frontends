@@ -1,5 +1,5 @@
 .wrapper {
-	@apply relative flex w-full flex-col;
+	@apply relative flex w-full min-w-0 flex-col;
 }
 
 .card,
@@ -10,15 +10,6 @@
 	@media (max-width: 480px) {
 		@apply gap-[14px] rounded-[10px] p-3;
 	}
-}
-
-.card {
-	@apply max-w-[680px];
-}
-
-.historyCard,
-.detailCard {
-	@apply max-w-[920px];
 }
 
 .field {

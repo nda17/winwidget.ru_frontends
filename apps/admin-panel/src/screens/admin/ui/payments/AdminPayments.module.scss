@@ -1,10 +1,10 @@
 .wrapper {
-	@apply w-full max-w-[88rem] mx-auto px-4 flex flex-col items-center relative;
+	@apply relative flex w-full min-w-0 flex-col;
 }
 
 .card,
 .resultCard {
-	@apply w-full max-w-[680px] rounded-layout border border-gray-300 bg-white shadow-sm p-5 mb-6 flex flex-col gap-5;
+	@apply w-full min-w-0 rounded-layout border border-gray-300 bg-white shadow-sm p-5 mb-6 flex flex-col gap-5;
 
 	@media (max-width: 480px) {
 		@apply p-3 gap-4;
@@ -107,16 +107,12 @@
 	@apply break-words text-xs leading-relaxed text-gray-600;
 }
 
-.readinessExternal {
-	@apply flex flex-col gap-1 rounded-lg border border-yellow-200 bg-yellow-50 p-4 text-xs text-yellow-800;
-}
-
 .readinessError {
 	@apply text-sm text-red-500;
 }
 
 .resolutionPanel {
-	@apply relative mb-6 w-full max-w-[900px] overflow-visible rounded-layout border border-red-200 bg-white shadow-sm;
+	@apply relative mb-6 w-full min-w-0 overflow-visible rounded-layout border border-red-200 bg-white shadow-sm;
 }
 
 .resolutionPanelLocked {
