@@ -16,6 +16,7 @@ import {
 	type AssigneeBinding
 } from '@/entities/crm-team'
 import { AuthenticatedApiError } from '@/shared/api/authenticated-http-client'
+import type { SalesDeal } from '@/entities/sales'
 import { Button, Drawer, ScreenState, TextField } from '@/shared/ui'
 import { useWorkdayCommand } from '../model/use-workday-command'
 import {
@@ -27,12 +28,17 @@ import {
 	workdayStatusLabels
 } from '../model/workday-form'
 import { WorkdayCommandState } from './WorkdayCommandState'
+import {
+	WorkdayNextTaskSuggestion,
+	type WorkdayCompletion
+} from './WorkdayNextTaskSuggestion'
 import styles from './WorkdayTaskDrawer.module.scss'
 
 export interface WorkdayTaskDrawerProps {
 	taskId: string
 	onClose: () => void
 	timeZone?: string
+	onCreateNextTask?: (deal: SalesDeal | null) => boolean | void
 }
 export const WorkdayTaskDrawer = (props: WorkdayTaskDrawerProps) => {
 	const context = useWorkdaySession()
@@ -46,7 +52,8 @@ export const WorkdayTaskDrawer = (props: WorkdayTaskDrawerProps) => {
 const TaskFrame = ({
 	taskId,
 	onClose,
-	timeZone
+	timeZone,
+	onCreateNextTask
 }: WorkdayTaskDrawerProps) => {
 	const read = useWorkdayTask(taskId)
 	const temporary =
@@ -73,6 +80,7 @@ const TaskFrame = ({
 			initial={task}
 			onClose={onClose}
 			timeZone={timeZone}
+			onCreateNextTask={onCreateNextTask}
 		/>
 	) : (
 		<Drawer isOpen onClose={onClose} title="Задача">
@@ -100,12 +108,14 @@ const TaskEditor = ({
 	read,
 	initial,
 	onClose,
-	timeZone
+	timeZone,
+	onCreateNextTask
 }: {
 	read: ReturnType<typeof useWorkdayTask>
 	initial: WorkdayTask
 	onClose: () => void
 	timeZone?: string
+	onCreateNextTask?: WorkdayTaskDrawerProps['onCreateNextTask']
 }) => {
 	const [draft, setDraft] = useState({
 		baseline: initial,
@@ -114,6 +124,9 @@ const TaskEditor = ({
 	})
 	const [assignee, setAssignee] = useState<AssigneeBinding | null>(null)
 	const [historyPage, setHistoryPage] = useState(1)
+	const [completion, setCompletion] = useState<WorkdayCompletion | null>(
+		null
+	)
 	const mounted = useRef(true)
 	useLayoutEffect(() => {
 		mounted.current = true
@@ -121,14 +134,22 @@ const TaskEditor = ({
 			mounted.current = false
 		}
 	}, [])
-	const command = useWorkdayCommand(`task:${initial.id}`, task => {
-		setDraft({
-			baseline: task,
-			title: task.title,
-			due: taskLocalDate(task.dueAt)
-		})
-		setAssignee(null)
-	})
+	const command = useWorkdayCommand(
+		`task:${initial.id}`,
+		(task, confirmed) => {
+			setDraft({
+				baseline: task,
+				title: task.title,
+				due: taskLocalDate(task.dueAt)
+			})
+			setAssignee(null)
+			setCompletion({
+				task,
+				command: confirmed,
+				scopeKey: read.context.scopeKey
+			})
+		}
+	)
 	const edited =
 		draft.title !== draft.baseline.title ||
 		draft.due !== taskLocalDate(draft.baseline.dueAt)
@@ -337,6 +358,27 @@ const TaskEditor = ({
 							</p>
 						) : null}
 					</section>
+					{completion &&
+					onCreateNextTask &&
+					baseline.status === 'COMPLETED' &&
+					baseline.version === completion.task.version ? (
+						<WorkdayNextTaskSuggestion
+							key={completion.command.commandId}
+							completion={completion}
+							context={command.context}
+							disabled={locked || edited || changedAssignee}
+							onDismiss={() => setCompletion(null)}
+							onCreate={deal => {
+								if (
+									!command.context.canWrite ||
+									!command.context.current() ||
+									!command.canClose()
+								)
+									return false
+								return onCreateNextTask(deal)
+							}}
+						/>
+					) : null}
 					<section
 						className={styles.section}
 						aria-label="Назначение ответственного"

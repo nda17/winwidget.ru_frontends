@@ -200,6 +200,86 @@ afterEach(() => {
 })
 
 describe('MyDay actual permission query lifecycle', () => {
+	it.each(['list', 'board', 'drawer'] as const)(
+		'offers a blank new draft only after confirmed completion from %s with real permission observers',
+		async surface => {
+			const completed = {
+				...task,
+				status: 'COMPLETED' as const,
+				version: 2,
+				completedAt: task.dueAt
+			}
+			vi.mocked(mutateWorkdayTask).mockResolvedValue(completed)
+			render(<MyDayScreen />, { wrapper: Wrapper })
+			await screen.findByRole('button', { name: task.title })
+			if (surface === 'board')
+				fireEvent.click(screen.getByRole('button', { name: 'Доска' }))
+			if (surface === 'drawer') {
+				await openTask()
+				fireEvent.click(screen.getByRole('button', { name: 'Готово' }))
+			} else {
+				const status = await screen.findByLabelText(
+					`Статус задачи «${task.title}»`
+				)
+				await waitFor(() =>
+					expect(status).toHaveProperty('disabled', false)
+				)
+				fireEvent.change(status, { target: { value: 'COMPLETED' } })
+			}
+			const next = await screen.findByRole('button', {
+				name: 'Следующая задача'
+			})
+			await waitFor(() => expect(next).toHaveProperty('disabled', false))
+			expect(mutateWorkdayTask).toHaveBeenCalledTimes(1)
+			fireEvent.click(next)
+			await waitFor(() => expect(titleField()).toHaveProperty('value', ''))
+			expect(screen.getByLabelText('Срок выполнения')).toHaveProperty(
+				'value',
+				''
+			)
+			expect(screen.getByLabelText('Связь со сделкой')).toHaveProperty(
+				'value',
+				'standalone'
+			)
+			await waitFor(() => expect(client.isFetching()).toBe(0))
+			await waitFor(() =>
+				expect(screen.getAllByRole('dialog')).toHaveLength(1)
+			)
+			expect(mutateWorkdayTask).toHaveBeenCalledTimes(1)
+			const requests = vi.mocked(authenticatedRequest).mock.calls.length
+			await act(async () => {
+				await new Promise(resolve => setTimeout(resolve, 50))
+			})
+			expect(authenticatedRequest).toHaveBeenCalledTimes(requests)
+		}
+	)
+	it('does not offer a follow-up for an unknown quick completion until replay confirms that same command', async () => {
+		vi.mocked(mutateWorkdayTask).mockRejectedValueOnce(
+			new AuthenticatedApiError('temporary', 'Unknown result')
+		)
+		vi.mocked(mutateWorkdayTask).mockResolvedValue({
+			...task,
+			status: 'COMPLETED',
+			version: 2,
+			completedAt: task.dueAt
+		})
+		render(<MyDayScreen />, { wrapper: Wrapper })
+		await screen.findByRole('button', { name: task.title })
+		fireEvent.change(
+			screen.getByLabelText(`Статус задачи «${task.title}»`),
+			{ target: { value: 'COMPLETED' } }
+		)
+		const retry = await screen.findByRole('button', {
+			name: 'Проверить сохранение'
+		})
+		expect(
+			screen.queryByRole('region', { name: 'Следующий шаг' })
+		).toBeNull()
+		const original = vi.mocked(mutateWorkdayTask).mock.calls[0][1]
+		fireEvent.click(retry)
+		await screen.findByRole('button', { name: 'Следующая задача' })
+		expect(vi.mocked(mutateWorkdayTask).mock.calls[1][1]).toBe(original)
+	})
 	it('settles real stale permission observers without a collection mount/refetch loop', async () => {
 		render(<MyDayScreen />, { wrapper: Wrapper })
 		await screen.findByRole('button', { name: task.title })

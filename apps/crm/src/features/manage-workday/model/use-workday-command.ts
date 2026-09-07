@@ -45,7 +45,7 @@ export const useWorkdayTaskCommandState = (
 
 export const useWorkdayCommand = (
 	intent: string,
-	onSaved: (task: WorkdayTask) => void
+	onSaved: (task: WorkdayTask, command: WorkdayCommand) => void
 ) => {
 	const context = useWorkdaySession()
 	const client = useQueryClient()
@@ -57,11 +57,11 @@ export const useWorkdayCommand = (
 		context.canWrite,
 		context.authorize,
 		mutateWorkdayTask,
-		task => {
+		(task, confirmed) => {
 			void client.invalidateQueries({ queryKey: ['crm-workday'] })
 			void client.invalidateQueries({ queryKey: ['sales'] })
 			toast.success('Задача сохранена')
-			onSaved(task)
+			onSaved(task, confirmed)
 		}
 	)
 	const blocked =

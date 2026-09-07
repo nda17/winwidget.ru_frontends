@@ -153,6 +153,8 @@ const deferred = <T,>() => {
 const refresh = async () => {
 	await act(async () => {
 		await client.invalidateQueries({ queryKey: ['crm-workday'] })
+		// React Query schedules observer notifications after the fetch promise.
+		await new Promise(resolve => setTimeout(resolve, 0))
 	})
 }
 const titleField = () => screen.getByLabelText('Название задачи')
@@ -350,6 +352,111 @@ afterEach(() => {
 })
 
 describe('Workday task detail and commands', () => {
+	it('offers an optional follow-up only after confirmed completion, preserving the old assignment', async () => {
+		currentTask = {
+			...currentTask,
+			dealId: deal.id,
+			assignedToSubject: colleague.subject,
+			assignedToMembershipId: colleague.membershipId
+		}
+		const onCreateNextTask = vi.fn()
+		render(
+			<WorkdayTaskDrawer
+				taskId={taskId}
+				onClose={vi.fn()}
+				onCreateNextTask={onCreateNextTask}
+			/>,
+			{ wrapper: Wrapper }
+		)
+		await loadTask()
+		fireEvent.click(screen.getByRole('button', { name: 'Готово' }))
+		const next = await screen.findByRole('button', {
+			name: 'Следующая задача'
+		})
+		await waitFor(() => expect(next).toHaveProperty('disabled', false))
+		expect(mutateWorkdayTask).toHaveBeenCalledTimes(1)
+		expect(vi.mocked(mutateWorkdayTask).mock.calls[0][1].mutation).toEqual(
+			{
+				kind: 'status',
+				id: taskId,
+				expectedVersion: 1,
+				status: 'COMPLETED'
+			}
+		)
+		expect(currentTask.assignedToSubject).toBe(colleague.subject)
+		expect(currentTask.assignedToMembershipId).toBe(colleague.membershipId)
+		expect(getSalesDeal).not.toHaveBeenCalled()
+		expect(onCreateNextTask).not.toHaveBeenCalled()
+		fireEvent.click(next)
+		await waitFor(() =>
+			expect(onCreateNextTask).toHaveBeenCalledWith(deal)
+		)
+		expect(getSalesDeal).toHaveBeenCalledWith(
+			'token',
+			workspaceId,
+			deal.id
+		)
+		expect(mutateWorkdayTask).toHaveBeenCalledTimes(1)
+	})
+	it('does not propose another task for an unknown result; successful replay offers once and dismissal survives refresh', async () => {
+		vi.mocked(mutateWorkdayTask).mockRejectedValueOnce(
+			new AuthenticatedApiError('temporary', 'Результат неизвестен')
+		)
+		render(
+			<WorkdayTaskDrawer
+				taskId={taskId}
+				onClose={vi.fn()}
+				onCreateNextTask={vi.fn()}
+			/>,
+			{ wrapper: Wrapper }
+		)
+		await loadTask()
+		fireEvent.click(screen.getByRole('button', { name: 'Готово' }))
+		const retry = await screen.findByRole('button', {
+			name: 'Проверить результат'
+		})
+		expect(
+			screen.queryByRole('region', { name: 'Следующий шаг' })
+		).toBeNull()
+		const original = vi.mocked(mutateWorkdayTask).mock.calls[0][1]
+		fireEvent.click(retry)
+		await screen.findByRole('button', { name: 'Следующая задача' })
+		expect(vi.mocked(mutateWorkdayTask).mock.calls[1][1]).toBe(original)
+		fireEvent.click(screen.getByRole('button', { name: 'Не сейчас' }))
+		await refresh()
+		expect(
+			screen.queryByRole('region', { name: 'Следующий шаг' })
+		).toBeNull()
+		expect(currentTask.status).toBe('COMPLETED')
+		expect(mutateWorkdayTask).toHaveBeenCalledTimes(2)
+	})
+	it('does not infer a completion from viewing or editing an already completed task', async () => {
+		currentTask = {
+			...currentTask,
+			status: 'COMPLETED',
+			completedAt: task.dueAt
+		}
+		render(
+			<WorkdayTaskDrawer
+				taskId={taskId}
+				onClose={vi.fn()}
+				onCreateNextTask={vi.fn()}
+			/>,
+			{ wrapper: Wrapper }
+		)
+		await loadTask()
+		expect(
+			screen.queryByRole('region', { name: 'Следующий шаг' })
+		).toBeNull()
+		fireEvent.change(titleField(), {
+			target: { value: 'Уточнение выполненной задачи' }
+		})
+		fireEvent.click(editButton())
+		await waitFor(() => expect(toast.success).toHaveBeenCalledTimes(1))
+		expect(
+			screen.queryByRole('region', { name: 'Следующий шаг' })
+		).toBeNull()
+	})
 	it('edits with current CAS and preserves unchanged original due precision and assignment', async () => {
 		render(
 			<WorkdayTaskDrawer
@@ -595,7 +702,9 @@ describe('Workday task detail and commands', () => {
 				new AuthenticatedApiError(kind, 'denied')
 			)
 			await refresh()
-			expect(screen.queryByLabelText('Название задачи')).not.toBeTruthy()
+			await waitFor(() =>
+				expect(screen.queryByLabelText('Название задачи')).not.toBeTruthy()
+			)
 			expect(
 				screen.queryByDisplayValue('Приватный черновик')
 			).not.toBeTruthy()
@@ -649,6 +758,52 @@ describe('Workday task detail and commands', () => {
 })
 
 describe('Workday create form', () => {
+	it('preselects a freshly checked follow-up deal without copying its assignee or guessing a title/date', async () => {
+		const initialDeal = { ...deal, assignedToSubject: colleague.subject }
+		render(
+			<WorkdayCreateTaskDrawer
+				onClose={vi.fn()}
+				initialDeal={initialDeal}
+			/>,
+			{ wrapper: Wrapper }
+		)
+		await waitFor(() =>
+			expect(screen.getByLabelText('Связанная сделка')).toHaveProperty(
+				'value',
+				deal.id
+			)
+		)
+		expect(titleField()).toHaveProperty('value', '')
+		expect(screen.getByLabelText('Срок выполнения')).toHaveProperty(
+			'value',
+			''
+		)
+		expect(screen.getByLabelText('Ответственный')).toHaveProperty(
+			'value',
+			creator.membershipId
+		)
+		expect(createButton()).toHaveProperty('disabled', true)
+		expect(mutateWorkdayTask).not.toHaveBeenCalled()
+		fillCreate()
+		fireEvent.click(createButton())
+		await waitFor(() => expect(mutateWorkdayTask).toHaveBeenCalledTimes(1))
+		expect(
+			vi.mocked(mutateWorkdayTask).mock.calls[0][1].mutation
+		).toMatchObject({
+			kind: 'create',
+			dealId: deal.id,
+			teamId: null,
+			assignee: {
+				subject: creator.subject,
+				membershipId: creator.membershipId
+			}
+		})
+		expect(getSalesDeal).toHaveBeenCalledWith(
+			'token',
+			workspaceId,
+			deal.id
+		)
+	})
 	it('defaults to standalone and resolves the creator explicitly, not the directory first item', async () => {
 		const onSaved = vi.fn(),
 			onClose = vi.fn()

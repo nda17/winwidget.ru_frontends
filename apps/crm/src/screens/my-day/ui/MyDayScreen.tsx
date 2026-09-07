@@ -13,8 +13,11 @@ import {
 import {
 	useWorkdayCommand,
 	WorkdayCreateTaskDrawer,
-	WorkdayTaskDrawer
+	WorkdayTaskDrawer,
+	WorkdayNextTaskSuggestion,
+	type WorkdayCompletion
 } from '@/features/manage-workday'
+import type { SalesDeal } from '@/entities/sales'
 import { WorkdayExportControl } from '@/features/export-records'
 import {
 	Button,
@@ -37,10 +40,29 @@ const MyDayContent = () => {
 	const [filters, setFilters] = useState<Filters>(initialWorkdayFilters)
 	const [view, setView] = useState<WorkdayView>('list')
 	const [selected, setSelected] = useState<string | null>(null)
-	const [creating, setCreating] = useState(false)
-	const command = useWorkdayCommand('quick-status', () =>
-		setSelected(null)
+	const [creating, setCreating] = useState<{
+		deal: SalesDeal | null
+	} | null>(null)
+	const [completion, setCompletion] = useState<WorkdayCompletion | null>(
+		null
 	)
+	const command = useWorkdayCommand('quick-status', (task, confirmed) => {
+		setSelected(null)
+		setCompletion({ task, command: confirmed, scopeKey: context.scopeKey })
+	})
+	const createNextTask = (deal: SalesDeal | null) => {
+		if (
+			!context.canWrite ||
+			!context.current() ||
+			!command.canClose() ||
+			creating
+		)
+			return false
+		setSelected(null)
+		setCompletion(null)
+		setCreating({ deal })
+		return true
+	}
 	const overview = useWorkdayTasks({
 		...filters,
 		status: undefined,
@@ -157,7 +179,7 @@ const MyDayContent = () => {
 								</Button>
 								<Button
 									disabled={!context.canWrite || command.locked}
-									onClick={() => setCreating(true)}
+									onClick={() => setCreating({ deal: null })}
 								>
 									Новая задача
 								</Button>
@@ -198,6 +220,18 @@ const MyDayContent = () => {
 								</Button>
 							) : null}
 						</div>
+					) : null}
+					{completion ? (
+						<WorkdayNextTaskSuggestion
+							key={completion.command.commandId}
+							completion={completion}
+							context={context}
+							disabled={
+								command.locked || selected !== null || creating !== null
+							}
+							onCreate={createNextTask}
+							onDismiss={() => setCompletion(null)}
+						/>
 					) : null}
 					<WorkdayFilters
 						key={JSON.stringify(filters)}
@@ -320,13 +354,17 @@ const MyDayContent = () => {
 						<WorkdayTaskDrawer
 							taskId={selected}
 							timeZone={filters.timeZone}
+							onCreateNextTask={createNextTask}
 							onClose={() => {
 								if (command.canClose()) setSelected(null)
 							}}
 						/>
 					) : null}
 					{creating ? (
-						<WorkdayCreateTaskDrawer onClose={() => setCreating(false)} />
+						<WorkdayCreateTaskDrawer
+							initialDeal={creating.deal}
+							onClose={() => setCreating(null)}
+						/>
 					) : null}
 				</div>
 			</div>

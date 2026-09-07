@@ -42,6 +42,8 @@ import styles from './WorkdayTaskDrawer.module.scss'
 export interface WorkdayCreateTaskDrawerProps {
 	onClose: () => void
 	onSaved?: (task: WorkdayTask) => void
+	// Supplied only after an explicit next-step action and a fresh scoped read.
+	initialDeal?: SalesDeal | null
 }
 export const WorkdayCreateTaskDrawer = (
 	props: WorkdayCreateTaskDrawerProps
@@ -51,12 +53,13 @@ export const WorkdayCreateTaskDrawer = (
 }
 const CreateForm = ({
 	onClose,
-	onSaved
+	onSaved,
+	initialDeal
 }: WorkdayCreateTaskDrawerProps) => {
 	const [title, setTitle] = useState('')
 	const [due, setDue] = useState('')
-	const [linked, setLinked] = useState(false)
-	const [deal, setDeal] = useState<SalesDeal | null>(null)
+	const [linked, setLinked] = useState(!!initialDeal)
+	const [deal, setDeal] = useState<SalesDeal | null>(initialDeal ?? null)
 	const [teamId, setTeamId] = useState('')
 	const [assignee, setAssignee] = useState<AssigneeBinding | null>(null)
 	const [checking, setChecking] = useState(false)

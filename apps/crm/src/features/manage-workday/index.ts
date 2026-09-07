@@ -11,3 +11,7 @@ export {
 	WorkdayCreateTaskDrawer,
 	type WorkdayCreateTaskDrawerProps
 } from './ui/WorkdayCreateTaskDrawer'
+export {
+	WorkdayNextTaskSuggestion,
+	type WorkdayCompletion
+} from './ui/WorkdayNextTaskSuggestion'
