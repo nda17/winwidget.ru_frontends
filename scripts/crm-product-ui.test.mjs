@@ -439,7 +439,7 @@ test('Widgets and CRM payment cards share responsive card styling without duplic
 	assert.match(cards, /Подписки CRM и Widgets оплачиваются независимо/)
 	assert.match(styles, /lg:max-w-\[57\.5rem\] lg:grid-cols-2/)
 	const cardStyle = styles.match(/\.planCard\s*\{([^}]+)\}/)?.[1] ?? ''
-	assert.match(cardStyle, /lg:min-h-\[38rem\]/)
+	assert.match(cardStyle, /lg:min-h-\[50rem\]/)
 	assert.doesNotMatch(
 		cardStyle,
 		/(?:^|\s)(?:h-\[|min-h-\[)|overflow-hidden|height\s*:/
