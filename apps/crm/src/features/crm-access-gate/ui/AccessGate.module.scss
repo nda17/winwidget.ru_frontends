@@ -1,6 +1,9 @@
 .gate {
 	@apply flex min-h-screen items-center justify-center bg-crm-bg p-4;
 }
+.gate > section {
+	@apply max-w-2xl;
+}
 .panel {
 	@apply w-full max-w-2xl rounded-2xl border border-crm-border bg-crm-surface p-6 shadow-sm sm:p-8;
 }
