@@ -11,12 +11,21 @@ import {
 	listTaskNotifications,
 	setTaskNotificationRead
 } from '@/entities/crm-task-notifications'
-import type { ReminderContext } from '../model/use-reminder-session'
-import { TaskNotificationPanel } from './TaskNotificationCenter'
+import {
+	useReminderSession,
+	type ReminderContext
+} from '../model/use-reminder-session'
+import {
+	TaskNotificationCenter,
+	TaskNotificationPanel
+} from './TaskNotificationCenter'
 import type { DrawerProps } from '@/shared/ui/drawer/Drawer'
 vi.mock('@/entities/crm-task-notifications', () => ({
 	listTaskNotifications: vi.fn(),
 	setTaskNotificationRead: vi.fn()
+}))
+vi.mock('../model/use-reminder-session', () => ({
+	useReminderSession: vi.fn()
 }))
 vi.mock('react-hot-toast', () => ({
 	default: Object.assign(vi.fn(), { success: vi.fn(), error: vi.fn() })
@@ -66,8 +75,21 @@ beforeEach(() => {
 		actor: { subject: 'owner', membershipId: null },
 		session: { accessToken: 'token' },
 		workspace: { workspaceId },
+		permissions: {
+			isSuccess: true,
+			isFetching: false,
+			isError: false,
+			refetch: vi.fn()
+		},
+		self: {
+			enabled: true,
+			loading: false,
+			error: false,
+			refetch: vi.fn()
+		},
 		current: () => true
 	} as ReminderContext
+	vi.mocked(useReminderSession).mockImplementation(() => context)
 	vi.mocked(listTaskNotifications).mockResolvedValue(data)
 	vi.mocked(setTaskNotificationRead).mockResolvedValue({
 		schemaVersion: 1,
@@ -144,6 +166,120 @@ describe('task notification center', () => {
 			screen.getByRole('button', { name: 'Уведомления' })
 		).toBeTruthy()
 		expect(setTaskNotificationRead).not.toHaveBeenCalled()
+	})
+	it('offers permission recovery instead of an endless loading message after a failed check', () => {
+		context = {
+			...context,
+			canRead: false,
+			actorConfirmed: false,
+			actor: null,
+			permissions: {
+				...context.permissions,
+				isSuccess: false,
+				isError: true
+			},
+			current: () => false
+		} as ReminderContext
+		render(view())
+		fireEvent.click(screen.getByRole('button', { name: 'Уведомления' }))
+		expect(screen.getByRole('alert').textContent).toContain(
+			'Не удалось проверить доступ'
+		)
+		expect(screen.queryByText(/Проверяем доступ/)).toBeNull()
+		fireEvent.click(
+			screen.getByRole('button', { name: 'Проверить доступ' })
+		)
+		expect(context.permissions.refetch).toHaveBeenCalledOnce()
+		expect(listTaskNotifications).not.toHaveBeenCalled()
+		expect(setTaskNotificationRead).not.toHaveBeenCalled()
+	})
+	it.each([true, false])(
+		'offers actor recovery after lookup error=%s without guessing a membership',
+		error => {
+			context = {
+				...context,
+				actorConfirmed: false,
+				actor: null,
+				self: { ...context.self, error, loading: false },
+				current: () => true
+			}
+			render(view())
+			fireEvent.click(screen.getByRole('button', { name: 'Уведомления' }))
+			expect(screen.getByRole('alert').textContent).toContain(
+				'Не удалось подтвердить текущего сотрудника'
+			)
+			expect(screen.queryByText(/Проверяем доступ/)).toBeNull()
+			fireEvent.click(
+				screen.getByRole('button', { name: 'Проверить сотрудника' })
+			)
+			expect(context.self.refetch).toHaveBeenCalledOnce()
+			expect(listTaskNotifications).not.toHaveBeenCalled()
+			expect(setTaskNotificationRead).not.toHaveBeenCalled()
+		}
+	)
+	it('keeps an in-flight actor lookup pending with data controls disabled', () => {
+		context = {
+			...context,
+			actorConfirmed: false,
+			actor: null,
+			self: { ...context.self, loading: true },
+			current: () => true
+		}
+		render(view())
+		fireEvent.click(screen.getByRole('button', { name: 'Уведомления' }))
+		expect(screen.getByRole('status').textContent).toContain(
+			'Проверяем доступ'
+		)
+		expect(screen.queryByRole('alert')).toBeNull()
+		expect(
+			screen
+				.getByRole('button', { name: 'Обновить' })
+				.hasAttribute('disabled')
+		).toBe(true)
+		expect(
+			screen
+				.getByRole('checkbox', { name: 'Только непрочитанные' })
+				.hasAttribute('disabled')
+		).toBe(true)
+		expect(listTaskNotifications).not.toHaveBeenCalled()
+	})
+	it('keeps the drawer open across actor recovery but closes it for another session scope', async () => {
+		const confirmed = context
+		context = {
+			...context,
+			actorConfirmed: false,
+			actor: null,
+			self: { ...context.self, loading: true }
+		}
+		const center = () => (
+			<QueryClientProvider client={client}>
+				<TaskNotificationCenter />
+			</QueryClientProvider>
+		)
+		const rendered = render(center())
+		fireEvent.click(screen.getByRole('button', { name: 'Уведомления' }))
+		expect(
+			screen.getByRole('dialog', { name: 'Уведомления' })
+		).toBeTruthy()
+		context = confirmed
+		rendered.rerender(center())
+		expect(
+			await screen.findByRole('link', { name: 'Current task' })
+		).toBeTruthy()
+		expect(
+			screen.getByRole('dialog', { name: 'Уведомления' })
+		).toBeTruthy()
+		context = {
+			...context,
+			key: 'another-session-scope',
+			actorConfirmed: false,
+			actor: null,
+			self: { ...context.self, loading: true },
+			current: () => false
+		}
+		rendered.rerender(center())
+		expect(screen.queryByRole('dialog')).toBeNull()
+		expect(screen.queryByRole('link', { name: 'Current task' })).toBeNull()
 	})
 	it.each([
 		{ role: 'ANALYST', permissions: ['sales:read'] },

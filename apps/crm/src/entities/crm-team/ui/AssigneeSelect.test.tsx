@@ -543,6 +543,69 @@ describe('scoped employee assignee selection', () => {
 		expect(listAssigneeOptions).toHaveBeenCalledTimes(2)
 		expect(changed).not.toHaveBeenCalled()
 	})
+	it.each(['before', 'after'] as const)(
+		'isolates an in-flight lookup when authority returns and the old reply arrives %s the fresh reply',
+		async oldReplyOrder => {
+			let completeOld!: (value: AssigneeOptionsPage) => void
+			let completeFresh!: (value: AssigneeOptionsPage) => void
+			vi.mocked(listAssigneeOptions)
+				.mockReturnValueOnce(
+					new Promise(resolve => {
+						completeOld = resolve
+					})
+				)
+				.mockReturnValueOnce(
+					new Promise(resolve => {
+						completeFresh = resolve
+					})
+				)
+			const rendered = render(view({ initial: owner }))
+			await waitFor(() =>
+				expect(listAssigneeOptions).toHaveBeenCalledTimes(1)
+			)
+			const oldOptions = latest
+			const oldRequest = vi.mocked(listAssigneeOptions).mock.calls[0][1]
+			rendered.rerender(
+				view({ initial: owner, ctx: { ...context(), canRead: false } })
+			)
+			expect(select().disabled).toBe(true)
+			expect(oldOptions.isCurrent()).toBe(false)
+			rendered.rerender(view({ initial: owner }))
+			await waitFor(() =>
+				expect(listAssigneeOptions).toHaveBeenCalledTimes(2)
+			)
+			const freshRequest = vi.mocked(listAssigneeOptions).mock.calls[1][1]
+			expect(freshRequest).toEqual(oldRequest)
+			const completeOldReply = async () => {
+				await act(async () => {
+					completeOld({
+						...pageFor(oldRequest),
+						selected: { ...owner, displayName: 'Устаревший владелец' }
+					})
+				})
+			}
+			if (oldReplyOrder === 'before') {
+				await completeOldReply()
+				expect(latest.loading).toBe(true)
+				expect(latest.error).toBe(false)
+				expect(latest.selected).toBeNull()
+			}
+			const freshOwner = { ...owner, displayName: 'Актуальный владелец' }
+			await act(async () => {
+				completeFresh({ ...pageFor(freshRequest), selected: freshOwner })
+			})
+			await waitFor(() =>
+				expect(latest.resolveBinding(owner)).toEqual(freshOwner)
+			)
+			if (oldReplyOrder === 'after') await completeOldReply()
+			expect(latest.resolveBinding(owner)).toEqual(freshOwner)
+			expect(latest.error).toBe(false)
+			expect(select().disabled).toBe(false)
+			expect(screen.queryByText('Устаревший владелец')).toBeNull()
+			expect(oldOptions.resolveBinding(owner)).toBeNull()
+			expect(changed).not.toHaveBeenCalled()
+		}
+	)
 	it('invalidates callbacks on unmount and ignores late completions', async () => {
 		const rendered = render(view())
 		await ready()

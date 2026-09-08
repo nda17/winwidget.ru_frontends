@@ -23,7 +23,11 @@
 }
 
 .sidebarBrand {
-	@apply flex min-h-20 min-w-0 flex-col items-start justify-center gap-2 border-b border-crm-border px-5 py-4;
+	@apply flex min-h-20 min-w-0 shrink-0 flex-col items-start justify-center gap-1 border-b border-crm-border px-5 py-3;
+}
+
+.sidebarBrand > a {
+	@apply w-44;
 }
 
 .companyName {
@@ -68,6 +72,11 @@
 
 .topbar {
 	@apply sticky top-0 z-30 flex min-h-16 flex-wrap items-center gap-3 border-b border-crm-border bg-crm-surface/95 px-4 py-3 backdrop-blur sm:px-6;
+}
+
+.sidebarBrand,
+.topbar {
+	@apply lg:h-[7.5rem] lg:min-h-[7.5rem] xl:h-20 xl:min-h-20;
 }
 
 .mobileMenuButton {

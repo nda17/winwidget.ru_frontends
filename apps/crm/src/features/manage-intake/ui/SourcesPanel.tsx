@@ -27,7 +27,7 @@ export const SourcesPanel = ({ access }: { access: IntakeAccess }) => {
 		source?: IntakeSource
 		integration?: 'api' | 'tilda'
 	} | null>(null)
-	const [tildaSource, setTildaSource] = useState<IntakeSource | null>(null)
+	const [tildaSourceId, setTildaSourceId] = useState<string | null>(null)
 	const query = useQuery({
 		queryKey: [
 			'crm-intake-sources',
@@ -48,6 +48,8 @@ export const SourcesPanel = ({ access }: { access: IntakeAccess }) => {
 		gcTime: 0,
 		refetchOnWindowFocus: false
 	})
+	const tildaSource =
+		query.data?.items.find(item => item.id === tildaSourceId) ?? null
 	const denied =
 		query.error instanceof AuthenticatedApiError &&
 		['unauthorized', 'forbidden'].includes(query.error.kind)
@@ -66,7 +68,13 @@ export const SourcesPanel = ({ access }: { access: IntakeAccess }) => {
 			render: item => (
 				<div>
 					<strong>{item.name}</strong>
-					<code className={styles.url}>{sourceWebhookUrl(item.id)}</code>
+					{item.revokedAt ? (
+						<p className={styles.description}>
+							Сохранён для истории обращений
+						</p>
+					) : (
+						<code className={styles.url}>{sourceWebhookUrl(item.id)}</code>
+					)}
 				</div>
 			)
 		},
@@ -84,55 +92,50 @@ export const SourcesPanel = ({ access }: { access: IntakeAccess }) => {
 		{
 			id: 'actions',
 			header: 'Действия',
-			render: item => (
-				<div className={styles.actions}>
-					<Button
-						size="sm"
-						variant="secondary"
-						onClick={() => void copyAddress(item.id)}
-					>
-						Адрес
-					</Button>
-					<Button
-						size="sm"
-						variant="secondary"
-						onClick={() => {
-							setTildaSource(item)
-							toast('Открыта настройка Tilda для источника')
-						}}
-					>
-						Tilda
-					</Button>
-					<Button
-						size="sm"
-						variant="secondary"
-						disabled={
-							!access.canManageSources ||
-							!!item.revokedAt ||
-							query.isFetching
-						}
-						onClick={() =>
-							setSelected({ operation: 'rotate', source: item })
-						}
-					>
-						Заменить ключ
-					</Button>
-					<Button
-						size="sm"
-						variant="danger"
-						disabled={
-							!access.canManageSources ||
-							!!item.revokedAt ||
-							query.isFetching
-						}
-						onClick={() =>
-							setSelected({ operation: 'revoke', source: item })
-						}
-					>
-						Отозвать
-					</Button>
-				</div>
-			)
+			render: item =>
+				item.revokedAt ? (
+					<span className={styles.description}>Приём отключён</span>
+				) : (
+					<div className={styles.actions}>
+						<Button
+							size="sm"
+							variant="secondary"
+							onClick={() => void copyAddress(item.id)}
+						>
+							Адрес
+						</Button>
+						<Button
+							size="sm"
+							variant="secondary"
+							onClick={() => {
+								setTildaSourceId(item.id)
+								toast('Открыта настройка Tilda для источника')
+							}}
+						>
+							Tilda
+						</Button>
+						<Button
+							size="sm"
+							variant="secondary"
+							disabled={!access.canManageSources || query.isFetching}
+							onClick={() =>
+								setSelected({ operation: 'rotate', source: item })
+							}
+						>
+							Заменить ключ
+						</Button>
+						<Button
+							size="sm"
+							variant="danger"
+							disabled={!access.canManageSources || query.isFetching}
+							onClick={() =>
+								setSelected({ operation: 'revoke', source: item })
+							}
+						>
+							Отозвать
+						</Button>
+					</div>
+				)
 		}
 	]
 	return (
@@ -276,7 +279,7 @@ export const SourcesPanel = ({ access }: { access: IntakeAccess }) => {
 				<Drawer
 					isOpen
 					title="Подключение Tilda"
-					onClose={() => setTildaSource(null)}
+					onClose={() => setTildaSourceId(null)}
 				>
 					<div className={styles.documentation}>
 						<p>
@@ -287,27 +290,28 @@ export const SourcesPanel = ({ access }: { access: IntakeAccess }) => {
 								Источник отозван и не принимает новые обращения. Для
 								подключения формы создайте новый источник.
 							</p>
-						) : null}
-						<TildaSourceSetup sourceId={tildaSource.id} />
-						<Button
-							variant="secondary"
-							disabled={
-								!access.canManageSources ||
-								!!tildaSource.revokedAt ||
-								query.isFetching
-							}
-							onClick={() => {
-								setSelected({
-									operation: 'rotate',
-									source: tildaSource,
-									integration: 'tilda'
-								})
-								setTildaSource(null)
-								toast('Подтвердите замену ключа перед обновлением в Tilda')
-							}}
-						>
-							Заменить ключ для Tilda
-						</Button>
+						) : (
+							<>
+								<TildaSourceSetup sourceId={tildaSource.id} />
+								<Button
+									variant="secondary"
+									disabled={!access.canManageSources || query.isFetching}
+									onClick={() => {
+										setSelected({
+											operation: 'rotate',
+											source: tildaSource,
+											integration: 'tilda'
+										})
+										setTildaSourceId(null)
+										toast(
+											'Подтвердите замену ключа перед обновлением в Tilda'
+										)
+									}}
+								>
+									Заменить ключ для Tilda
+								</Button>
+							</>
+						)}
 					</div>
 				</Drawer>
 			) : null}

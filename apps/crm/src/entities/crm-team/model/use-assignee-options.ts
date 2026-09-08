@@ -105,6 +105,12 @@ export const useAssigneeOptions = (
 		() => createRequestFrame(!!requestKey && !!context.accessToken),
 		[requestKey, context.accessToken]
 	)
+	const [lifecycle, setLifecycle] = useState({ frame, generation: 0 })
+	const generation =
+		lifecycle.frame === frame
+			? lifecycle.generation
+			: lifecycle.generation + 1
+	if (lifecycle.frame !== frame) setLifecycle({ frame, generation })
 	useEffect(() => {
 		frame.activate()
 		return frame.deactivate
@@ -119,7 +125,10 @@ export const useAssigneeOptions = (
 			selection.selectedSubject ?? '',
 			// Responses carry a local lifecycle frame; another mounted consumer
 			// must not replace it through React Query request deduplication.
-			observerId
+			observerId,
+			// Returning to the same authority after revalidation is a new frame.
+			// Never deduplicate its request with a still-pending older lifetime.
+			generation
 		],
 		// Eligibility is declarative. The parent's live guard may catch up only
 		// in its layout effect; queryFn checks it after commit, before any HTTP.

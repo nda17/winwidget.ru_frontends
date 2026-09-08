@@ -1,4 +1,5 @@
 import {
+	act,
 	cleanup,
 	fireEvent,
 	render,
@@ -239,7 +240,7 @@ describe('Tilda source setup', () => {
 		).toHaveProperty('disabled', true)
 		expect(screen.queryByRole('button', { name: 'Tilda' })).toBeNull()
 	})
-	it('explains revoked sources and never reactivates them from the setup drawer', async () => {
+	it('keeps revoked source history without its address or connection actions', async () => {
 		vi.mocked(listIntakeSources).mockResolvedValue({
 			schemaVersion: 1,
 			page: 1,
@@ -249,13 +250,46 @@ describe('Tilda source setup', () => {
 		})
 		render(<SourcesPanel access={access()} />, { wrapper })
 		await screen.findByText(source.name)
+		expect(screen.getByText('Отозван')).toBeTruthy()
+		expect(screen.getByText('Сохранён для истории обращений')).toBeTruthy()
+		expect(screen.getByText('Приём отключён')).toBeTruthy()
+		expect(
+			screen.queryByText(
+				`http://localhost:4100/api/v1/crm/intake/ingest/${source.id}`
+			)
+		).toBeNull()
+		for (const name of ['Адрес', 'Tilda', 'Заменить ключ', 'Отозвать'])
+			expect(screen.queryByRole('button', { name })).toBeNull()
+		expect(navigator.clipboard.writeText).not.toHaveBeenCalled()
+		expect(mutateIntakeSource).not.toHaveBeenCalled()
+	})
+	it('removes setup details when an open source is reported as revoked', async () => {
+		render(<SourcesPanel access={access()} />, { wrapper })
+		await screen.findByText(source.name)
 		fireEvent.click(screen.getByRole('button', { name: 'Tilda' }))
+		act(() => {
+			client.setQueriesData(
+				{ queryKey: ['crm-intake-sources'] },
+				{
+					schemaVersion: 1,
+					page: 1,
+					pageSize: 25,
+					total: 1,
+					items: [{ ...source, revokedAt: source.updatedAt }]
+				}
+			)
+		})
+		await screen.findByText(
+			/Источник отозван и не принимает новые обращения/
+		)
+		expect(screen.queryByLabelText('Адрес Webhook для Tilda')).toBeNull()
 		expect(
-			screen.getByText(/Источник отозван и не принимает новые обращения/)
-		).toBeTruthy()
+			screen.queryByRole('button', { name: 'Заменить ключ для Tilda' })
+		).toBeNull()
 		expect(
-			screen.getByRole('button', { name: 'Заменить ключ для Tilda' })
-		).toHaveProperty('disabled', true)
+			screen.queryByRole('button', { name: 'Скопировать адрес Tilda' })
+		).toBeNull()
+		expect(navigator.clipboard.writeText).not.toHaveBeenCalled()
 		expect(mutateIntakeSource).not.toHaveBeenCalled()
 	})
 	it('reports a clipboard failure without claiming that an address was copied', async () => {

@@ -19,19 +19,37 @@ import styles from './TaskNotificationCenter.module.scss'
 
 export const TaskNotificationCenter = () => {
 	const context = useReminderSession()
-	return (
-		<TaskNotificationPanel
-			key={JSON.stringify([context.key, context.actor])}
-			context={context}
-		/>
-	)
+	return <TaskNotificationSession key={context.key} context={context} />
 }
-export const TaskNotificationPanel = ({
+const TaskNotificationSession = ({
 	context
 }: {
 	context: ReminderContext
 }) => {
+	// Keep only drawer visibility while actor verification recovers. A new
+	// workspace/session/scope resets it; the panel still remounts per actor.
 	const [open, setOpen] = useState(false)
+	return (
+		<TaskNotificationPanel
+			key={JSON.stringify([context.key, context.actor])}
+			context={context}
+			isOpen={open}
+			onOpenChange={setOpen}
+		/>
+	)
+}
+export const TaskNotificationPanel = ({
+	context,
+	isOpen,
+	onOpenChange
+}: {
+	context: ReminderContext
+	isOpen?: boolean
+	onOpenChange?: (open: boolean) => void
+}) => {
+	const [localOpen, setLocalOpen] = useState(false)
+	const open = isOpen ?? localOpen
+	const setOpen = onOpenChange ?? setLocalOpen
 	const hint = useTooltip<HTMLButtonElement>(
 		'Открыть ваши назначения и напоминания о сроках задач.',
 		!open
@@ -52,6 +70,11 @@ export const TaskNotificationPanel = ({
 		context.authority.workspaceId === context.workspace.workspaceId &&
 		(context.authority.role === 'ANALYST' ||
 			!context.authority.permissions.includes('sales:read'))
+	const permissionError = !context.canRead && context.permissions.isError
+	const actorError =
+		context.canRead &&
+		!context.actorConfirmed &&
+		(context.self.error || (context.self.enabled && !context.self.loading))
 	const query = useQuery({
 		queryKey: [
 			'crm-task-notifications',
@@ -187,11 +210,42 @@ export const TaskNotificationPanel = ({
 						<p role="alert">
 							Недостаточно прав для просмотра уведомлений о задачах.
 						</p>
+					) : permissionError ? (
+						<>
+							<p role="alert">
+								Не удалось проверить доступ к уведомлениям. Повторите
+								проверку.
+							</p>
+							<Button
+								variant="secondary"
+								disabled={context.permissions.isFetching}
+								onClick={() => {
+									void context.permissions.refetch()
+									toast('Повторно проверяем доступ к уведомлениям')
+								}}
+							>
+								Проверить доступ
+							</Button>
+						</>
+					) : actorError ? (
+						<>
+							<p role="alert">
+								Не удалось подтвердить текущего сотрудника. Повторите
+								проверку, чтобы загрузить его уведомления.
+							</p>
+							<Button
+								variant="secondary"
+								disabled={context.self.loading}
+								onClick={() => {
+									void context.self.refetch()
+									toast('Повторно проверяем текущего сотрудника')
+								}}
+							>
+								Проверить сотрудника
+							</Button>
+						</>
 					) : !ready ? (
-						<p role="status">
-							Проверяем доступ к вашим уведомлениям. Если проверка не
-							завершается, обновите страницу.
-						</p>
+						<p role="status">Проверяем доступ к вашим уведомлениям…</p>
 					) : query.isError ? (
 						<p role="alert">
 							Не удалось загрузить уведомления. Попробуйте обновить список.
