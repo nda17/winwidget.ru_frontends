@@ -80,15 +80,15 @@ beforeEach(() => {
 			isFetching: false,
 			isError: false,
 			refetch: vi.fn()
-		} as ReminderContext['permissions'],
+		},
 		self: {
 			enabled: true,
 			loading: false,
 			error: false,
 			refetch: vi.fn()
-		} as ReminderContext['self'],
+		},
 		current: () => true
-	} as ReminderContext
+	} as unknown as ReminderContext
 	vi.mocked(useReminderSession).mockImplementation(() => context)
 	vi.mocked(listTaskNotifications).mockResolvedValue(data)
 	vi.mocked(setTaskNotificationRead).mockResolvedValue({
