@@ -1,7 +1,7 @@
 'use client'
 
 import { useQuery } from '@tanstack/react-query'
-import { useEffect, useMemo, useState } from 'react'
+import { useEffect, useId, useMemo, useState } from 'react'
 import { invalidContractError } from '@/shared/api/authenticated-http-client'
 import { isUuidV4 } from '@/shared/lib/contract'
 import { listAssigneeOptions } from '../api/assignee-options.api'
@@ -52,6 +52,7 @@ export const useAssigneeOptions = (
 	context: AssigneeDirectoryContext,
 	selection: AssigneeOptionsSelection = {}
 ) => {
+	const observerId = useId()
 	const authority = context.authority
 	const scopeKey = JSON.stringify([
 		context.workspaceId,
@@ -115,7 +116,10 @@ export const useAssigneeOptions = (
 			scopeKey,
 			page,
 			search,
-			selection.selectedSubject ?? ''
+			selection.selectedSubject ?? '',
+			// Responses carry a local lifecycle frame; another mounted consumer
+			// must not replace it through React Query request deduplication.
+			observerId
 		],
 		// Eligibility is declarative. The parent's live guard may catch up only
 		// in its layout effect; queryFn checks it after commit, before any HTTP.

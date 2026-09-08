@@ -4,6 +4,7 @@ import {
 	cleanup,
 	fireEvent,
 	render,
+	renderHook,
 	screen,
 	waitFor
 } from '@testing-library/react'
@@ -178,6 +179,30 @@ afterEach(() => {
 })
 
 describe('scoped employee assignee selection', () => {
+	it('confirms concurrent self lookups without sharing another consumer lifecycle', async () => {
+		const wrapper = ({ children }: { children: React.ReactNode }) => (
+			<QueryClientProvider client={client}>{children}</QueryClientProvider>
+		)
+		const first = renderHook(
+			() => useAssigneeOptions(context(), { selectedSubject: 'owner' }),
+			{ wrapper }
+		)
+		const second = renderHook(
+			() => useAssigneeOptions(context(), { selectedSubject: 'owner' }),
+			{ wrapper }
+		)
+		await waitFor(() => {
+			expect(first.result.current.selected).toEqual(owner)
+			expect(second.result.current.selected).toEqual(owner)
+		})
+		const oldFirst = first.result.current
+		first.unmount()
+		expect(oldFirst.resolveBinding(owner)).toBeNull()
+		await act(async () => {
+			expect(await second.result.current.refetch()).toBe(true)
+		})
+		expect(second.result.current.resolveBinding(owner)).toEqual(owner)
+	})
 	it('shows names, stores both bindings, pages on the server and preserves an out-of-page selected option', async () => {
 		render(view())
 		await ready()
