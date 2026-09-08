@@ -183,6 +183,30 @@ const mount = (
 	return onClose
 }
 describe('InboxEditor real command states', () => {
+	it('shows a safe not-found state for an inaccessible linked UUID without a create or acceptance action', async () => {
+		vi.mocked(getInboxEntry).mockRejectedValue(
+			new AuthenticatedApiError(
+				'notFound',
+				'Запись не найдена или недоступна.'
+			)
+		)
+		mount(entry.id, false)
+		await screen.findByText('Запись не найдена или недоступна.')
+		expect(getInboxEntry).toHaveBeenCalledWith(
+			'session-token',
+			workspaceId,
+			entry.id
+		)
+		expect(screen.queryByText(entry.title)).toBeNull()
+		expect(
+			screen.queryByRole('button', { name: 'Создать обращение' })
+		).toBeNull()
+		expect(
+			screen.queryByRole('button', { name: 'Принять в работу' })
+		).toBeNull()
+		expect(mutateInbox).not.toHaveBeenCalled()
+		expect(mutateInboxAcceptance).not.toHaveBeenCalled()
+	})
 	it('submits the authorized department UUID while displaying its name', async () => {
 		const context = access()
 		context.permissions.data!.teamIds = [entry.id]

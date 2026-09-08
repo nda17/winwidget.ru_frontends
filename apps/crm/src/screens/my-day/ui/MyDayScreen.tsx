@@ -15,6 +15,7 @@ import {
 	WorkdayCreateTaskDrawer,
 	WorkdayTaskDrawer,
 	WorkdayNextTaskSuggestion,
+	TaskSeriesPanel,
 	type WorkdayCompletion
 } from '@/features/manage-workday'
 import type { SalesDeal } from '@/entities/sales'
@@ -45,6 +46,7 @@ const MyDayContent = ({
 	const [filters, setFilters] = useState<Filters>(initialWorkdayFilters)
 	const [view, setView] = useState<WorkdayView>('list')
 	const [selected, setSelected] = useState<string | null>(initialTaskId)
+	const [seriesOpen, setSeriesOpen] = useState(false)
 	const [creating, setCreating] = useState<{
 		deal: SalesDeal | null
 	} | null>(null)
@@ -168,6 +170,16 @@ const MyDayContent = ({
 						description="Сосредоточьтесь на задачах: выберите день, период или все сроки."
 						actions={
 							<>
+								<Button
+									variant="secondary"
+									disabled={command.pending || command.ambiguous}
+									onClick={() => {
+										setSeriesOpen(true)
+										toast('Повторяющиеся задачи')
+									}}
+								>
+									Повторяющиеся
+								</Button>
 								<WorkdayExportControl
 									disabled={command.pending || command.ambiguous}
 								/>
@@ -193,6 +205,9 @@ const MyDayContent = ({
 					/>
 					{!context.canWrite ? (
 						<ReadOnlyBanner description="Задачи доступны для просмотра. Изменения требуют соответствующих прав и действующего доступа." />
+					) : null}
+					{seriesOpen ? (
+						<TaskSeriesPanel onClose={() => setSeriesOpen(false)} />
 					) : null}
 					{command.error ? (
 						<div className={styles.error} role="alert">

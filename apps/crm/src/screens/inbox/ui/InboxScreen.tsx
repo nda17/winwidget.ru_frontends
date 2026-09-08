@@ -28,21 +28,31 @@ import { useState, type FormEvent } from 'react'
 import toast from 'react-hot-toast'
 import styles from './InboxScreen.module.scss'
 import { ExportRecordsControl } from '@/features/export-records'
+import { listInboxSla } from '@/entities/intake-sla'
+import { SlaInboxBadge } from '@/features/manage-intake-sla'
+import { isUuidV4 } from '@/shared/lib/contract'
 
 const statusName = {
 	NEW: 'Новое',
 	ACCEPTED: 'Принято',
 	REJECTED: 'Отклонено'
 }
-const InboxScreen = () => {
-	const access = useIntakeAccess()
+const InboxContent = ({
+	access,
+	initialEntryId
+}: {
+	access: ReturnType<typeof useIntakeAccess>
+	initialEntryId: string | null
+}) => {
 	const client = useQueryClient()
 	const [tab, setTab] = useState<'inbox' | 'sources'>('inbox')
 	const [searchDraft, setSearchDraft] = useState('')
 	const [search, setSearch] = useState('')
 	const [status, setStatus] = useState<InboxStatus | ''>('NEW')
 	const [page, setPage] = useState(1)
-	const [selected, setSelected] = useState<{ id?: string } | null>(null)
+	const [selected, setSelected] = useState<{ id?: string } | null>(
+		initialEntryId ? { id: initialEntryId } : null
+	)
 	const [importing, setImporting] = useState(false)
 	const query = useQuery({
 		queryKey: [
@@ -72,6 +82,35 @@ const InboxScreen = () => {
 	const denied =
 		query.error instanceof AuthenticatedApiError &&
 		['unauthorized', 'forbidden'].includes(query.error.kind)
+	const entryIds = query.data?.items.map(entry => entry.id) ?? []
+	const sla = useQuery({
+		queryKey: [
+			'crm-inbox-sla',
+			access.workspaceId,
+			access.session?.userId,
+			access.revision,
+			access.scopeKey,
+			entryIds
+		],
+		enabled:
+			tab === 'inbox' &&
+			access.canRead &&
+			!!access.session &&
+			!denied &&
+			!query.isError &&
+			!query.isFetching &&
+			entryIds.length > 0,
+		queryFn: () =>
+			listInboxSla(
+				access.session!.accessToken,
+				access.workspaceId,
+				entryIds
+			),
+		retry: false,
+		gcTime: 0,
+		refetchOnWindowFocus: false,
+		refetchInterval: 60000
+	})
 	const columns: DataTableColumn<InboxEntry>[] = [
 		{
 			id: 'title',
@@ -123,6 +162,22 @@ const InboxScreen = () => {
 			)
 		},
 		{
+			id: 'sla',
+			header: 'SLA',
+			render: entry => (
+				<SlaInboxBadge
+					item={sla.data?.items.find(item => item.entryId === entry.id)}
+					loading={sla.isPending && !sla.isError}
+					deliveryEnabled={sla.data?.deliveryEnabled}
+					unavailable={sla.isError}
+					notActivated={
+						sla.error instanceof AuthenticatedApiError &&
+						sla.error.kind === 'notFound'
+					}
+				/>
+			)
+		},
+		{
 			id: 'received',
 			header: 'Получено',
 			render: entry => new Date(entry.receivedAt).toLocaleString('ru-RU')
@@ -135,6 +190,9 @@ const InboxScreen = () => {
 		toast('Поиск применён')
 	}
 	const onSaved = () => {
+		void client.invalidateQueries({
+			queryKey: ['crm-inbox-sla', access.workspaceId]
+		})
 		void client.invalidateQueries({
 			queryKey: ['crm-inbox', access.workspaceId]
 		})
@@ -330,6 +388,46 @@ const InboxScreen = () => {
 				/>
 			) : null}
 		</div>
+	)
+}
+const InboxScreen = ({
+	initialEntryId
+}: {
+	initialEntryId?: string | null
+}) => {
+	const access = useIntakeAccess()
+	const entryBinding = JSON.stringify([
+		access.workspaceId,
+		access.session?.userId,
+		access.revision
+	])
+	const scope = JSON.stringify([entryBinding, access.scopeKey])
+	// A URL only selects an entry. Existing scoped reads still authorize its data.
+	// Bind once to this session/workspace and the first confirmed permission scope.
+	const [link, setLink] = useState(() =>
+		isUuidV4(initialEntryId)
+			? {
+					entryId: initialEntryId,
+					binding: entryBinding,
+					scope: null as string | null
+				}
+			: null
+	)
+	if (
+		link &&
+		(link.binding !== entryBinding ||
+			(link.scope !== null && link.scope !== scope))
+	)
+		setLink(null)
+	else if (link?.scope === null && access.canRead)
+		setLink({ ...link, scope })
+	const linkedEntryId = link?.scope === scope ? link.entryId : null
+	return (
+		<InboxContent
+			key={JSON.stringify([scope, linkedEntryId])}
+			access={access}
+			initialEntryId={linkedEntryId}
+		/>
 	)
 }
 export default InboxScreen

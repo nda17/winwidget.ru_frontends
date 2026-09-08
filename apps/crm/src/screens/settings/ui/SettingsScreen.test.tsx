@@ -24,6 +24,9 @@ vi.mock('@/features/manage-workspace-branding', () => ({
 vi.mock('@/features/manage-reminders', () => ({
 	ReminderSettings: () => <div>Напоминания о задачах</div>
 }))
+vi.mock('@/features/manage-intake-sla', () => ({
+	SlaSettings: () => <div>SLA входящих обращений</div>
+}))
 vi.mock('@/features/manage-crm-billing', () => ({
 	BillingEntryCard: () => <div>Управление оплатой владельца</div>
 }))

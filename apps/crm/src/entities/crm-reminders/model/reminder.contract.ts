@@ -20,7 +20,7 @@ export interface ReminderRule {
 	enabled: boolean
 	channels: ('EMAIL' | 'TELEGRAM')[]
 	trigger: {
-		kind: 'BEFORE_DUE' | 'AT_DUE' | 'AFTER_DUE'
+		kind: 'BEFORE_DUE' | 'AT_DUE' | 'AFTER_DUE' | 'ASSIGNED'
 		offsetMinutes: number
 	}
 	repeats: { intervalMinutes: number; count: number } | null
@@ -138,19 +138,20 @@ export const parseReminderRule = (value: unknown): ReminderRule | null => {
 	const trigger = value.trigger
 	if (
 		!exact(trigger, ['kind', 'offsetMinutes']) ||
-		!['BEFORE_DUE', 'AT_DUE', 'AFTER_DUE'].includes(
+		!['BEFORE_DUE', 'AT_DUE', 'AFTER_DUE', 'ASSIGNED'].includes(
 			String(trigger.kind)
 		) ||
 		!integer(
 			trigger.offsetMinutes,
-			trigger.kind === 'AT_DUE' ? 0 : 1,
-			trigger.kind === 'AT_DUE' ? 0 : 43200
+			trigger.kind === 'AT_DUE' || trigger.kind === 'ASSIGNED' ? 0 : 1,
+			trigger.kind === 'AT_DUE' || trigger.kind === 'ASSIGNED' ? 0 : 43200
 		)
 	)
 		return null
 	if (
 		value.repeats !== null &&
-		(!exact(value.repeats, ['intervalMinutes', 'count']) ||
+		(trigger.kind === 'ASSIGNED' ||
+			!exact(value.repeats, ['intervalMinutes', 'count']) ||
 			!integer(value.repeats.intervalMinutes, 15, 43200) ||
 			!integer(value.repeats.count, 2, 1000))
 	)

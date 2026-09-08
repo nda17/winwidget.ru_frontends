@@ -231,7 +231,7 @@ const CreateForm = ({
 							<option value="deal">Связать со сделкой</option>
 						</SelectField>
 						{linked ? (
-							<DealChoice
+							<WorkdayDealChoice
 								context={context}
 								value={deal}
 								onChange={setDeal}
@@ -304,7 +304,7 @@ const CreateForm = ({
 	)
 }
 
-const DealChoice = ({
+export const WorkdayDealChoice = ({
 	context,
 	value,
 	onChange,

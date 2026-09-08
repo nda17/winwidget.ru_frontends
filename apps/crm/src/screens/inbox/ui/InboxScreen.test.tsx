@@ -10,6 +10,14 @@ import { afterEach, beforeEach, describe, expect, it, vi } from 'vitest'
 import { listInbox, type InboxEntry } from '@/entities/intake'
 import { useIntakeAccess } from '@/features/manage-intake'
 import InboxScreen from './InboxScreen'
+import { listInboxSla } from '@/entities/intake-sla'
+import { AuthenticatedApiError } from '@/shared/api/authenticated-http-client'
+import InboxPage from '@/app/(workspace)/inbox/page'
+
+vi.mock('@/entities/intake-sla', async original => ({
+	...(await original<object>()),
+	listInboxSla: vi.fn()
+}))
 
 vi.mock('@/entities/intake', async original => ({
 	...(await original<typeof import('@/entities/intake')>()),
@@ -17,7 +25,12 @@ vi.mock('@/entities/intake', async original => ({
 }))
 vi.mock('@/features/manage-intake', () => ({
 	useIntakeAccess: vi.fn(),
-	InboxEditor: () => <div>Inbox editor</div>,
+	InboxEditor: ({ id, onClose }: { id?: string; onClose: () => void }) => (
+		<div>
+			Inbox editor <span>{id}</span>
+			<button onClick={onClose}>Закрыть тестовую карточку</button>
+		</div>
+	),
 	SourcesPanel: () => <div>Sources panel</div>,
 	CsvImportDrawer: ({
 		onSaved,
@@ -94,17 +107,104 @@ beforeEach(() => {
 		total: 1,
 		items: [entry]
 	})
+	vi.mocked(listInboxSla).mockResolvedValue({
+		schemaVersion: 1,
+		workspaceId,
+		deliveryEnabled: false,
+		items: [{ entryId: id, state: 'NOT_TRACKED', dueAt: null }]
+	})
 })
 afterEach(() => {
 	cleanup()
 	client.clear()
 })
-const view = () => (
+const view = (initialEntryId?: string | null) => (
 	<QueryClientProvider client={client}>
-		<InboxScreen />
+		<InboxScreen initialEntryId={initialEntryId} />
 	</QueryClientProvider>
 )
 describe('Inbox CSV integration', () => {
+	it.each([
+		undefined,
+		'invalid',
+		'11111111-1111-1111-8111-111111111111',
+		[id, id]
+	])('rejects invalid or repeated entry URL values: %j', async entry => {
+		const route = await InboxPage({
+			searchParams: Promise.resolve({ entry })
+		})
+		expect(route.props.initialEntryId).toBeNull()
+	})
+	it('passes only a strict UUID from the route and opens the existing drawer once', async () => {
+		const route = await InboxPage({
+			searchParams: Promise.resolve({ entry: id })
+		})
+		expect(route.props.initialEntryId).toBe(id)
+		const mounted = render(view(id))
+		expect(await screen.findByText(id)).toBeTruthy()
+		fireEvent.click(
+			screen.getByRole('button', { name: 'Закрыть тестовую карточку' })
+		)
+		mounted.rerender(view(id))
+		expect(screen.queryByText('Inbox editor')).toBeNull()
+	})
+	it('waits for current read permission before opening a linked entry', async () => {
+		access = { ...access, canRead: false }
+		const mounted = render(view(id))
+		expect(screen.queryByText(id)).toBeNull()
+		access = { ...access, canRead: true }
+		mounted.rerender(view(id))
+		expect(await screen.findByText(id)).toBeTruthy()
+	})
+	it.each(['workspace', 'session', 'scope'] as const)(
+		'never carries a linked entry across a %s change',
+		async change => {
+			const mounted = render(view(id))
+			await screen.findByText(id)
+			access = {
+				...access,
+				...(change === 'workspace'
+					? { workspaceId: id }
+					: change === 'session'
+						? { revision: 2 }
+						: { scopeKey: 'manager:own' })
+			}
+			mounted.rerender(view(id))
+			expect(screen.queryByText('Inbox editor')).toBeNull()
+			expect(screen.queryByText(id)).toBeNull()
+		}
+	)
+	it('keeps SLA explicitly inactive without changing the business status', async () => {
+		render(view())
+		await screen.findByText('SLA не активирован')
+		expect(screen.getByText('Новое')).toBeTruthy()
+		expect(listInboxSla).toHaveBeenCalledWith('token', workspaceId, [id])
+	})
+	it('renders backend breach and never calculates it locally', async () => {
+		vi.mocked(listInboxSla).mockResolvedValue({
+			schemaVersion: 1,
+			workspaceId,
+			deliveryEnabled: true,
+			items: [
+				{
+					entryId: id,
+					state: 'BREACHED',
+					dueAt: '2026-09-08T12:00:00.000Z'
+				}
+			]
+		})
+		render(view())
+		await screen.findByText('SLA просрочен')
+		expect(screen.getByText('Новое')).toBeTruthy()
+	})
+	it('keeps Inbox usable if SLA is not deployed', async () => {
+		vi.mocked(listInboxSla).mockRejectedValue(
+			new AuthenticatedApiError('notFound', 'not deployed')
+		)
+		render(view())
+		await screen.findByText('SLA не активирован')
+		expect(screen.getByText('CSV обращение')).toBeTruthy()
+	})
 	it('labels native entries without fabricating an absent customer name or fetching detail payloads', async () => {
 		vi.mocked(listInbox).mockResolvedValue({
 			schemaVersion: 1,

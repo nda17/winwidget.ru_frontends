@@ -24,9 +24,9 @@ export const ReminderSettings = () => {
 		<section className={styles.panel} aria-label="Напоминания о задачах">
 			<h2>Напоминания о задачах</h2>
 			<p className={styles.notice}>
-				Email и Telegram. Личные правила — для назначенных вам задач; общие
-				— для рабочего пространства. Канал должен быть подтверждён и
-				подключён у получателя.
+				Email и Telegram о сроках и назначениях задач. Личные правила — для
+				назначенных вам задач; общие — для рабочего пространства. Канал
+				должен быть подтверждён и подключён у получателя.
 			</p>
 			<ReminderSettingsBody
 				key={JSON.stringify([context.key, context.actor])}
@@ -261,6 +261,9 @@ export const ReminderSettingsBody = ({
 												)
 												.join(', ') || 'Каналы не выбраны'}{' '}
 											· {item.rule.timeZone}
+											{item.rule.trigger.kind === 'ASSIGNED'
+												? ' · При назначении задачи'
+												: ''}
 										</p>
 									</div>
 									<Button

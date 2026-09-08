@@ -9,6 +9,7 @@ import { useCrmWorkspaceAccess } from '@/entities/crm-access'
 import { useWorkspaceBranding } from '@/entities/crm-workspace-branding'
 import { getRuntimeConfig } from '@/shared/config/runtime'
 import { ThemeSwitcher } from '@/shared/ui/theme-switcher/ThemeSwitcher'
+import { TaskNotificationCenter } from '@/features/manage-reminders'
 import { CrmNavigationLink } from './CrmNavigationLink'
 import {
 	AppIcon,
@@ -305,6 +306,7 @@ const CrmAppShell = ({ children }: PropsWithChildren) => {
 					</div>
 					<CrmProductSwitch />
 					<ThemeSwitcher />
+					<TaskNotificationCenter />
 
 					<div
 						className={styles.accessContext}

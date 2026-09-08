@@ -162,6 +162,49 @@ const open = async () => {
 	)
 }
 describe('reminder settings UI', () => {
+	it('selects assignment without offset/repeats, preserves opt-in and restores due controls', async () => {
+		await open()
+		fireEvent.click(
+			screen.getByRole('checkbox', { name: 'Повторять напоминание' })
+		)
+		const trigger = screen.getByRole('combobox', {
+			name: 'Когда напоминать'
+		})
+		fireEvent.change(trigger, { target: { value: 'ASSIGNED' } })
+		expect(
+			screen.queryByRole('spinbutton', { name: 'Отступ, минут' })
+		).toBeNull()
+		expect(
+			screen.queryByRole('checkbox', { name: 'Повторять напоминание' })
+		).toBeNull()
+		expect(
+			screen.queryByRole('spinbutton', { name: 'Интервал повтора, минут' })
+		).toBeNull()
+		expect(
+			screen.getByText(/Старые назначения не рассылаются/)
+		).toBeTruthy()
+		expect(command.execute).not.toHaveBeenCalled()
+		fireEvent.submit(
+			screen.getByRole('form', { name: 'Правило напоминания' })
+		)
+		expect(command.execute.mock.calls[0][0]()).toMatchObject({
+			rule: {
+				enabled: false,
+				trigger: { kind: 'ASSIGNED', offsetMinutes: 0 },
+				repeats: null,
+				channels: ['EMAIL'],
+				timeZone: 'Asia/Vladivostok',
+				recipients: { kind: 'SELF' }
+			}
+		})
+		fireEvent.change(trigger, { target: { value: 'BEFORE_DUE' } })
+		expect(
+			screen.getByRole('spinbutton', { name: 'Отступ, минут' })
+		).toHaveProperty('value', '60')
+		expect(
+			screen.getByRole('checkbox', { name: 'Повторять напоминание' })
+		).toHaveProperty('checked', false)
+	})
 	it('allows explicit enabling only after deliveryReady=true, without saving on checkbox change', async () => {
 		vi.mocked(listReminderRules).mockResolvedValue({
 			...pageResult(),

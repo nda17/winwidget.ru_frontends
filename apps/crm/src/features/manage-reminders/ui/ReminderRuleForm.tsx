@@ -184,23 +184,30 @@ export const ReminderRuleForm = ({
 					onChange={event => {
 						const kind = event.target
 							.value as ReminderRule['trigger']['kind']
-						if (['BEFORE_DUE', 'AT_DUE', 'AFTER_DUE'].includes(kind))
+						if (
+							['BEFORE_DUE', 'AT_DUE', 'AFTER_DUE', 'ASSIGNED'].includes(
+								kind
+							)
+						)
 							change({
 								trigger: {
 									kind,
 									offsetMinutes:
-										kind === 'AT_DUE'
+										kind === 'AT_DUE' || kind === 'ASSIGNED'
 											? 0
 											: rule.trigger.offsetMinutes || 60
-								}
+								},
+								...(kind === 'ASSIGNED' ? { repeats: null } : {})
 							})
 					}}
 				>
 					<option value="BEFORE_DUE">До срока</option>
 					<option value="AT_DUE">В момент срока</option>
 					<option value="AFTER_DUE">После просрочки</option>
+					<option value="ASSIGNED">При назначении задачи</option>
 				</SelectField>
-				{rule.trigger.kind !== 'AT_DUE' ? (
+				{rule.trigger.kind !== 'AT_DUE' &&
+				rule.trigger.kind !== 'ASSIGNED' ? (
 					<TextField
 						label="Отступ, минут"
 						type="number"
@@ -221,21 +228,30 @@ export const ReminderRuleForm = ({
 					/>
 				) : null}
 			</div>
-			<label className={styles.check}>
-				<input
-					type="checkbox"
-					checked={rule.repeats !== null}
-					disabled={disabled}
-					onChange={event =>
-						change({
-							repeats: event.target.checked
-								? { intervalMinutes: 60, count: 2 }
-								: null
-						})
-					}
-				/>
-				Повторять напоминание
-			</label>
+			{rule.trigger.kind === 'ASSIGNED' ? (
+				<p className={styles.notice}>
+					Одно уведомление при создании задачи или смене ответственного
+					после сохранения правила. Старые назначения не рассылаются.
+					Изменение текста или срока не вызывает повторную отправку. Тихие
+					часы учитываются.
+				</p>
+			) : (
+				<label className={styles.check}>
+					<input
+						type="checkbox"
+						checked={rule.repeats !== null}
+						disabled={disabled}
+						onChange={event =>
+							change({
+								repeats: event.target.checked
+									? { intervalMinutes: 60, count: 2 }
+									: null
+							})
+						}
+					/>
+					Повторять напоминание
+				</label>
+			)}
 			{rule.repeats ? (
 				<div className={styles.fieldGrid}>
 					<TextField

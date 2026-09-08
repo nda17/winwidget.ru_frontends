@@ -27,6 +27,9 @@ const fixture = vi.hoisted(() => ({
 	}
 }))
 vi.mock('next/navigation', () => ({ usePathname: () => fixture.pathname }))
+vi.mock('@/features/manage-reminders', () => ({
+	TaskNotificationCenter: () => <button>Уведомления</button>
+}))
 vi.mock('@/entities/crm-access', () => ({
 	useCrmWorkspaceAccess: () => fixture.access
 }))

@@ -51,6 +51,25 @@ const page = {
 	deliveryReady: false
 }
 describe('reminder v1 contract', () => {
+	it('accepts assignment rules only with zero offset and no repetitions', () => {
+		const assigned = {
+			...rule,
+			trigger: { kind: 'ASSIGNED', offsetMinutes: 0 }
+		}
+		expect(parseReminderRule(assigned)).not.toBeNull()
+		expect(
+			parseReminderRule({
+				...assigned,
+				trigger: { kind: 'ASSIGNED', offsetMinutes: 60 }
+			})
+		).toBeNull()
+		expect(
+			parseReminderRule({
+				...assigned,
+				repeats: { intervalMinutes: 60, count: 2 }
+			})
+		).toBeNull()
+	})
 	it('accepts explicit disabled settings, owner null and IANA aliases/overnight quiet hours', () => {
 		expect(parseReminderRule(rule)).toEqual(rule)
 		expect(

@@ -15,3 +15,4 @@ export {
 	WorkdayNextTaskSuggestion,
 	type WorkdayCompletion
 } from './ui/WorkdayNextTaskSuggestion'
+export { TaskSeriesPanel } from './ui/TaskSeriesPanel'
