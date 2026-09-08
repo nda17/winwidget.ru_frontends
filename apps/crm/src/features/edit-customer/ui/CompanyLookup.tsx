@@ -366,11 +366,9 @@ const CompanyLookupForm = ({
 								</article>
 							))}
 							<p className={styles.hint}>
-								{result.provider === 'DADATA'
-									? 'Источник: DaData'
-									: 'Источник реквизитов'}{' '}
-								· {new Date(result.queriedAt).toLocaleString('ru-RU')}.
-								Сайт и заметки не изменяются.
+								Реквизиты получены{' '}
+								{new Date(result.queriedAt).toLocaleString('ru-RU')}. Сайт
+								и заметки не изменяются.
 							</p>
 						</>
 					)}

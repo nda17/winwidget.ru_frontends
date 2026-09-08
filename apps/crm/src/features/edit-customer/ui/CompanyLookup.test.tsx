@@ -107,18 +107,22 @@ describe('CompanyLookup authority-bound explicit actions', () => {
 		expect(lookupCompany).not.toHaveBeenCalled()
 		expect(view.onApply).not.toHaveBeenCalled()
 	})
-	it('renders unknown provider codes with a neutral label, never a misleading DaData attribution', async () => {
-		vi.mocked(lookupCompany).mockResolvedValue({
-			...response,
-			provider: 'OTHER_PROVIDER'
-		})
-		render(<CompanyLookup {...props()} />)
-		await search()
-		expect(
-			screen.getByText(/Источник реквизитов/).textContent
-		).not.toContain('DaData')
-		expect(document.body.textContent).not.toContain('OTHER_PROVIDER')
-	})
+	it.each(['DADATA', 'OTHER_PROVIDER'])(
+		'shows the lookup timestamp without provider attribution for %s',
+		async provider => {
+			vi.mocked(lookupCompany).mockResolvedValue({ ...response, provider })
+			render(<CompanyLookup {...props()} />)
+			await search()
+			const hint = screen.getByText(/Реквизиты получены/).textContent
+			expect(hint).toContain(
+				new Date(response.queriedAt).toLocaleString('ru-RU')
+			)
+			expect(hint).toContain('Сайт и заметки не изменяются.')
+			expect(document.body.textContent).not.toMatch(
+				/Источник|DaData|DADATA|OTHER_PROVIDER/
+			)
+		}
+	)
 	it('does not query on render or keystrokes; fresh permission is required for lookup and application', async () => {
 		const view = props(),
 			tree = render(<CompanyLookup {...view} />)
