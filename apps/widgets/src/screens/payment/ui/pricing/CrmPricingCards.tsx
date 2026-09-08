@@ -10,6 +10,7 @@ import { PUBLIC_PAGES } from '@/shared/config/pages/public.config'
 import Link from '@/shared/lib/navigation/ZoneLink'
 import { useQuery } from '@tanstack/react-query'
 import toast from 'react-hot-toast'
+import pricingStyles from './Pricing.module.scss'
 import styles from './CrmPricingCards.module.scss'
 
 const rubles = new Intl.NumberFormat('ru-RU', {
@@ -48,13 +49,11 @@ export default function CrmPricingCards() {
 	return (
 		<div className={styles.wrapper} aria-labelledby="crm-pricing-title">
 			<div className={styles.intro}>
-				<span className={styles.eyebrow}>Отдельный продукт</span>
-				<h2 id="crm-pricing-title" className={styles.title}>
+				<h2 id="crm-pricing-title" className={pricingStyles.title}>
 					WinCRM
 				</h2>
 				<p className={styles.description}>
 					Клиенты, сделки и задачи команды в одном рабочем пространстве.
-					Подписка WinCRM оплачивается отдельно от виджетов.
 				</p>
 			</div>
 			{!CRM_RELEASE.apiEnabled ? (
@@ -94,7 +93,7 @@ export default function CrmPricingCards() {
 					</button>
 				</div>
 			) : null}
-			<div className={styles.cards}>
+			<div className={pricingStyles.plans}>
 				{(['MONTH', 'YEAR'] as const).map(period => {
 					const yearly = period === 'YEAR'
 					const amount = policy
@@ -108,18 +107,24 @@ export default function CrmPricingCards() {
 							: policy.additionalSeatMonthlyPriceMinor
 						: null
 					return (
-						<article key={period} className={styles.card}>
-							<p className={styles.period}>
+						<article key={period} className={pricingStyles.planCard}>
+							<h3 className={pricingStyles.planName}>
+								WinCRM для команды
+							</h3>
+							<p className={pricingStyles.planSubtitle}>
 								{yearly ? 'На год' : 'На месяц'}
 							</p>
-							<h3 className={styles.cardTitle}>WinCRM для команды</h3>
-							<p className={styles.price}>
-								{amount === null ? 'Скоро' : rubles.format(amount / 100)}
+							<div className={pricingStyles.priceBlock}>
+								<span className={pricingStyles.price}>
+									{amount === null ? 'Скоро' : rubles.format(amount / 100)}
+								</span>
 								{amount !== null && (
-									<span> / {yearly ? 'год' : 'месяц'}</span>
+									<span className={pricingStyles.pricePer}>
+										/ {yearly ? 'год' : 'месяц'}
+									</span>
 								)}
-							</p>
-							<ul className={styles.features}>
+							</div>
+							<ul className={pricingStyles.features}>
 								<li>Контакты, компании и история общения</li>
 								<li>Воронки продаж, сделки и задачи</li>
 								<li>Шаблоны процессов для разных типов бизнеса</li>
@@ -139,7 +144,7 @@ export default function CrmPricingCards() {
 							{CRM_RELEASE.apiEnabled && CRM_RELEASE.billingEnabled ? (
 								<Link
 									href={`${getCrmAppUrl()}/settings`}
-									className={styles.paymentLink}
+									className={pricingStyles.buyBtn}
 									onClick={() => toast('Открываем оплату WinCRM')}
 								>
 									Открыть оплату WinCRM
@@ -147,7 +152,7 @@ export default function CrmPricingCards() {
 							) : (
 								<button
 									type="button"
-									className={styles.soon}
+									className={pricingStyles.buyBtn}
 									disabled
 									title="Онлайн-оплата WinCRM пока недоступна"
 								>
@@ -165,8 +170,9 @@ export default function CrmPricingCards() {
 				бесплатно».
 				{policy &&
 					` Доступно мест: ${policy.trialSeatLimit}, включая владельца.`}{' '}
-				Виджеты не обязательны для работы в CRM. Их можно отдельно
-				подключить при действующей подписке Easy или Hard.
+				Подписки CRM и Widgets оплачиваются независимо. Виджеты не
+				обязательны для работы в CRM; их можно подключить при действующей
+				подписке Easy или Hard.
 			</p>
 		</div>
 	)

@@ -184,10 +184,10 @@
 	@apply text-xs px-[6px] py-[2px] rounded font-bold bg-[#d1fae5] text-[#065f46];
 }
 .plans {
-	@apply relative z-[1] flex gap-6 flex-wrap justify-center mb-8;
+	@apply relative z-[1] mb-8 grid w-full max-w-[35rem] min-w-0 grid-cols-1 gap-6 lg:max-w-[57.5rem] lg:grid-cols-2;
 }
 .planCard {
-	@apply flex flex-col items-center p-8 rounded-[26px] w-full max-w-[35rem] sm:w-[28rem] bg-white/[0.78] border border-white/80 transition-[border-color,box-shadow,transform] duration-200;
+	@apply flex w-full min-w-0 flex-col items-center rounded-[26px] border border-white/80 bg-white/[0.78] p-8 transition-[border-color,box-shadow,transform] duration-200 lg:min-h-[38rem];
 	box-shadow:
 		0 18px 48px rgb(123 63 160 / 0.11),
 		inset 0 1px 0 rgb(255 255 255 / 0.92);
@@ -200,16 +200,16 @@
 		0 10px 26px rgb(248 189 49 / 0.12);
 }
 .planName {
-	@apply text-2xl font-bold mb-2 text-[#7b3fa0];
+	@apply mb-2 break-words text-center text-2xl font-bold text-[#7b3fa0];
 }
 .planSubtitle {
-	@apply mb-4 text-sm font-semibold text-[#6f6482];
+	@apply mb-4 text-center text-sm font-semibold text-[#6f6482];
 }
 .priceBlock {
-	@apply flex items-baseline gap-1 mb-1;
+	@apply mb-4 flex w-full min-w-0 flex-wrap items-baseline justify-center gap-1;
 }
 .price {
-	@apply text-[2.25rem] font-bold text-[#1a1a1a];
+	@apply min-w-0 break-words text-center text-[2.25rem] font-bold text-[#1a1a1a];
 }
 .pricePer {
 	@apply text-base text-[#aaa];
@@ -218,14 +218,13 @@
 	@apply text-sm mb-4 text-[#aaa];
 }
 .features {
-	@apply flex flex-col gap-3 mb-6 text-sm text-left w-full text-[#555];
+	@apply mb-6 flex w-full flex-1 flex-col gap-3 text-left text-sm text-[#555];
 }
 .features li {
-	@apply flex items-start gap-2 leading-[1.45];
+	@apply flex min-w-0 items-start gap-2 break-words leading-[1.45];
 }
 .features li::before {
-	content: '✓';
-	@apply mt-[1px] flex h-[18px] w-[18px] shrink-0 items-center justify-center rounded-full bg-[#7b3fa0] text-[11px] font-bold leading-none text-white;
+	@apply mt-[1px] flex h-[18px] w-[18px] shrink-0 items-center justify-center rounded-full bg-[#7b3fa0] text-[11px] font-bold leading-none text-white content-['✓'];
 }
 
 .autoRenewBlock {
@@ -315,7 +314,7 @@
 }
 
 .buyBtn {
-	@apply mt-auto w-full py-3 rounded-[16px] font-bold text-sm cursor-pointer border-none text-white transition-[opacity,transform,box-shadow] duration-200;
+	@apply mt-auto flex min-h-[44px] w-full cursor-pointer items-center justify-center rounded-[16px] border-none px-5 py-3 text-center text-sm font-bold text-white no-underline transition-[opacity,transform,box-shadow] duration-200;
 	background: linear-gradient(
 		87.12deg,
 		#470b58 1.98%,
@@ -329,6 +328,9 @@
 }
 .buyBtn:disabled {
 	@apply opacity-50 cursor-not-allowed translate-y-0;
+}
+.buyBtn:focus-visible {
+	@apply outline-none ring-2 ring-[#7b3fa0] ring-offset-2;
 }
 .planRestriction {
 	@apply mt-3 text-center text-xs leading-[1.5] text-[#9d6d73];
@@ -429,16 +431,10 @@
 		@apply gap-4;
 	}
 	.planCard {
-		@apply w-full max-w-[26rem] px-5 py-6;
+		@apply px-5 py-6;
 	}
 	.price {
 		@apply text-[2rem];
-	}
-}
-
-@media (max-width: 560px) {
-	.planCard {
-		@apply w-full max-w-[22rem];
 	}
 }
 
@@ -496,7 +492,7 @@
 		@apply gap-[0.875rem];
 	}
 	.planCard {
-		@apply w-full max-w-none p-6;
+		@apply p-6;
 	}
 	.autoRenewCopy {
 		@apply flex-col items-start gap-1;
