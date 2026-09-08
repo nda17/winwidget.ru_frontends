@@ -1,4 +1,8 @@
 import { getPublicHttpClient } from '@/shared/api/http-client'
+import {
+	resolveSessionTransport,
+	type SessionTransportLease
+} from './session-transport'
 import axios from 'axios'
 
 const ACCESS_TOKEN_PATTERN = /^[^\s,]{1,16384}$/
@@ -20,6 +24,12 @@ export class AuthenticatedApiError extends Error {
 		this.name = 'AuthenticatedApiError'
 	}
 }
+
+const sessionRecoveryReadErrors = new WeakSet<AuthenticatedApiError>()
+
+export const isSessionRecoveryReadError = (error: unknown) =>
+	error instanceof AuthenticatedApiError &&
+	sessionRecoveryReadErrors.has(error)
 
 interface AuthenticatedRequest {
 	accessToken: string
@@ -47,18 +57,81 @@ export const authenticatedRequest = async ({
 		)
 	}
 
-	try {
-		const response = await getPublicHttpClient().request<unknown>({
-			method,
-			url,
-			params,
-			data,
-			headers: {
-				...headers,
-				Authorization: `Bearer ${accessToken}`
+	const readSessionLease = async (
+		read: () => Promise<SessionTransportLease>
+	) => {
+		try {
+			return await read()
+		} catch (error) {
+			if (
+				method === 'GET' &&
+				error instanceof AuthenticatedApiError &&
+				error.kind === 'temporary'
+			) {
+				// A single-flight renewal may reject reads and mutations with the
+				// same error object. Brand only this GET's copy, never that shared error.
+				const readError = new AuthenticatedApiError(
+					error.kind,
+					error.message
+				)
+				sessionRecoveryReadErrors.add(readError)
+				throw readError
 			}
-		})
+			throw error
+		}
+	}
 
+	try {
+		let lease = await readSessionLease(() =>
+			resolveSessionTransport(accessToken)
+		)
+		const ensureCurrent = () => {
+			if (!lease.isCurrent())
+				throw new AuthenticatedApiError(
+					'unauthorized',
+					'Сессия больше не действует.'
+				)
+			if (!ACCESS_TOKEN_PATTERN.test(lease.accessToken))
+				throw new AuthenticatedApiError(
+					'temporary',
+					'Не удалось подготовить безопасный запрос.'
+				)
+		}
+		const send = () => {
+			ensureCurrent()
+			return getPublicHttpClient().request<unknown>({
+				method,
+				url,
+				params,
+				data,
+				headers: {
+					...headers,
+					Authorization: `Bearer ${lease.accessToken}`
+				}
+			})
+		}
+		let response
+		try {
+			response = await send()
+		} catch (error) {
+			if (
+				!axios.isAxiosError(error) ||
+				error.response?.status !== 401 ||
+				!lease.refresh
+			)
+				throw error
+			ensureCurrent()
+			lease = await readSessionLease(() => lease.refresh!())
+			ensureCurrent()
+			// A mutation is never replayed implicitly, even after an auth failure.
+			if (method !== 'GET')
+				throw new AuthenticatedApiError(
+					'temporary',
+					'Сессия обновлена. Повторите действие.'
+				)
+			response = await send()
+		}
+		ensureCurrent()
 		return response.data
 	} catch (error) {
 		if (error instanceof AuthenticatedApiError) {

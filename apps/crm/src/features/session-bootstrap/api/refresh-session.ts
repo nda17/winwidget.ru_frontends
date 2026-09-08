@@ -50,9 +50,31 @@ const parseRefreshResponse = (value: unknown): AuthenticatedSession => {
 
 export const refreshSession = async (): Promise<AuthenticatedSession> => {
 	try {
-		const response =
-			await getPublicHttpClient().post<unknown>('/auth/refresh')
-		return parseRefreshResponse(response.data)
+		// Identity briefly rejects a concurrent cookie rotation. One retry after
+		// its five-second grace window is bounded; 401 and other errors never loop.
+		for (let attempt = 0; attempt < 2; attempt += 1) {
+			try {
+				const response =
+					await getPublicHttpClient().post<unknown>('/auth/refresh')
+				return parseRefreshResponse(response.data)
+			} catch (error) {
+				if (
+					attempt === 0 &&
+					axios.isAxiosError(error) &&
+					error.response?.status === 409 &&
+					isRecord(error.response.data) &&
+					error.response.data.code === 'refresh_rotation_in_progress'
+				) {
+					await new Promise(resolve => setTimeout(resolve, 5_250))
+					continue
+				}
+				throw error
+			}
+		}
+		throw new SessionBootstrapError(
+			'temporary',
+			'Не удалось обновить сессию.'
+		)
 	} catch (error) {
 		if (error instanceof SessionBootstrapError) {
 			throw error
