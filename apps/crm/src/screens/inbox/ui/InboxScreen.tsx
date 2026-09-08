@@ -214,6 +214,7 @@ const InboxContent = ({
 						/>
 						<Button
 							variant="secondary"
+							tooltip="Проверить CSV-файл и импортировать строки как новые обращения. Контакты и сделки создаются при принятии в работу."
 							disabled={
 								!access.canWrite ||
 								access.permissions.data?.role === 'ANALYST' ||
@@ -229,6 +230,8 @@ const InboxContent = ({
 						</Button>
 						<Button
 							disabled={!access.canWrite || denied || tab !== 'inbox'}
+							tooltip="Внести обращение вручную, чтобы затем принять его в работу или отклонить."
+							disabledTooltip="Создание доступно на вкладке обращений при подтверждённых правах на изменение."
 							leadingIcon={<AppIcon name="plus" size={18} />}
 							onClick={() => setSelected({})}
 						>
@@ -244,6 +247,7 @@ const InboxContent = ({
 			>
 				<Button
 					variant={tab === 'inbox' ? 'primary' : 'secondary'}
+					tooltip="Просматривать поступившие заявки, принимать их в работу и отслеживать результат обработки."
 					aria-pressed={tab === 'inbox'}
 					onClick={() => setTab('inbox')}
 				>
@@ -251,6 +255,7 @@ const InboxContent = ({
 				</Button>
 				<Button
 					variant={tab === 'sources' ? 'primary' : 'secondary'}
+					tooltip="Настроить поступление заявок из форм, внешних API и подключённых виджетов."
 					aria-pressed={tab === 'sources'}
 					onClick={() => setTab('sources')}
 				>

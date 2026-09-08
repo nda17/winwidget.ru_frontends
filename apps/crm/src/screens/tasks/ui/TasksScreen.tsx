@@ -96,6 +96,8 @@ const TasksScreen = () => {
 				<Button
 					size="sm"
 					disabled={!context.canWrite || tasks.isFetching}
+					tooltip="Указать результат действия по сделке и запланировать следующий шаг."
+					disabledTooltip="Завершение доступно при правах на изменение после загрузки актуальных задач."
 					onClick={() => setSelected(task)}
 				>
 					Завершить действие
@@ -112,7 +114,11 @@ const TasksScreen = () => {
 				actions={
 					<>
 						<ExportRecordsControl entity="tasks" />
-						<Button variant="secondary" onClick={() => void reload()}>
+						<Button
+							variant="secondary"
+							tooltip="Получить актуальные задачи и их состояния с сервера."
+							onClick={() => void reload()}
+						>
 							Обновить
 						</Button>
 					</>

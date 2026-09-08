@@ -281,6 +281,7 @@ const CreateForm = ({
 							Закрыть
 						</Button>
 						<Button
+							tooltip="Сохранить задачу с выбранным сроком, ответственным и связью со сделкой, если она указана."
 							disabled={
 								locked ||
 								!title.trim() ||
@@ -365,6 +366,7 @@ export const WorkdayDealChoice = ({
 				<Button
 					variant="secondary"
 					disabled={disabled || records.isFetching}
+					tooltip="Найти доступную сделку для привязки этой задачи."
 					onClick={() => {
 						setAppliedSearch(search.trim())
 						setPage(1)

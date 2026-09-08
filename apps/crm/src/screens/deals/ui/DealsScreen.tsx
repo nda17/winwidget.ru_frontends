@@ -173,12 +173,14 @@ const DealsScreen = () => {
 						<ExportRecordsControl entity="deals" />
 						<Button
 							variant="secondary"
+							tooltip="Загрузить актуальные сделки, этапы воронок и права доступа"
 							onClick={() => void reload()}
 							leadingIcon={<AppIcon name="refresh" size={18} />}
 						>
 							Обновить
 						</Button>
 						<Button
+							tooltip="Выбрать клиента, сумму сделки и первое действие по ней"
 							disabled={
 								!context.canWrite ||
 								pipelines.isError ||
@@ -252,7 +254,11 @@ const DealsScreen = () => {
 							<option value="WON">Успешно</option>
 							<option value="LOST">Отказ</option>
 						</SelectField>
-						<Button type="submit" variant="secondary">
+						<Button
+							type="submit"
+							variant="secondary"
+							tooltip="Найти сделки по введённому запросу с учётом выбранных фильтров"
+						>
 							Найти
 						</Button>
 						<label className={styles.nextActionFilter}>
@@ -319,6 +325,7 @@ const DealsScreen = () => {
 							}
 							action={
 								<Button
+									tooltip="Выбрать клиента, сумму сделки и первое действие по ней"
 									disabled={!context.canWrite || !pipelines.data?.length}
 									onClick={() => setCreateOpen(true)}
 								>

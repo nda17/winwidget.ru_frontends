@@ -16,7 +16,8 @@ import {
 	BrandLogo,
 	Drawer,
 	ReadOnlyBanner,
-	StatusBadge
+	StatusBadge,
+	useTooltip
 } from '@/shared/ui'
 import clsx from 'clsx'
 import Link from 'next/link'
@@ -204,6 +205,11 @@ const CrmAppShell = ({ children }: PropsWithChildren) => {
 	const sidebarToggleLabel = isSidebarCollapsed
 		? 'Развернуть боковую панель'
 		: 'Свернуть боковую панель'
+	const sidebarHint = useTooltip<HTMLButtonElement>(
+		isSidebarCollapsed
+			? 'Показать боковое меню с разделами CRM.'
+			: 'Скрыть боковое меню, чтобы освободить место для рабочей области.'
+	)
 	const section =
 		CRM_NAVIGATION.find(item => isNavigationItemActive(pathname, item))
 			?.label ?? 'Рабочее пространство'
@@ -267,6 +273,7 @@ const CrmAppShell = ({ children }: PropsWithChildren) => {
 				<header className={styles.topbar}>
 					<CrmMobileNavigation key={pathname} />
 					<button
+						{...sidebarHint.triggerProps}
 						type="button"
 						className={styles.sidebarToggle}
 						aria-label={sidebarToggleLabel}
@@ -275,6 +282,7 @@ const CrmAppShell = ({ children }: PropsWithChildren) => {
 						aria-expanded={!isSidebarCollapsed}
 						onClick={event => {
 							event.currentTarget.focus({ preventScroll: true })
+							sidebarHint.close()
 							setIsSidebarCollapsed(collapsed => !collapsed)
 						}}
 					>
@@ -287,6 +295,7 @@ const CrmAppShell = ({ children }: PropsWithChildren) => {
 							)}
 						/>
 					</button>
+					{sidebarHint.tooltip}
 
 					<div
 						className={styles.sectionContext}

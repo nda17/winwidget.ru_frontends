@@ -10,7 +10,7 @@ import {
 	type TaskNotification
 } from '@/entities/crm-task-notifications'
 import { invalidContractError } from '@/shared/api/authenticated-http-client'
-import { AppIcon, Button, Drawer } from '@/shared/ui'
+import { AppIcon, Button, Drawer, useTooltip } from '@/shared/ui'
 import {
 	useReminderSession,
 	type ReminderContext
@@ -32,6 +32,10 @@ export const TaskNotificationPanel = ({
 	context: ReminderContext
 }) => {
 	const [open, setOpen] = useState(false)
+	const hint = useTooltip<HTMLButtonElement>(
+		'Открыть ваши назначения и напоминания о сроках задач.',
+		!open
+	)
 	const [page, setPage] = useState(1)
 	const [unreadOnly, setUnreadOnly] = useState(false)
 	const [busy, setBusy] = useState(false)
@@ -121,6 +125,7 @@ export const TaskNotificationPanel = ({
 	return (
 		<>
 			<button
+				{...hint.triggerProps}
 				type="button"
 				className={styles.trigger}
 				aria-label={
@@ -132,6 +137,7 @@ export const TaskNotificationPanel = ({
 				aria-expanded={open}
 				title="Уведомления"
 				onClick={() => {
+					hint.close()
 					setOpen(true)
 					toast('Центр уведомлений открыт')
 				}}
@@ -143,6 +149,7 @@ export const TaskNotificationPanel = ({
 					</span>
 				) : null}
 			</button>
+			{hint.tooltip}
 			<Drawer
 				isOpen={open}
 				onClose={() => setOpen(false)}

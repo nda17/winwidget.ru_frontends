@@ -413,6 +413,11 @@ const CustomerForm = ({
 						<Button
 							form="customer-editor"
 							type="submit"
+							tooltip={
+								command
+									? 'Повторить отправленную команду с теми же данными, чтобы подтвердить результат'
+									: 'Сохранить данные карточки в клиентской базе команды'
+							}
 							isLoading={mutation.isPending}
 							disabled={conflict || authorizationDenied}
 						>
@@ -442,6 +447,7 @@ const CustomerForm = ({
 							<Button
 								variant="secondary"
 								size="sm"
+								tooltip="Загрузить актуальную карточку с сервера. После подтверждения несохранённый черновик будет сброшен"
 								onClick={() => {
 									if (
 										window.confirm(
@@ -516,6 +522,7 @@ const CustomerForm = ({
 							<Button
 								variant="secondary"
 								size="sm"
+								tooltip="Найти похожие контакты по введённым данным. Записи не объединяются автоматически"
 								isLoading={duplicates.isPending}
 								disabled={!editable}
 								onClick={() => void checkDuplicates()}
@@ -565,6 +572,7 @@ const CustomerForm = ({
 								<Button
 									variant="secondary"
 									size="sm"
+									tooltip="Найти компанию для привязки к этому контакту"
 									disabled={!editable}
 									onClick={() => {
 										setCompanyTerm(companySearch.trim())
@@ -818,6 +826,7 @@ const CustomerForm = ({
 									<Button
 										variant="danger"
 										size="sm"
+										tooltip="Убрать запись из активного списка, сохранив её историю"
 										disabled={!editable}
 										onClick={() =>
 											dispatch({
@@ -847,6 +856,7 @@ const CustomerForm = ({
 							<Button
 								variant="ghost"
 								size="sm"
+								tooltip="Открыть подтверждение удаления записи из активного списка. История сохранится"
 								disabled={!editable}
 								onClick={() => setArchiveConfirm(true)}
 							>

@@ -23,6 +23,7 @@ export const SalesCommandState = ({
 					</p>
 					<Button
 						variant="secondary"
+						tooltip="Повторить прежний запрос с теми же данными, чтобы подтвердить результат сохранения."
 						disabled={!command.canRetry}
 						isLoading={command.pending}
 						onClick={() => void command.execute()}
@@ -33,6 +34,7 @@ export const SalesCommandState = ({
 			) : command.blocked ? (
 				<Button
 					variant="secondary"
+					tooltip="Загрузить актуальное состояние сделки перед новым изменением."
 					onClick={() => {
 						void onReview().catch(() =>
 							toast.error('Не удалось обновить данные')

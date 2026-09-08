@@ -309,6 +309,7 @@ const TaskEditor = ({
 						<div className={styles.actions}>
 							<Button
 								disabled={locked || !edited || !title.trim() || !dueAt}
+								tooltip="Сохранить название и срок задачи. Статус и ответственный изменяются отдельно."
 								onClick={() => {
 									if (dueAt && !locked && edited)
 										void command.execute({
@@ -332,6 +333,7 @@ const TaskEditor = ({
 							{WORKDAY_STATUSES.map(status => (
 								<Button
 									key={status}
+									tooltip={`Перевести задачу в состояние «${workdayStatusLabels[status]}». Срок и ответственный сохранятся.`}
 									variant="secondary"
 									disabled={
 										locked ||
@@ -402,6 +404,7 @@ const TaskEditor = ({
 						/>
 						<Button
 							disabled={locked || edited || !changedAssignee || !resolved}
+							tooltip="Назначить выбранного сотрудника ответственным за эту задачу."
 							onClick={() => {
 								if (resolved && !locked && !edited)
 									void command.execute({

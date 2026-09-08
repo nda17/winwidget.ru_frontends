@@ -156,6 +156,7 @@ export const BillingOrderPanel = ({
 				<Button
 					size="sm"
 					variant="secondary"
+					tooltip="Обновить сохранённое на сервере состояние этого заказа"
 					onClick={() => void refresh()}
 					disabled={!context.ready}
 					isLoading={order.isFetching}
@@ -207,6 +208,7 @@ export const BillingOrderPanel = ({
 					Date.parse(order.data.serverTime) <
 						Date.parse(row.checkoutExpiresAt) ? (
 						<Button
+							tooltip="Открыть страницу оплаты существующего заказа в YooKassa"
 							disabled={locked || order.isFetching}
 							isLoading={opening}
 							onClick={() => void openPayment()}
@@ -217,6 +219,7 @@ export const BillingOrderPanel = ({
 					{row.canVerify ? (
 						<Button
 							variant="secondary"
+							tooltip="Проверить существующий платёж у YooKassa, не создавая новый заказ"
 							disabled={
 								locked || opening || order.isFetching || !context.ready
 							}

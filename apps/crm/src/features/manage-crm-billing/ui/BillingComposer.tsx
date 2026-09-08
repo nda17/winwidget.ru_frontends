@@ -224,6 +224,7 @@ export const BillingComposer = ({
 			</div>
 			<Button
 				variant="secondary"
+				tooltip="Получить актуальную стоимость и условия с сервера. Заказ пока не создаётся"
 				onClick={() => void calculate()}
 				disabled={!enabled || !validSeats}
 				isLoading={loading}
@@ -282,6 +283,13 @@ export const BillingComposer = ({
 						</p>
 					) : null}
 					<Button
+						tooltip={
+							intent === 'SEAT_CHANGE'
+								? 'Применить рассчитанное количество мест и новый срок без дополнительного списания'
+								: intent === 'RENEWAL'
+									? 'Согласиться с новой ценой автосписаний. Наступившее списание может начаться после подтверждения'
+									: 'Создать заказ по показанному расчёту. Переход к оплате будет отдельным действием'
+						}
 						disabled={
 							!enabled ||
 							!quoteFresh ||

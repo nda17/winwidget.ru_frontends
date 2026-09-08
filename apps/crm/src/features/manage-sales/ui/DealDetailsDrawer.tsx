@@ -147,6 +147,7 @@ const DealEditor = ({
 					)}
 					<Button
 						type="submit"
+						tooltip="Сохранить результат текущего действия и переход на выбранный этап сделки."
 						isLoading={command.pending}
 						disabled={!target}
 					>
@@ -187,6 +188,7 @@ const DealEditor = ({
 				<Button
 					variant="ghost"
 					disabled={command.locked || !enabled}
+					tooltip="Открыть подтверждение архивации: сделка уйдёт из активных, открытое действие будет отменено, история сохранится."
 					onClick={() => setConfirmArchive(true)}
 				>
 					Архивировать сделку

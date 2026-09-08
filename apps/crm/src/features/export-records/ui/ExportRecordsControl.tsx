@@ -291,6 +291,12 @@ const ExportPanel = ({
 			<Button
 				variant="secondary"
 				disabled={!available}
+				tooltip={
+					workday
+						? 'Выгрузить все доступные задачи в JSON или CSV. Фильтры планировщика не применяются.'
+						: 'Настроить полную выгрузку раздела в JSON или CSV. Фильтры текущего списка не применяются.'
+				}
+				disabledTooltip="Экспорт доступен только владельцу с подтверждёнными правами."
 				title={
 					available
 						? `Экспорт ${exportNames[entity]}`

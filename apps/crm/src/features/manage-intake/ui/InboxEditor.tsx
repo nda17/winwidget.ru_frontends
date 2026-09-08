@@ -418,6 +418,13 @@ export const InboxEditor = ({ access, id, onClose, onSaved }: Props) => {
 								) : null}
 								<Button
 									type="submit"
+									tooltip={
+										command.uncertain
+											? 'Повторить прежний запрос с теми же данными, не создавая второе обращение.'
+											: id
+												? 'Отклонить обращение с указанной причиной. Запись и история сохранятся.'
+												: 'Сохранить обращение во входящих. Принятие в работу выполняется отдельно.'
+									}
 									isLoading={command.running}
 									disabled={
 										!access.canWrite ||

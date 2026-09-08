@@ -139,6 +139,7 @@ export const BillingFlow = ({
 			{command.uncertain ? (
 				<Button
 					variant="secondary"
+					tooltip="Повторно отправить прежнюю команду с тем же идентификатором и неизменёнными данными"
 					disabled={command.running || !actor.online}
 					onClick={() => void command.execute()}
 				>
@@ -146,6 +147,7 @@ export const BillingFlow = ({
 				</Button>
 			) : null}
 			<Button
+				tooltip="Запросить результат прежней операции по её идентификатору без создания нового заказа"
 				disabled={command.running || !actor.online}
 				isLoading={command.running}
 				onClick={() => {
@@ -162,6 +164,7 @@ export const BillingFlow = ({
 			<div className={styles.actions}>
 				<Button
 					variant="secondary"
+					tooltip="Загрузить актуальные условия доступа, оплаченный период и состояние автопродления WinCRM"
 					onClick={() => void refresh()}
 					disabled={!context.ready || command.running}
 					isLoading={query.isFetching}
@@ -203,6 +206,7 @@ export const BillingFlow = ({
 						{command.uncertain ? (
 							<Button
 								variant="secondary"
+								tooltip="Повторно отправить прежнюю команду с тем же идентификатором и неизменёнными данными"
 								disabled={command.running || !actor.online}
 								onClick={() => void command.execute()}
 							>
@@ -210,6 +214,7 @@ export const BillingFlow = ({
 							</Button>
 						) : null}
 						<Button
+							tooltip="Запросить результат прежней операции по её идентификатору без создания нового заказа"
 							disabled={command.running || !actor.online}
 							isLoading={command.running}
 							onClick={() => {
@@ -278,6 +283,7 @@ export const BillingFlow = ({
 							{data.capabilities.changeSeats ? (
 								<Button
 									variant="secondary"
+									tooltip="Рассчитать новое количество мест и срок подписки на основе стоимости оставшегося периода"
 									disabled={formLocked}
 									onClick={() => {
 										setDialog('SEAT_CHANGE')
@@ -335,6 +341,7 @@ export const BillingFlow = ({
 						{data.capabilities.disableAutoRenew && renewal.canDisable ? (
 							<Button
 								variant="secondary"
+								tooltip="Открыть подтверждение отключения будущих автосписаний WinCRM"
 								disabled={formLocked}
 								onClick={() => {
 									setDialog('DISABLE')
@@ -346,6 +353,7 @@ export const BillingFlow = ({
 						) : null}
 						{data.capabilities.confirmRenewalPrice ? (
 							<Button
+								tooltip="Получить новые условия следующего автопродления перед подтверждением согласия"
 								disabled={formLocked || !period}
 								onClick={() => {
 									setDialog('RENEWAL')

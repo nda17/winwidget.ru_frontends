@@ -169,6 +169,11 @@ const ContactsScreen = () => {
 							disabled={permissionError}
 						/>
 						<Button
+							tooltip={
+								kind === 'contacts'
+									? 'Открыть форму для добавления клиента и его контактных данных'
+									: 'Открыть форму для добавления компании и её реквизитов'
+							}
 							disabled={!canWrite || permissionError}
 							leadingIcon={<AppIcon name="plus" size={18} />}
 							onClick={() => setSelected({ kind })}
@@ -249,7 +254,16 @@ const ContactsScreen = () => {
 								value={searchDraft}
 								onChange={event => setSearchDraft(event.target.value)}
 							/>
-							<Button type="submit" variant="secondary" size="sm">
+							<Button
+								type="submit"
+								variant="secondary"
+								size="sm"
+								tooltip={
+									kind === 'contacts'
+										? 'Найти контакты по имени, телефону или email'
+										: 'Найти компании по названию или ИНН'
+								}
+							>
 								Найти
 							</Button>
 						</form>
@@ -303,7 +317,14 @@ const ContactsScreen = () => {
 							}
 							action={
 								canWrite && !search && page === 1 ? (
-									<Button onClick={() => setSelected({ kind })}>
+									<Button
+										tooltip={
+											kind === 'contacts'
+												? 'Открыть форму для добавления клиента и его контактных данных'
+												: 'Открыть форму для добавления компании и её реквизитов'
+										}
+										onClick={() => setSelected({ kind })}
+									>
 										{kind === 'contacts'
 											? 'Добавить контакт'
 											: 'Добавить компанию'}

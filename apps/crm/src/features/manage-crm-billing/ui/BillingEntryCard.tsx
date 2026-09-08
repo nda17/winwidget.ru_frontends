@@ -44,6 +44,7 @@ const BillingEntryCardEnabled = ({
 					<Button
 						variant="secondary"
 						size="sm"
+						tooltip="Повторно проверить права владельца и доступ к управлению подпиской WinCRM"
 						disabled={!context.actor.online || context.query.isFetching}
 						onClick={async () => {
 							toast('Проверяем доступ к оплате')

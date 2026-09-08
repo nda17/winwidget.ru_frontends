@@ -670,6 +670,7 @@ const AcceptanceForm = ({
 				<Button
 					type="submit"
 					disabled={!ready}
+					tooltip="Запустить создание или привязку контакта, сделки и первой задачи. Обращение станет принятым после завершения обработки."
 					isLoading={context.command.running}
 				>
 					Начать обработку

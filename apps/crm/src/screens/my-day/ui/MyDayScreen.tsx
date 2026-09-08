@@ -173,6 +173,8 @@ const MyDayContent = ({
 								<Button
 									variant="secondary"
 									disabled={command.pending || command.ambiguous}
+									tooltip="Открыть серии задач, которые создаются по расписанию, и управлять их повторением."
+									disabledTooltip="Сначала подтвердите результат текущего изменения задачи."
 									onClick={() => {
 										setSeriesOpen(true)
 										toast('Повторяющиеся задачи')
@@ -191,11 +193,15 @@ const MyDayContent = ({
 											toast.error('Не удалось обновить задачи')
 										)
 									}
+									tooltip="Загрузить актуальные задачи с сервера, сохранив выбранные период и фильтры."
+									disabledTooltip="Дождитесь подтверждения текущего изменения перед обновлением списка."
 								>
 									Обновить
 								</Button>
 								<Button
 									disabled={!context.canWrite || command.locked}
+									tooltip="Создать самостоятельную задачу или связать её со сделкой, указав срок и ответственного."
+									disabledTooltip="Нужны права на изменение и подтверждённый результат предыдущей команды."
 									onClick={() => setCreating({ deal: null })}
 								>
 									Новая задача
@@ -221,6 +227,7 @@ const MyDayContent = ({
 									<Button
 										variant="secondary"
 										disabled={!command.canRetry}
+										tooltip="Повторить прежнюю команду с теми же данными, чтобы подтвердить результат без второго изменения."
 										isLoading={command.pending}
 										onClick={() => void command.execute()}
 									>

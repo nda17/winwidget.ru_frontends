@@ -39,6 +39,25 @@ const tabs: Record<TeamCollection, string> = {
 	teams: 'Отделы',
 	deliveries: 'Ошибки обработки'
 }
+const teamActionTooltips: Record<TeamEditorSelection['kind'], string> = {
+	invite:
+		'Создать приглашение на 7 дней. Доступ зависит от подтверждения email и свободного места',
+	'create-team':
+		'Создать отдел для распределения сотрудников и области доступа руководителей',
+	'rename-team': 'Изменить название отдела',
+	'archive-team':
+		'Убрать отдел из действующих. Сначала снимите все назначения сотрудников',
+	revoke:
+		'Отменить доступ по приглашению. Уже активного сотрудника нужно отключать отдельно',
+	role: 'Изменить роль сотрудника и доступные ему действия в CRM',
+	teams: 'Настроить отделы сотрудника и связанную с ними область доступа',
+	disable:
+		'Отключить доступ к CRM и освободить место. Аккаунт и права на виджеты сохранятся',
+	enable:
+		'Поставить сотрудника в очередь допуска: включение зависит от прав и свободного места',
+	retry:
+		'Повторить только эту фоновую обработку с проверкой актуальных прав'
+}
 const invitationStatuses = {
 	REGISTERING: 'Подготавливается',
 	INVITED: 'Ожидает подтверждения email',
@@ -143,6 +162,8 @@ const SettingsScreen = () => {
 			<Button
 				size="sm"
 				variant="secondary"
+				tooltip={teamActionTooltips[kind]}
+				disabledTooltip={reason}
 				aria-describedby={reason ? reasonId(row) : undefined}
 				disabled={
 					!!reason ||
@@ -327,12 +348,14 @@ const SettingsScreen = () => {
 						) : null}
 						<Button
 							variant="secondary"
+							tooltip={teamActionTooltips['create-team']}
 							disabled={!context.canManage}
 							onClick={() => open('create-team')}
 						>
 							Новый отдел
 						</Button>
 						<Button
+							tooltip={teamActionTooltips.invite}
 							disabled={!context.canManage}
 							onClick={() => open('invite')}
 						>
@@ -457,6 +480,7 @@ const SettingsScreen = () => {
 							<Button
 								size="sm"
 								variant="secondary"
+								tooltip="Загрузить актуальные записи команды и квоту сотрудников"
 								disabled={records.isFetching}
 								onClick={() => {
 									void refresh()
