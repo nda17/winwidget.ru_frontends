@@ -15,6 +15,7 @@ import {
 import { afterEach, beforeEach, describe, expect, it, vi } from 'vitest'
 import toast from 'react-hot-toast'
 import type { CrmPermissions } from '@/entities/crm-access'
+import type { WorkdayTask } from '@/entities/crm-workday'
 import { resetSessionStore, useSessionStore } from '@/entities/session'
 import {
 	getWorkdayTask,
@@ -391,6 +392,93 @@ describe('MyDay actual permission query lifecycle', () => {
 			screen.getByRole('button', { name: 'Новая задача' })
 		).toHaveProperty('disabled', true)
 	})
+	it.each(['list', 'board', 'drawer'] as const)(
+		'reopens completed tasks and repeats status changes from %s with a fresh command and current version',
+		async surface => {
+			let current: WorkdayTask = { ...task }
+			const commands = new Set<string>()
+			vi.mocked(getWorkdayTask).mockImplementation(async () => current)
+			vi.mocked(listWorkdayTasks).mockImplementation(
+				async (_token, request) => {
+					const visible =
+						!request.status || request.status === current.status
+					return {
+						...page,
+						page: request.page,
+						pageSize: request.pageSize,
+						items: visible ? [current] : [],
+						total: visible ? 1 : 0,
+						counts: {
+							OPEN: 0,
+							IN_PROGRESS: 0,
+							COMPLETED: 0,
+							CANCELLED: 0,
+							[current.status]: 1
+						}
+					}
+				}
+			)
+			vi.mocked(mutateWorkdayTask).mockImplementation(
+				async (_token, command) => {
+					const mutation = command.mutation
+					expect(mutation.kind).toBe('status')
+					if (mutation.kind !== 'status')
+						throw new Error('Expected status command')
+					expect(commands.has(command.commandId)).toBe(false)
+					expect(mutation.expectedVersion).toBe(current.version)
+					commands.add(command.commandId)
+					current = {
+						...current,
+						status: mutation.status,
+						version: current.version + 1,
+						completedAt: ['COMPLETED', 'CANCELLED'].includes(
+							mutation.status
+						)
+							? task.dueAt
+							: null
+					}
+					return current
+				}
+			)
+			render(<MyDayScreen />, { wrapper: Wrapper })
+			await screen.findByRole('button', { name: task.title })
+			if (surface === 'board')
+				fireEvent.click(screen.getByRole('button', { name: 'Доска' }))
+			if (surface === 'drawer') await openTask()
+			const changes = [
+				['IN_PROGRESS', 'В работе'],
+				['COMPLETED', 'Готово'],
+				['OPEN', 'К выполнению'],
+				['COMPLETED', 'Готово'],
+				['IN_PROGRESS', 'В работе'],
+				['COMPLETED', 'Готово'],
+				['OPEN', 'К выполнению']
+			] as const
+			for (const [index, [status, label]] of changes.entries()) {
+				const control =
+					surface === 'drawer'
+						? screen.getByRole('button', { name: label })
+						: await screen.findByLabelText(`Статус задачи «${task.title}»`)
+				await waitFor(() =>
+					expect(control).toHaveProperty('disabled', false)
+				)
+				if (surface === 'drawer') fireEvent.click(control)
+				else fireEvent.change(control, { target: { value: status } })
+				await waitFor(() =>
+					expect(toast.success).toHaveBeenCalledTimes(index + 1)
+				)
+				await waitFor(() => expect(client.isFetching()).toBe(0))
+				expect(current.status).toBe(status)
+				expect(current.dueAt).toBe(task.dueAt)
+				expect(current.assignedToSubject).toBe(task.assignedToSubject)
+				expect(current.assignedToMembershipId).toBe(
+					task.assignedToMembershipId
+				)
+			}
+			expect(commands.size).toBe(changes.length)
+			expect(toast.error).not.toHaveBeenCalled()
+		}
+	)
 	it.each(['list', 'board', 'drawer'] as const)(
 		'offers a blank new draft only after confirmed completion from %s with real permission observers',
 		async surface => {

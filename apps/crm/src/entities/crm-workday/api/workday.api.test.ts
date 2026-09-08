@@ -43,6 +43,51 @@ beforeEach(() => {
 })
 
 describe('Workday API exact requests and immutable effects', () => {
+	it.each([
+		[
+			'crm_task_version_conflict',
+			'Задача уже изменилась. Обновите данные и повторите изменение.'
+		],
+		[
+			'crm_task_deal_closed',
+			'Связанная сделка закрыта. Сначала верните сделку в работу, затем измените задачу.'
+		],
+		[
+			'crm_task_command_conflict',
+			'Этот запрос уже обработан с другими параметрами. Обновите данные задачи.'
+		]
+	])(
+		'maps the safe task error code %s without exposing upstream text',
+		async (code, message) => {
+			request.mockResolvedValue({ schemaVersion: 1, task })
+			await mutateWorkdayTask('captured', command)
+			const mapper = request.mock.calls[0][0].mapError!
+			expect(
+				mapper({
+					isAxiosError: true,
+					response: {
+						status: 409,
+						data: { code, message: 'private upstream data' }
+					}
+				})?.message
+			).toBe(message)
+			expect(
+				mapper({
+					isAxiosError: true,
+					response: {
+						status: 409,
+						data: { code: 'unknown', message: 'private' }
+					}
+				})
+			).toBeUndefined()
+			expect(
+				mapper({
+					isAxiosError: true,
+					response: { status: 403, data: { code } }
+				})
+			).toBeUndefined()
+		}
+	)
 	it('sends explicit server period/timezone, scope and pagination without local actor fields', async () => {
 		request.mockResolvedValue(page)
 		await expect(
@@ -132,6 +177,7 @@ describe('Workday API exact requests and immutable effects', () => {
 			method: 'POST',
 			url: '/crm/sales/workday/tasks',
 			headers: { 'Idempotency-Key': commandId },
+			mapError: expect.any(Function),
 			data: {
 				schemaVersion: 1,
 				workspaceId,

@@ -1,4 +1,5 @@
 import { useSessionStore } from '@/entities/session'
+import axios from 'axios'
 import {
 	authenticatedRequest,
 	AuthenticatedApiError,
@@ -23,6 +24,22 @@ import type {
 } from '../model/workday.types'
 
 const root = '/crm/sales/workday/tasks'
+const taskCommandError = (error: unknown) => {
+	if (!axios.isAxiosError(error) || error.response?.status !== 409) return
+	// Use only known server codes, never upstream message text or request data.
+	const code: unknown = error.response.data?.code
+	const message =
+		code === 'crm_task_version_conflict'
+			? 'Задача уже изменилась. Обновите данные и повторите изменение.'
+			: code === 'crm_task_deal_closed'
+				? 'Связанная сделка закрыта. Сначала верните сделку в работу, затем измените задачу.'
+				: code === 'crm_task_command_conflict'
+					? 'Этот запрос уже обработан с другими параметрами. Обновите данные задачи.'
+					: undefined
+	return message
+		? new AuthenticatedApiError('conflict', message)
+		: undefined
+}
 const checked = <T>(value: T | null): T => {
 	if (value === null) throw invalidContractError()
 	return value
@@ -194,7 +211,8 @@ export const mutateWorkdayTask = async (
 						? root
 						: `${root}/${mutation.id}/${mutation.kind}`,
 				headers: { 'Idempotency-Key': captured.commandId },
-				data
+				data,
+				mapError: taskCommandError
 			}),
 			captured
 		)
