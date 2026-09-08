@@ -14,3 +14,6 @@ export const sourceWebhookUrl = (sourceId: string) => {
 		throw new Error('Некорректный идентификатор источника')
 	return `${getRuntimeConfig().apiBaseUrl}/crm/intake/ingest/${sourceId}`
 }
+
+export const tildaSourceWebhookUrl = (sourceId: string) =>
+	`${sourceWebhookUrl(sourceId)}/tilda`

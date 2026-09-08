@@ -5,6 +5,7 @@ import { AuthenticatedApiError } from '@/shared/api/authenticated-http-client'
 import {
 	Button,
 	DataTable,
+	Drawer,
 	ScreenState,
 	StatusBadge,
 	type DataTableColumn
@@ -15,6 +16,7 @@ import toast from 'react-hot-toast'
 import { sourceWebhookUrl } from '../model/source-credential'
 import type { IntakeAccess } from '../model/use-intake-access'
 import { SourceEditor } from './SourceEditor'
+import { TildaSourceSetup } from './TildaSourceSetup'
 import { WidgetSourcesPanel } from './WidgetSourcesPanel'
 import styles from './SourcesPanel.module.scss'
 
@@ -23,7 +25,9 @@ export const SourcesPanel = ({ access }: { access: IntakeAccess }) => {
 	const [selected, setSelected] = useState<{
 		operation: 'create' | 'rotate' | 'revoke'
 		source?: IntakeSource
+		integration?: 'api' | 'tilda'
 	} | null>(null)
+	const [tildaSource, setTildaSource] = useState<IntakeSource | null>(null)
 	const query = useQuery({
 		queryKey: [
 			'crm-intake-sources',
@@ -92,6 +96,16 @@ export const SourcesPanel = ({ access }: { access: IntakeAccess }) => {
 					<Button
 						size="sm"
 						variant="secondary"
+						onClick={() => {
+							setTildaSource(item)
+							toast('Открыта настройка Tilda для источника')
+						}}
+					>
+						Tilda
+					</Button>
+					<Button
+						size="sm"
+						variant="secondary"
 						disabled={
 							!access.canManageSources ||
 							!!item.revokedAt ||
@@ -125,18 +139,30 @@ export const SourcesPanel = ({ access }: { access: IntakeAccess }) => {
 		<div className={styles.panel}>
 			<div className={styles.header}>
 				<div>
-					<h2 className={styles.title}>API-источники</h2>
+					<h2 className={styles.title}>API-источники и формы</h2>
 					<p className={styles.description}>
-						Подключайте серверные формы и внешние системы. Секретные ключи
-						никогда не показываются в списке.
+						Подключайте формы Tilda, серверные формы и внешние системы.
+						Секретные ключи никогда не показываются в списке.
 					</p>
 				</div>
-				<Button
-					disabled={!access.canManageSources || denied}
-					onClick={() => setSelected({ operation: 'create' })}
-				>
-					Новый источник
-				</Button>
+				<div className={styles.actions}>
+					<Button
+						variant="secondary"
+						disabled={!access.canManageSources || denied}
+						onClick={() => {
+							setSelected({ operation: 'create', integration: 'tilda' })
+							toast('Создайте источник для форм Tilda')
+						}}
+					>
+						Подключить Tilda
+					</Button>
+					<Button
+						disabled={!access.canManageSources || denied}
+						onClick={() => setSelected({ operation: 'create' })}
+					>
+						Новый источник
+					</Button>
+				</div>
 			</div>
 			{!access.permissions.isSuccess ? (
 				<ScreenState
@@ -242,9 +268,52 @@ export const SourcesPanel = ({ access }: { access: IntakeAccess }) => {
 				].join(':')}
 				access={access}
 			/>
+			{tildaSource &&
+			access.session &&
+			access.sourceManager &&
+			!denied &&
+			tildaSource.workspaceId === access.workspaceId ? (
+				<Drawer
+					isOpen
+					title="Подключение Tilda"
+					onClose={() => setTildaSource(null)}
+				>
+					<div className={styles.documentation}>
+						<p>
+							Источник: <strong>{tildaSource.name}</strong>
+						</p>
+						{tildaSource.revokedAt ? (
+							<p>
+								Источник отозван и не принимает новые обращения. Для
+								подключения формы создайте новый источник.
+							</p>
+						) : null}
+						<TildaSourceSetup sourceId={tildaSource.id} />
+						<Button
+							variant="secondary"
+							disabled={
+								!access.canManageSources ||
+								!!tildaSource.revokedAt ||
+								query.isFetching
+							}
+							onClick={() => {
+								setSelected({
+									operation: 'rotate',
+									source: tildaSource,
+									integration: 'tilda'
+								})
+								setTildaSource(null)
+								toast('Подтвердите замену ключа перед обновлением в Tilda')
+							}}
+						>
+							Заменить ключ для Tilda
+						</Button>
+					</div>
+				</Drawer>
+			) : null}
 			{selected && access.session ? (
 				<SourceEditor
-					key={`${access.workspaceId}:${access.session?.userId}:${selected.operation}:${selected.source?.id ?? 'new'}`}
+					key={`${access.workspaceId}:${access.session?.userId}:${selected.operation}:${selected.source?.id ?? 'new'}:${selected.integration ?? 'api'}`}
 					{...selected}
 					access={access}
 					onClose={() => setSelected(null)}

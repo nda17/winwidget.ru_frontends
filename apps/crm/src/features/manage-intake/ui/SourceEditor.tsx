@@ -11,12 +11,14 @@ import {
 } from '../model/source-credential'
 import type { IntakeAccess } from '../model/use-intake-access'
 import { useIntakeCommand } from '../model/use-intake-command'
+import { TildaSourceSetup } from './TildaSourceSetup'
 import styles from './IntakeForms.module.scss'
 
 interface Props {
 	access: IntakeAccess
 	source?: IntakeSource
 	operation: 'create' | 'rotate' | 'revoke'
+	integration?: 'api' | 'tilda'
 	onClose: () => void
 	onSaved: () => void
 }
@@ -25,6 +27,7 @@ export const SourceEditor = ({
 	access,
 	source,
 	operation,
+	integration = 'api',
 	onClose,
 	onSaved
 }: Props) => {
@@ -33,7 +36,9 @@ export const SourceEditor = ({
 		source: IntakeSource
 	} | null>(null)
 	const [revealed, setRevealed] = useState(false)
-	const form = useForm<{ name: string }>({ defaultValues: { name: '' } })
+	const form = useForm<{ name: string }>({
+		defaultValues: { name: integration === 'tilda' ? 'Tilda' : '' }
+	})
 	const command = useIntakeCommand(
 		access,
 		'intake:manage-sources',
@@ -87,7 +92,9 @@ export const SourceEditor = ({
 			await navigator.clipboard.writeText(value)
 			toast.success(
 				isSecret
-					? 'Ключ скопирован. Передавайте его только вашему серверу.'
+					? integration === 'tilda'
+						? 'Ключ скопирован. Добавьте его в настройки Webhook в Tilda.'
+						: 'Ключ скопирован. Передавайте его только вашему серверу.'
 					: 'Адрес приёма скопирован'
 			)
 		} catch {
@@ -139,7 +146,9 @@ export const SourceEditor = ({
 				credential
 					? 'Сохраните секретный ключ'
 					: operation === 'create'
-						? 'Новый API-источник'
+						? integration === 'tilda'
+							? 'Подключить Tilda'
+							: 'Новый API-источник'
 						: operation === 'rotate'
 							? 'Заменить ключ источника'
 							: 'Отозвать источник'
@@ -193,25 +202,35 @@ export const SourceEditor = ({
 								Скопировать ключ
 							</Button>
 						</div>
-						<p>Адрес приёма POST:</p>
-						<code className={styles.secret}>
-							{sourceWebhookUrl(credential.source.id)}
-						</code>
-						<Button
-							variant="secondary"
-							onClick={() =>
-								void copy(sourceWebhookUrl(credential.source.id), false)
-							}
-						>
-							Скопировать адрес
-						</Button>
-						<p className={styles.notice}>
-							Передавайте ключ в заголовке{' '}
-							<code>Authorization: Bearer &lt;ключ&gt;</code>. Для каждого
-							события используйте UUIDv4 в <code>Idempotency-Key</code>;
-							при повторе события сохраняйте его и тело запроса. Реальная
-							доставка подтверждается только успешным ответом API.
-						</p>
+						{integration === 'tilda' ? (
+							<TildaSourceSetup sourceId={credential.source.id} />
+						) : (
+							<>
+								<p>Адрес приёма POST:</p>
+								<code className={styles.secret}>
+									{sourceWebhookUrl(credential.source.id)}
+								</code>
+								<Button
+									variant="secondary"
+									onClick={() =>
+										void copy(
+											sourceWebhookUrl(credential.source.id),
+											false
+										)
+									}
+								>
+									Скопировать адрес
+								</Button>
+								<p className={styles.notice}>
+									Передавайте ключ в заголовке{' '}
+									<code>Authorization: Bearer &lt;ключ&gt;</code>. Для
+									каждого события используйте UUIDv4 в{' '}
+									<code>Idempotency-Key</code>; при повторе события
+									сохраняйте его и тело запроса. Реальная доставка
+									подтверждается только успешным ответом API.
+								</p>
+							</>
+						)}
 						<Button
 							variant="secondary"
 							onClick={() => {
@@ -254,9 +273,13 @@ export const SourceEditor = ({
 						)}
 						<p className={styles.notice}>
 							{operation === 'create'
-								? 'Ключ будет сгенерирован безопасно на этом устройстве. После подтверждения команды сохраните его в секретах вашего сервера.'
+								? integration === 'tilda'
+									? 'Будет создан API-источник для форм Tilda. Ключ будет сгенерирован безопасно на этом устройстве. После подтверждения команды добавьте его в настройки Webhook в Tilda.'
+									: 'Ключ будет сгенерирован безопасно на этом устройстве. После подтверждения команды сохраните его в секретах вашего сервера.'
 								: operation === 'rotate'
-									? 'После подтверждения старый ключ перестанет действовать. Обновите ключ на отправляющем сервере. Уже полученные обращения сохранятся.'
+									? integration === 'tilda'
+										? 'После подтверждения старый ключ перестанет действовать. Обновите ключ в настройках Webhook в Tilda. Уже полученные обращения сохранятся.'
+										: 'После подтверждения старый ключ перестанет действовать. Обновите ключ на отправляющем сервере. Уже полученные обращения сохранятся.'
 									: 'После подтверждения новые обращения из источника приниматься не будут. Восстановить отозванный источник нельзя; существующие обращения сохранятся.'}
 						</p>
 						{command.uncertain ? (

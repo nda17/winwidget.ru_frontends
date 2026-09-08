@@ -82,6 +82,104 @@ beforeEach(() => {
 afterEach(cleanup)
 
 describe('SourceEditor', () => {
+	it('creates a named Tilda source through the unchanged API command and only copies the key explicitly', async () => {
+		const storage = vi.spyOn(Storage.prototype, 'setItem')
+		render(
+			<SourceEditor
+				access={access()}
+				operation="create"
+				integration="tilda"
+				onClose={vi.fn()}
+				onSaved={vi.fn()}
+			/>
+		)
+		expect(
+			screen.getByRole('textbox', { name: 'Название источника' })
+		).toHaveProperty('value', 'Tilda')
+		fireEvent.change(
+			screen.getByRole('textbox', { name: 'Название источника' }),
+			{ target: { value: '  Сайт QA  ' } }
+		)
+		fireEvent.click(
+			screen.getByRole('button', { name: 'Создать источник' })
+		)
+		await screen.findByRole('button', { name: 'Скопировать ключ' })
+		const command = vi.mocked(mutateIntakeSource).mock.calls[0][1]
+		if (command.operation !== 'create') throw new Error('Expected create')
+		expect(command).toEqual({
+			workspaceId,
+			commandId: expect.any(String),
+			operation: 'create',
+			name: 'Сайт QA',
+			token: expect.stringMatching(/^[A-Za-z0-9_-]{43}$/),
+			teamId: null
+		})
+		expect(document.body.textContent).not.toContain(command.token)
+		expect(document.body.textContent).toContain('X-WinCRM-Source-Token')
+		expect(document.body.textContent).not.toContain('Idempotency-Key')
+		expect(navigator.clipboard.writeText).not.toHaveBeenCalled()
+		fireEvent.click(
+			screen.getByRole('button', { name: 'Скопировать адрес Tilda' })
+		)
+		await waitFor(() =>
+			expect(navigator.clipboard.writeText).toHaveBeenCalledWith(
+				`http://localhost:4100/api/v1/crm/intake/ingest/${source.id}/tilda`
+			)
+		)
+		fireEvent.click(
+			screen.getByRole('button', { name: 'Скопировать ключ' })
+		)
+		await waitFor(() =>
+			expect(navigator.clipboard.writeText).toHaveBeenLastCalledWith(
+				command.token
+			)
+		)
+		expect(storage).not.toHaveBeenCalled()
+		storage.mockRestore()
+	})
+	it('rotates a Tilda key using the existing versioned source command and hides setup when access is lost', async () => {
+		const current = access()
+		const props = {
+			source,
+			operation: 'rotate' as const,
+			integration: 'tilda' as const,
+			onClose: vi.fn(),
+			onSaved: vi.fn()
+		}
+		const view = render(<SourceEditor {...props} access={current} />)
+		expect(mutateIntakeSource).not.toHaveBeenCalled()
+		expect(document.body.textContent).toContain(
+			'Обновите ключ в настройках Webhook в Tilda'
+		)
+		fireEvent.click(
+			screen.getByRole('button', { name: 'Подтвердить замену ключа' })
+		)
+		await screen.findByRole('button', { name: 'Скопировать адрес Tilda' })
+		const command = vi.mocked(mutateIntakeSource).mock.calls[0][1]
+		expect(command).toEqual({
+			workspaceId,
+			commandId: expect.any(String),
+			operation: 'rotate',
+			id: source.id,
+			expectedVersion: source.version,
+			token: expect.stringMatching(/^[A-Za-z0-9_-]{43}$/)
+		})
+		if (command.operation !== 'rotate') throw new Error('Expected rotate')
+		fireEvent.click(screen.getByRole('button', { name: 'Показать ключ' }))
+		expect(document.body.textContent).toContain(command.token)
+		view.rerender(
+			<SourceEditor
+				{...props}
+				access={{
+					...current,
+					sourceManager: false,
+					canManageSources: false
+				}}
+			/>
+		)
+		expect(document.body.textContent).not.toContain(command.token)
+		expect(screen.queryByLabelText('Адрес Webhook для Tilda')).toBeNull()
+	})
 	it('recovers the original private key after a complete editor remount, even with an empty new form', async () => {
 		vi.mocked(mutateIntakeSource)
 			.mockRejectedValueOnce(

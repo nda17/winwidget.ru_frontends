@@ -1,7 +1,8 @@
 import { afterEach, describe, expect, it, vi } from 'vitest'
 import {
 	generateSourceCredential,
-	sourceWebhookUrl
+	sourceWebhookUrl,
+	tildaSourceWebhookUrl
 } from './source-credential'
 
 vi.mock('@/shared/config/runtime', () => ({
@@ -28,7 +29,18 @@ describe('one-time source credentials', () => {
 			'https://outside.example',
 			'?token=secret',
 			'11111111-1111-4111-8111-111111111111#token'
-		])
+		]) {
 			expect(() => sourceWebhookUrl(id)).toThrow()
+			expect(() => tildaSourceWebhookUrl(id)).toThrow()
+		}
+	})
+	it('adds the Tilda adapter path without changing the ordinary API URL', () => {
+		const id = '11111111-1111-4111-8111-111111111111'
+		expect(tildaSourceWebhookUrl(id)).toBe(
+			`http://localhost:4100/api/v1/crm/intake/ingest/${id}/tilda`
+		)
+		expect(sourceWebhookUrl(id)).toBe(
+			`http://localhost:4100/api/v1/crm/intake/ingest/${id}`
+		)
 	})
 })
