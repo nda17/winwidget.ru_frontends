@@ -46,11 +46,6 @@ const PLAN_PRIORITY: Record<Plan, number> = {
 
 type PaidPlan = Extract<Plan, 'EASY' | 'HARD'>
 
-const PLAN_COLORS: Record<PaidPlan, string> = {
-	EASY: '#4705fb',
-	HARD: '#7b2fff'
-}
-
 const PLAN_TITLE_FALLBACK: Record<Plan, string> = {
 	TRIAL: 'Тест-драйв',
 	EASY: 'Easy',
@@ -1086,11 +1081,7 @@ const Pricing = ({
 									className={styles.planCard}
 									aria-labelledby={titleId}
 								>
-									<h2
-										id={titleId}
-										className={styles.planName}
-										style={{ color: PLAN_COLORS[plan.key] }}
-									>
+									<h2 id={titleId} className={styles.planName}>
 										{plan.title}
 									</h2>
 									{plan.subtitle && (
@@ -1116,7 +1107,9 @@ const Pricing = ({
 
 									<ul className={styles.features}>
 										{plan.features.map(feature => (
-											<li key={feature}>{feature}</li>
+											<li key={feature}>
+												{feature.replace(/^\s*[✓✔]\s*/, '')}
+											</li>
 										))}
 									</ul>
 
@@ -1193,7 +1186,6 @@ const Pricing = ({
 									<button
 										type="button"
 										className={styles.buyBtn}
-										style={{ background: PLAN_COLORS[plan.key] }}
 										disabled={
 											isActionsDisabled ||
 											hasPendingPayment ||

@@ -397,6 +397,60 @@ test('payment switch defaults to Widgets and changes only product selection and 
 	assert.match(cards, /crmProductService\.getPolicy/)
 })
 
+test('Widgets and CRM payment cards share responsive card styling without duplicate feature markers', async () => {
+	const pricing = await read(
+		'apps/widgets/src/screens/payment/ui/pricing/Pricing.tsx'
+	)
+	const cards = await read(
+		'apps/widgets/src/screens/payment/ui/pricing/CrmPricingCards.tsx'
+	)
+	const styles = await read(
+		'apps/widgets/src/screens/payment/ui/pricing/Pricing.module.scss'
+	)
+	const crmStyles = await read(
+		'apps/widgets/src/screens/payment/ui/pricing/CrmPricingCards.module.scss'
+	)
+	assert.match(
+		cards,
+		/import pricingStyles from '\.\/Pricing\.module\.scss'/
+	)
+	for (const className of [
+		'plans',
+		'planCard',
+		'planName',
+		'planSubtitle',
+		'priceBlock',
+		'price',
+		'pricePer',
+		'features',
+		'buyBtn'
+	]) {
+		assert.ok(cards.includes(`pricingStyles.${className}`), className)
+		assert.ok(pricing.includes(`styles.${className}`), className)
+	}
+	assert.doesNotMatch(
+		cards,
+		/Отдельный продукт|styles\.(?:cards|card|price|paymentLink|soon)\b/
+	)
+	assert.doesNotMatch(
+		crmStyles,
+		/\.(?:eyebrow|cards|card|price|features|paymentLink|soon)\s*\{/
+	)
+	assert.match(cards, /Подписки CRM и Widgets оплачиваются независимо/)
+	assert.match(styles, /lg:max-w-\[57\.5rem\] lg:grid-cols-2/)
+	const cardStyle = styles.match(/\.planCard\s*\{([^}]+)\}/)?.[1] ?? ''
+	assert.match(cardStyle, /lg:min-h-\[38rem\]/)
+	assert.doesNotMatch(
+		cardStyle,
+		/(?:^|\s)(?:h-\[|min-h-\[)|overflow-hidden|height\s*:/
+	)
+	assert.ok(pricing.includes("feature.replace(/^\\s*[✓✔]\\s*/, '')"))
+	assert.doesNotMatch(
+		pricing,
+		/PLAN_COLORS|style=\{\{ (?:color|background):/
+	)
+})
+
 test('unreleased cards and profile render honest status without inferred price or expiry', async () => {
 	const { renderToStaticMarkup } = require('react-dom/server')
 	const { createElement } = require('react')
@@ -426,6 +480,7 @@ test('unreleased cards and profile render honest status without inferred price o
 			}
 		},
 		'react-hot-toast': { default: () => {} },
+		'./Pricing.module.scss': { default: {} },
 		'./CrmPricingCards.module.scss': { default: {} },
 		'./CrmStatusBadge.module.scss': { default: {} }
 	}
@@ -511,6 +566,7 @@ test('paid Widgets cards navigate to CRM settings only when both gates are open,
 			}
 		},
 		'react-hot-toast': { default: value => toasts.push(value) },
+		'./Pricing.module.scss': { default: {} },
 		'./CrmPricingCards.module.scss': { default: {} }
 	}
 	for (const [apiEnabled, billingEnabled] of [
