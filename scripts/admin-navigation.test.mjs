@@ -47,7 +47,7 @@ test('six meaningful groups preserve every remaining admin page exactly once', (
 			'management'
 		]
 	)
-	assert.equal(items.length, 17)
+	assert.equal(items.length, 18)
 	assert.equal(new Set(items.map(item => item.link)).size, items.length)
 	const expected = Object.entries(pages.ADMIN_PAGES)
 		.filter(([key]) => key !== 'USER')

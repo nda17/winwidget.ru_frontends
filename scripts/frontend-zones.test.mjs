@@ -773,12 +773,18 @@ test('admin root and its platform providers exclude arbitrary homepage HTML and 
 })
 
 test('verified ADMIN still reaches the admin application without a DEV-only root gate', async () => {
-	const request = { url: 'https://winwidget.ru/admin/crm' }
+	const request = {
+		url: 'https://winwidget.ru/admin/crm',
+		nextUrl: new URL('https://winwidget.ru/admin/crm')
+	}
 	const next = { kind: 'next' }
 	let user = { isLoggedIn: true, isAdmin: true }
 	const { adminMiddleware } = compile(
 		'packages/winwidget-web/src/app/middlewares/adminMiddleware.ts',
 		{
+			'@/shared/lib/auth-return-url': compile(
+				'packages/winwidget-web/src/shared/lib/auth-return-url.ts'
+			),
 			'next/server': {
 				NextResponse: {
 					next: () => next,
@@ -801,6 +807,20 @@ test('verified ADMIN still reaches the admin application without a DEV-only root
 	assert.equal(
 		(await adminMiddleware(request)).url,
 		'https://winwidget.ru/login'
+	)
+	const supportUrl =
+		'https://winwidget.ru/admin/support?conversationId=11111111-1111-4111-8111-111111111111'
+	const supportRequest = { url: supportUrl, nextUrl: new URL(supportUrl) }
+	const loginRedirect = new URL(
+		(await adminMiddleware(supportRequest)).url
+	)
+	assert.equal(loginRedirect.pathname, '/login')
+	assert.equal(loginRedirect.searchParams.get('returnUrl'), supportUrl)
+	user = { isLoggedIn: true, isAdmin: false, isDev: true }
+	assert.equal(await adminMiddleware(supportRequest), next)
+	assert.equal(
+		(await adminMiddleware(request)).url,
+		'https://winwidget.ru/cabinet'
 	)
 	assert.match(
 		read('apps/admin-panel/src/middleware.ts'),
