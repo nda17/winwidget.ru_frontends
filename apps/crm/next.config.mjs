@@ -1,8 +1,14 @@
 import path from 'node:path'
 import { fileURLToPath } from 'node:url'
+import { readFileSync } from 'node:fs'
+
+const { version } = JSON.parse(
+	readFileSync(new URL('./package.json', import.meta.url), 'utf8')
+)
 
 /** @type {import('next').NextConfig} */
 const nextConfig = {
+	env: { NEXT_PUBLIC_CRM_APP_VERSION: version },
 	agentRules: false,
 	output: 'standalone',
 	outputFileTracingRoot: path.resolve(

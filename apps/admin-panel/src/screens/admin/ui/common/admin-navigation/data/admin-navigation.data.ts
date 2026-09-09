@@ -47,6 +47,7 @@ export const adminNavGroups: IAdminNavGroup[] = [
 		description: 'Публичный сайт, документы и каналы коммуникации.',
 		items: [
 			{ title: 'Контент', link: ADMIN_PAGES.CONTENT },
+			{ title: 'Поддержка', link: ADMIN_PAGES.SUPPORT },
 			{ title: 'Рассылки', link: ADMIN_PAGES.MAILINGS },
 			{ title: 'Telegram-боты', link: ADMIN_PAGES.TELEGRAM_BOT }
 		]

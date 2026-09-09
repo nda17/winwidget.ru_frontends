@@ -31,6 +31,37 @@ const createStorage = () => {
 	}
 }
 
+test('operator support deep link survives the same-tab OAuth intent with a narrow allowlist', () => {
+	const id = '11111111-1111-4111-8111-111111111111'
+	const url = `https://winwidget.ru/admin/support?conversationId=${id}`
+	const storage = createStorage()
+	const now = Date.now()
+	assert.equal(
+		authReturn.saveAuthReturnIntent(storage, url, now, productionOptions),
+		url
+	)
+	assert.equal(
+		authReturn.readAuthReturnIntent(
+			storage,
+			now + 1000,
+			productionOptions
+		),
+		url
+	)
+	for (const invalid of [
+		url + '&token=secret',
+		url + '&conversationId=' + id,
+		url + '#fragment',
+		url.replace('/admin/support', '/admin/settings'),
+		url.replace(id, 'invalid'),
+		url.replace('winwidget.ru', 'winwidget.ru.evil.test')
+	])
+		assert.equal(
+			authReturn.getSafeAuthReturnUrl(invalid, productionOptions),
+			null
+		)
+})
+
 test('preserves a WinCRM invitation path through the existing origin allowlist', () => {
 	const invitationId = '11111111-1111-4111-8111-111111111111'
 	for (const [origin, options] of [
@@ -195,6 +226,109 @@ test('OAuth completion uses validated same-tab intent, not callback query', asyn
 	assert.doesNotMatch(
 		socialAuthSource,
 		/useSearchParams|window\.location\.search|searchParams/
+	)
+})
+
+test('real OAuth completion consumes the operator support intent after renewed authentication', async () => {
+	const source = await readFile(
+		resolveWorkspaceSource(
+			'src/screens/auth/ui/social-auth/SocialAuth.tsx'
+		),
+		'utf8'
+	)
+	const ast = ts.createSourceFile(
+		'SocialAuth.tsx',
+		source,
+		ts.ScriptTarget.Latest,
+		true,
+		ts.ScriptKind.TSX
+	)
+	let effect
+	const visit = node => {
+		if (
+			ts.isCallExpression(node) &&
+			node.expression.getText(ast) === 'useEffect'
+		)
+			effect = node.arguments[0]
+		ts.forEachChild(node, visit)
+	}
+	visit(ast)
+	assert.ok(effect)
+	const code = ts.transpileModule(
+		`const run = ${effect.getText(ast)}; run();`,
+		{
+			compilerOptions: {
+				target: ts.ScriptTarget.ES2022,
+				module: ts.ModuleKind.CommonJS
+			}
+		}
+	).outputText
+	const destination =
+		'https://winwidget.ru/admin/support?conversationId=11111111-1111-4111-8111-111111111111'
+	const storage = createStorage()
+	authReturn.saveAuthReturnIntent(
+		storage,
+		destination,
+		Date.now(),
+		productionOptions
+	)
+	const events = []
+	new Function(
+		'toast',
+		'SOCIAL_AUTH_TOAST_ID',
+		'readAuthReturnIntent',
+		'window',
+		'authService',
+		'AFFILIATE_REFERRER_STORAGE_KEY',
+		'setAuth',
+		'setAuthResolved',
+		'clearAuthReturnIntent',
+		'router',
+		'PUBLIC_PAGES',
+		'clearBrowserSession',
+		code
+	)(
+		{
+			loading: () => 'loading',
+			dismiss: () => {},
+			error: () => {
+				throw new Error('unexpected OAuth error')
+			}
+		},
+		'social-auth',
+		value =>
+			authReturn.readAuthReturnIntent(
+				value,
+				Date.now(),
+				productionOptions
+			),
+		{
+			sessionStorage: storage,
+			localStorage: { removeItem: () => {} },
+			location: { replace: value => events.push(['destination', value]) }
+		},
+		{ getNewTokens: async () => {} },
+		'affiliateReferrerId',
+		value => events.push(['auth', value]),
+		value => events.push(['resolved', value]),
+		authReturn.clearAuthReturnIntent,
+		{
+			replace: () => {
+				throw new Error('unexpected default destination')
+			}
+		},
+		{ HOME: '/', LOGIN: '/login' },
+		() => {}
+	)
+	await new Promise(resolve => setImmediate(resolve))
+	assert.deepEqual(events, [
+		['auth', true],
+		['resolved', true],
+		['destination', destination]
+	])
+	assert.equal(
+		storage.getItem(authReturn.AUTH_RETURN_INTENT_STORAGE_KEY),
+		null
 	)
 })
 

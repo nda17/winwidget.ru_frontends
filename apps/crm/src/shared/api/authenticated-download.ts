@@ -15,6 +15,7 @@ export interface DownloadRequest {
 	params: Record<string, string>
 	signal: AbortSignal
 	maxBytes: number
+	accept?: string
 	inspectHeaders: (headers: Headers) => number
 }
 const failure = (status: number) => {
@@ -52,6 +53,7 @@ export const authenticatedDownload = async ({
 	params,
 	signal,
 	maxBytes,
+	accept = 'application/json, text/csv',
 	inspectHeaders
 }: DownloadRequest) => {
 	if (
@@ -111,7 +113,7 @@ export const authenticatedDownload = async ({
 				signal: controller.signal,
 				headers: {
 					Authorization: `Bearer ${lease.accessToken}`,
-					Accept: 'application/json, text/csv'
+					Accept: accept
 				}
 			})
 		}

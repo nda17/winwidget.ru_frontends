@@ -33,7 +33,7 @@ export const isSessionRecoveryReadError = (error: unknown) =>
 
 interface AuthenticatedRequest {
 	accessToken: string
-	method: 'GET' | 'POST' | 'PUT'
+	method: 'GET' | 'POST' | 'PUT' | 'PATCH' | 'DELETE'
 	url: string
 	params?: Record<string, string>
 	data?: unknown

@@ -59,7 +59,26 @@ export const getSafeAuthReturnUrl = (
 		allowedOrigins.add(LOCAL_WINCRM_ORIGIN)
 	}
 
-	return allowedOrigins.has(url.origin) ? url.toString() : null
+	if (allowedOrigins.has(url.origin)) return url.toString()
+	// Operator notifications return to this one protected screen. Do not expand
+	// the general same-origin redirect surface or accept credentials in links.
+	const supportOrigins = new Set(['https://winwidget.ru'])
+	if (isLocalhostAllowed(options))
+		supportOrigins.add('http://localhost:3000')
+	const conversations = url.searchParams.getAll('conversationId')
+	return supportOrigins.has(url.origin) &&
+		url.pathname === '/admin/support' &&
+		!url.hash &&
+		Array.from(url.searchParams.keys()).every(
+			key => key === 'conversationId'
+		) &&
+		(conversations.length === 0 ||
+			(conversations.length === 1 &&
+				/^[0-9a-f]{8}-[0-9a-f]{4}-4[0-9a-f]{3}-[89ab][0-9a-f]{3}-[0-9a-f]{12}$/i.test(
+					conversations[0]
+				)))
+		? url.toString()
+		: null
 }
 
 export const parseAuthReturnUrlParam = (
