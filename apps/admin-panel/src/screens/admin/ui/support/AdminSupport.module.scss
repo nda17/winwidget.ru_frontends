@@ -5,7 +5,10 @@
 	@apply mb-5 flex flex-wrap items-end gap-3 rounded-xl border border-[#e0d6f0] bg-white p-4;
 }
 .filters > label:first-child {
-	@apply min-w-48 flex-1;
+	@apply min-w-0 basis-48 flex-1;
+}
+.filters[data-thread-open='true'] {
+	@apply hidden lg:flex;
 }
 .wrapper label:not(.checkbox):not(.fileButton) {
 	@apply flex flex-col gap-1 text-sm font-medium text-[#51405f];
@@ -31,10 +34,14 @@
 	@apply inline-flex min-h-10 items-center justify-center rounded-lg border-0 bg-[#7b3fa0] px-4 py-2 text-sm font-semibold text-white hover:bg-[#63317f] disabled:cursor-not-allowed disabled:opacity-50;
 }
 .workspace {
-	@apply mb-5 grid min-h-[32rem] min-w-0 gap-4 lg:grid-cols-[minmax(17rem,0.8fr)_minmax(0,1.5fr)];
+	@apply mb-5 grid min-w-0 gap-4 lg:min-h-[32rem] lg:grid-cols-[minmax(17rem,0.8fr)_minmax(0,1.5fr)];
 }
 .list {
 	@apply flex min-w-0 flex-col gap-2 rounded-xl border border-[#e0d6f0] bg-white p-3 lg:max-h-[52rem] lg:overflow-y-auto;
+}
+.workspace[data-thread-open='true'] .list,
+.workspace[data-thread-open='false'] .conversation {
+	@apply hidden lg:flex;
 }
 .ticket,
 .selectedTicket {
@@ -61,13 +68,13 @@
 	@apply text-[#7b3fa0];
 }
 .conversation {
-	@apply flex h-[min(52rem,90dvh)] min-h-[28rem] min-w-0 flex-col overflow-hidden rounded-xl border border-[#e0d6f0] bg-white;
+	@apply flex min-h-0 min-w-0 flex-col overflow-hidden rounded-xl border border-[#e0d6f0] bg-white lg:h-[min(52rem,90dvh)] lg:min-h-[28rem];
 }
 .empty {
 	@apply flex flex-1 items-center justify-center p-8 text-center text-sm leading-6 text-[#756780];
 }
 .threadHeader {
-	@apply flex shrink-0 flex-col gap-2 border-b border-[#e8e0ee] bg-[#fcfaff] p-4;
+	@apply flex shrink-0 flex-col gap-2 border-b border-[#e8e0ee] bg-[#fcfaff] p-3 lg:p-4;
 }
 .threadHeader > button {
 	@apply self-start text-sm text-[#7b3fa0];
@@ -76,13 +83,13 @@
 	@apply break-words font-bold text-[#24172e];
 }
 .threadHeader p {
-	@apply text-sm text-[#51405f];
+	@apply break-words text-sm text-[#51405f];
 }
 .threadHeader label {
 	@apply max-w-52;
 }
 .history {
-	@apply min-h-0 flex-1 overflow-y-auto overscroll-contain p-4;
+	@apply max-h-[60dvh] min-h-[18rem] flex-auto overflow-y-auto overscroll-contain p-3 lg:max-h-none lg:min-h-0 lg:flex-1 lg:p-4;
 }
 .message {
 	@apply mb-3 mr-8 rounded-xl rounded-tl-none border border-[#e8e0ee] bg-[#faf8fc] p-3 text-sm;
@@ -104,10 +111,13 @@
 	@apply mb-4 min-h-10 w-full rounded-lg border border-[#e0d6f0] px-3 py-2 text-sm text-[#7b3fa0] disabled:opacity-50;
 }
 .composer {
-	@apply flex max-h-[60%] shrink-0 flex-col gap-2 overflow-y-auto border-t border-[#e8e0ee] p-4;
+	@apply flex shrink-0 flex-col gap-2 border-t border-[#e8e0ee] p-3 lg:max-h-[60%] lg:overflow-y-auto lg:p-4;
 }
 .actions {
-	@apply mt-2 flex flex-wrap items-center justify-between gap-3;
+	@apply mt-2 flex flex-wrap items-center justify-between gap-2 lg:gap-3;
+}
+.actions > .primary {
+	@apply max-w-full;
 }
 .actions > button:not(.primary) {
 	@apply min-h-10 text-sm text-[#7b3fa0] underline;

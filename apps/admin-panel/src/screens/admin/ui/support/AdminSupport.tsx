@@ -61,6 +61,14 @@ function SupportWorkspace({
 			? incoming[0]
 			: null
 	const [selected, setSelected] = useState<string | null>(linked)
+	const workspace = useRef<HTMLDivElement>(null)
+	const previousSelection = useRef<string | null>(null)
+	useEffect(() => {
+		const changed = selected !== previousSelection.current
+		previousSelection.current = selected
+		if (changed && window.matchMedia?.('(max-width: 991px)').matches)
+			workspace.current?.scrollIntoView({ block: 'start' })
+	}, [selected])
 	const [page, setPage] = useState(1)
 	const [searchDraft, setSearchDraft] = useState('')
 	const [filter, setFilter] = useState<{
@@ -502,9 +510,10 @@ function SupportWorkspace({
 	const statusCommand = selected
 		? statuses.current.get(selected)
 		: undefined
-	const historyEnd = useRef<HTMLDivElement>(null)
+	const historyPanel = useRef<HTMLDivElement>(null)
 	useEffect(() => {
-		if (through) historyEnd.current?.scrollIntoView({ block: 'nearest' })
+		const panel = historyPanel.current
+		if (through && panel) panel.scrollTop = panel.scrollHeight
 	}, [selected, through])
 	if (!validActor)
 		return (
@@ -527,6 +536,7 @@ function SupportWorkspace({
 			)}
 			<form
 				className={styles.filters}
+				data-thread-open={!!selected}
 				onSubmit={event => {
 					event.preventDefault()
 					setPage(1)
@@ -580,7 +590,11 @@ function SupportWorkspace({
 					Найти
 				</button>
 			</form>
-			<div className={styles.workspace}>
+			<div
+				ref={workspace}
+				className={styles.workspace}
+				data-thread-open={!!selected}
+			>
 				<section className={styles.list} aria-label="Обращения поддержки">
 					{list.isPending && <p>Загружаем обращения…</p>}
 					{list.isError && (
@@ -729,6 +743,7 @@ function SupportWorkspace({
 								)}
 							</header>
 							<div
+								ref={historyPanel}
 								className={styles.history}
 								aria-live="polite"
 								aria-relevant="additions"
@@ -793,7 +808,6 @@ function SupportWorkspace({
 										))}
 									</article>
 								))}
-								<div ref={historyEnd} />
 							</div>
 							{draft && detail.isSuccess && (
 								<form
