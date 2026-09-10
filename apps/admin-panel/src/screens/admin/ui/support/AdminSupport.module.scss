@@ -129,7 +129,7 @@
 	@apply absolute inset-0 w-full cursor-pointer opacity-0;
 }
 .hint {
-	@apply my-2 text-xs leading-5 text-[#756780];
+	@apply my-2 text-xs leading-[1.25rem] text-[#756780];
 }
 .error {
 	@apply my-2 text-sm leading-6 text-red-700;
