@@ -57,6 +57,12 @@ const SupportChatSession = () => {
 			? incoming[0]
 			: null
 	const [open, setOpen] = useState(Boolean(linked))
+	const [closing, setClosing] = useState(false)
+	const chatActive = open && !closing
+	const finishClose = useCallback(() => {
+		setOpen(false)
+		setClosing(false)
+	}, [])
 	const [selected, setSelected] = useState<string | null>(linked)
 	const currentSelection = useRef(selected)
 	useEffect(() => {
@@ -67,6 +73,7 @@ const SupportChatSession = () => {
 	if (previousLink !== linked) {
 		setPreviousLink(linked)
 		if (linked) {
+			setClosing(false)
 			setSelected(linked)
 			setCreating(false)
 			setOpen(true)
@@ -124,6 +131,7 @@ const SupportChatSession = () => {
 		setSelected(id)
 		setCreating(isNew)
 		setOlder(null)
+		setClosing(false)
 		setOpen(true)
 		updateLocation(id)
 	}
@@ -150,6 +158,12 @@ const SupportChatSession = () => {
 		},
 		[preview]
 	)
+	useEffect(() => {
+		if (!closing) return
+		// Complete closing even when a browser cancels the CSS animation.
+		const timeout = window.setTimeout(finishClose, 220)
+		return () => window.clearTimeout(timeout)
+	}, [closing, finishClose])
 	useEffect(() => {
 		const element = dialog.current
 		if (!open || !element) return
@@ -198,27 +212,27 @@ const SupportChatSession = () => {
 		queryKey: [...queryKey, 'unread'],
 		queryFn: () => supportApi.unread(token),
 		enabled: visible,
-		refetchInterval: open ? 5000 : 60000,
+		refetchInterval: chatActive ? 5000 : 60000,
 		...polling
 	})
 	const list = useQuery({
 		queryKey: [...queryKey, 'list', page],
 		queryFn: () => supportApi.list(token, page),
-		enabled: open && visible && !selected && !creating,
+		enabled: chatActive && visible && !selected && !creating,
 		refetchInterval: 5000,
 		...polling
 	})
 	const detail = useQuery({
 		queryKey: [...queryKey, selected, 'detail'],
 		queryFn: () => supportApi.detail(token, selected!),
-		enabled: open && visible && !!selected,
+		enabled: chatActive && visible && !!selected,
 		refetchInterval: 5000,
 		...polling
 	})
 	const history = useQuery({
 		queryKey: [...queryKey, selected, 'history'],
 		queryFn: () => supportApi.history(token, selected!),
-		enabled: open && visible && !!selected && detail.isSuccess,
+		enabled: chatActive && visible && !!selected && detail.isSuccess,
 		refetchInterval: 5000,
 		...polling
 	})
@@ -253,7 +267,7 @@ const SupportChatSession = () => {
 	const marked = useRef(new Map<string, number>())
 	useEffect(() => {
 		if (
-			!open ||
+			!chatActive ||
 			!visible ||
 			!selected ||
 			!through ||
@@ -275,7 +289,7 @@ const SupportChatSession = () => {
 			active = false
 		}
 	}, [
-		open,
+		chatActive,
 		visible,
 		selected,
 		through,
@@ -488,11 +502,14 @@ const SupportChatSession = () => {
 		older?.id === selected ? older.hasMore : history.data?.hasMore
 	const historyEnd = useRef<HTMLDivElement>(null)
 	useEffect(() => {
-		if (open && through)
+		if (chatActive && through)
 			historyEnd.current?.scrollIntoView({ block: 'end' })
-	}, [open, selected, through])
+	}, [chatActive, selected, through])
 	const close = () => {
-		setOpen(false)
+		if (closing) return
+		if (window.matchMedia('(prefers-reduced-motion: reduce)').matches)
+			finishClose()
+		else setClosing(true)
 		setPreview(null)
 		updateLocation(null)
 	}
@@ -502,14 +519,15 @@ const SupportChatSession = () => {
 				type="button"
 				ref={trigger}
 				className={styles.launcher}
+				hidden={open}
 				onClick={() => {
+					setClosing(false)
 					setOpen(true)
 				}}
 				aria-label={`Поддержка${unread.data ? `, непрочитанных: ${unread.data}` : ''}`}
 				aria-expanded={open}
 			>
-				<AppIcon name="inbox" size={22} />
-				<span>Поддержка</span>
+				<AppIcon name="inbox" size={20} />
 				{!!unread.data && (
 					<span className={styles.badge}>
 						{unread.data > 99 ? '99+' : unread.data}
@@ -519,7 +537,13 @@ const SupportChatSession = () => {
 			<dialog
 				ref={dialog}
 				className={styles.dialog}
+				data-state={closing ? 'closing' : open ? 'open' : 'closed'}
+				inert={closing}
 				aria-labelledby="support-title"
+				onAnimationEnd={event => {
+					if (closing && event.target === event.currentTarget)
+						finishClose()
+				}}
 				onCancel={event => {
 					event.preventDefault()
 					close()

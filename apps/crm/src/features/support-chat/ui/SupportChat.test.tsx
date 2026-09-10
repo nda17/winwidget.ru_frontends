@@ -142,10 +142,14 @@ describe('CRM support conversation', () => {
 		mount()
 		await screen.findByText('Специалист поддержки')
 		expect(screen.queryByText('Персональное имя оператора')).toBeNull()
+		const dialog = screen.getByRole('dialog', { name: 'Поддержка' })
 		fireEvent.click(
 			screen.getByRole('button', { name: 'Свернуть поддержку' })
 		)
-		fireEvent.click(screen.getByRole('button', { name: 'Поддержка' }))
+		fireEvent.animationEnd(dialog)
+		fireEvent.click(
+			await screen.findByRole('button', { name: 'Поддержка' })
+		)
 		expect(toast).not.toHaveBeenCalled()
 		expect(toast.success).not.toHaveBeenCalled()
 		expect(screen.queryByRole('tooltip')).toBeNull()
@@ -249,9 +253,17 @@ describe('CRM support conversation', () => {
 			screen.getByRole('button', { name: 'Предыдущие сообщения' })
 		).toBeTruthy()
 	})
-	it('creates only on first send and retains the draft when the panel closes', async () => {
+	it('hides the launcher until exit completes, restores focus, and retains the unsent draft', async () => {
 		mount()
-		fireEvent.click(screen.getByRole('button', { name: 'Поддержка' }))
+		const launcher = screen.getByRole('button', {
+			name: 'Поддержка'
+		}) as HTMLButtonElement
+		fireEvent.click(launcher)
+		const dialog = screen.getByRole('dialog', {
+			name: 'Поддержка'
+		}) as HTMLDialogElement
+		expect(launcher.hidden).toBe(true)
+		expect(screen.queryByRole('button', { name: 'Поддержка' })).toBeNull()
 		fireEvent.click(
 			screen.getByRole('button', { name: /Новое обращение/ })
 		)
@@ -259,13 +271,25 @@ describe('CRM support conversation', () => {
 			screen.getByRole('textbox', { name: 'Тема обращения' }),
 			{ target: { value: 'Подписка' } }
 		)
-		fireEvent.change(screen.getByRole('textbox', { name: 'Сообщение' }), {
+		const message = screen.getByRole('textbox', { name: 'Сообщение' })
+		message.focus()
+		fireEvent.change(message, {
 			target: { value: 'Помогите продлить доступ' }
 		})
 		fireEvent.click(
 			screen.getByRole('button', { name: 'Свернуть поддержку' })
 		)
-		fireEvent.click(screen.getByRole('button', { name: 'Поддержка' }))
+		expect(dialog.open).toBe(true)
+		expect(dialog.hasAttribute('inert')).toBe(true)
+		expect(launcher.hidden).toBe(true)
+		fireEvent.animationEnd(message)
+		expect(dialog.open).toBe(true)
+		expect(launcher.hidden).toBe(true)
+		fireEvent.animationEnd(dialog)
+		expect(dialog.open).toBe(false)
+		expect(launcher.hidden).toBe(false)
+		expect(document.activeElement).toBe(launcher)
+		fireEvent.click(launcher)
 		expect(
 			(
 				screen.getByRole('textbox', {
@@ -273,6 +297,34 @@ describe('CRM support conversation', () => {
 				}) as HTMLTextAreaElement
 			).value
 		).toBe('Помогите продлить доступ')
+		expect(api.send).not.toHaveBeenCalled()
+	})
+	it('closes immediately with reduced motion and returns focus without an animation event', () => {
+		Object.defineProperty(window, 'matchMedia', {
+			configurable: true,
+			value: (query: string) => ({
+				matches: query === '(prefers-reduced-motion: reduce)',
+				addEventListener: vi.fn(),
+				removeEventListener: vi.fn()
+			})
+		})
+		mount()
+		const launcher = screen.getByRole('button', {
+			name: 'Поддержка'
+		}) as HTMLButtonElement
+		fireEvent.click(launcher)
+		const dialog = screen.getByRole('dialog', {
+			name: 'Поддержка'
+		}) as HTMLDialogElement
+		expect(launcher.hidden).toBe(true)
+		const close = screen.getByRole('button', {
+			name: 'Свернуть поддержку'
+		})
+		close.focus()
+		fireEvent.click(close)
+		expect(dialog.open).toBe(false)
+		expect(launcher.hidden).toBe(false)
+		expect(document.activeElement).toBe(launcher)
 		expect(api.send).not.toHaveBeenCalled()
 	})
 	it('retries an uncertain send with the exact command and ignores later editor changes', async () => {

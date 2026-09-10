@@ -1,14 +1,53 @@
 .launcher {
-	@apply fixed bottom-[max(1rem,env(safe-area-inset-bottom))] right-[max(1rem,env(safe-area-inset-right))] z-40 flex min-h-12 items-center gap-2 rounded-full border-0 bg-crm-action px-4 py-3 text-sm font-semibold text-white shadow-floating transition-colors hover:bg-crm-action/90 focus-visible:outline-none focus-visible:ring-2 focus-visible:ring-primary focus-visible:ring-offset-2;
+	@apply fixed bottom-[max(1rem,env(safe-area-inset-bottom))] right-[max(1rem,env(safe-area-inset-right))] z-40 flex h-11 w-11 items-center justify-center rounded-full border-0 bg-crm-action p-0 text-white shadow-floating transition-colors hover:bg-crm-action/90 focus-visible:outline-none focus-visible:ring-2 focus-visible:ring-primary focus-visible:ring-offset-2;
+}
+.launcher[hidden] {
+	@apply hidden;
 }
 .badge {
-	@apply flex h-6 min-w-6 items-center justify-center rounded-full bg-white px-1 text-xs font-bold text-crm-action;
+	@apply absolute -right-1 -top-1 flex h-4 min-w-4 items-center justify-center rounded-full bg-white px-1 text-[10px] font-bold text-crm-action shadow-panel;
 }
 .dialog {
-	@apply fixed inset-auto left-0 top-[var(--support-top,0px)] z-50 m-0 h-[var(--support-height,100dvh)] max-h-none w-full max-w-none overflow-hidden border-0 bg-crm-surface p-0 text-crm-text shadow-floating sm:bottom-20 sm:left-auto sm:right-5 sm:top-auto sm:h-[min(42rem,calc(100dvh-7rem))] sm:w-[25rem] sm:rounded-2xl sm:border sm:border-crm-border;
+	@apply fixed inset-auto left-0 top-[var(--support-top,0px)] z-50 m-0 h-[var(--support-height,100dvh)] max-h-none w-full max-w-none overflow-hidden border-0 bg-crm-surface p-0 text-crm-text shadow-floating sm:bottom-5 sm:left-auto sm:right-5 sm:top-auto sm:h-[min(42rem,calc(100dvh-7rem))] sm:w-[25rem] sm:rounded-2xl sm:border sm:border-crm-border;
+}
+.dialog[data-state='open'] {
+	@apply animate-[support-slide-in_240ms_cubic-bezier(0.22,1,0.36,1)_both] motion-reduce:animate-none;
+}
+.dialog[data-state='closing'] {
+	@apply animate-[support-slide-out_180ms_ease-in_both] motion-reduce:animate-none;
 }
 .dialog::backdrop {
 	@apply bg-secondary/50;
+}
+.dialog[data-state='open']::backdrop {
+	@apply animate-[support-backdrop_240ms_ease-out_both] motion-reduce:animate-none;
+}
+.dialog[data-state='closing']::backdrop {
+	@apply animate-[support-backdrop_180ms_ease-in_reverse_both] motion-reduce:animate-none;
+}
+@keyframes support-slide-in {
+	from {
+		@apply translate-y-[calc(100%+2rem)] opacity-0;
+	}
+	to {
+		@apply translate-y-0 opacity-100;
+	}
+}
+@keyframes support-slide-out {
+	from {
+		@apply translate-y-0 opacity-100;
+	}
+	to {
+		@apply translate-y-[calc(100%+2rem)] opacity-0;
+	}
+}
+@keyframes support-backdrop {
+	from {
+		@apply opacity-0;
+	}
+	to {
+		@apply opacity-100;
+	}
 }
 .panel {
 	@apply relative flex h-full min-h-0 flex-col;
