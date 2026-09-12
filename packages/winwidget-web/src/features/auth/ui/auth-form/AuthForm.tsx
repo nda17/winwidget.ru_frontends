@@ -41,6 +41,8 @@ const AuthForm: NextPage<IAuthFormProps> = ({
 		setAuthMethod,
 		isPhoneCodeRequested,
 		isEmailCodeRequested,
+		emailResendSeconds,
+		emailDeliveryStatus,
 		emailValue,
 		phoneValue,
 		resendEmailCode,
@@ -74,6 +76,7 @@ const AuthForm: NextPage<IAuthFormProps> = ({
 						authMethod === 'email' && styles['method-button-active']
 					)}
 					onClick={() => setAuthMethod('email')}
+					disabled={isLoading}
 				>
 					Email
 				</button>
@@ -84,6 +87,7 @@ const AuthForm: NextPage<IAuthFormProps> = ({
 						authMethod === 'phone' && styles['method-button-active']
 					)}
 					onClick={() => setAuthMethod('phone')}
+					disabled={isLoading}
 				>
 					Телефон
 				</button>
@@ -130,18 +134,23 @@ const AuthForm: NextPage<IAuthFormProps> = ({
 									touchedFields.code || isSubmitted ? 'true' : undefined
 								}
 							/>
-							<div className={styles['verification-hint']}>
-								Код отправлен на email {emailValue}. Срок действия 10
-								минут.
+							<div className={styles['verification-hint']} role="status">
+								{emailDeliveryStatus === 'FAILED'
+									? `Письмо на ${emailValue} не отправлено. Повторите запрос после окончания таймера.`
+									: emailDeliveryStatus === 'UNKNOWN'
+										? `Отправку на ${emailValue} подтвердить не удалось. Если письмо пришло, введите код из него. Если письма нет, повторите запрос после окончания таймера.`
+										: `Код отправлен на email ${emailValue}. Срок действия 10 минут.`}
 							</div>
 							<div className={styles['link-actions']}>
 								<button
 									type="button"
 									className={styles['link-button']}
 									onClick={resendEmailCode}
-									disabled={isLoading}
+									disabled={isLoading || emailResendSeconds > 0}
 								>
-									Отправить код повторно
+									{emailResendSeconds > 0
+										? `Повторить через ${emailResendSeconds} с`
+										: 'Отправить код повторно'}
 								</button>
 								<button
 									type="button"

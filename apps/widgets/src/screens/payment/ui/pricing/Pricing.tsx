@@ -258,6 +258,7 @@ const Pricing = ({
 	})
 	const [paymentEmail, setPaymentEmail] = useState('')
 	const [paymentEmailCode, setPaymentEmailCode] = useState('')
+	const paymentEmailVerificationRef = useRef(false)
 	const [pendingPaymentRequest, setPendingPaymentRequest] =
 		useState<PendingPaymentRequest | null>(null)
 	const [nowMs, setNowMs] = useState<number | null>(null)
@@ -267,6 +268,9 @@ const Pricing = ({
 	const paymentStateRefreshInFlightRef = useRef(false)
 	const {
 		emailCodeRequested,
+		requestedEmail,
+		emailDeliveryUncertain,
+		emailResendSeconds,
 		isSendingEmailCode,
 		isVerifyingEmailCode,
 		requestEmailCode,
@@ -629,7 +633,7 @@ const Pricing = ({
 	}
 
 	const requestPaymentEmailCode = async () => {
-		const email = paymentEmail.trim()
+		const email = requestedEmail || paymentEmail.trim()
 
 		if (!validEmail.test(email)) {
 			toast.error('Введите корректный email')
@@ -637,11 +641,21 @@ const Pricing = ({
 		}
 
 		const sent = await requestEmailCode(email)
-		if (sent) setPaymentEmail(email)
+		if (sent) {
+			setPaymentEmail(email)
+			setPaymentEmailCode('')
+		}
 	}
 
 	const confirmPaymentEmailCode = async () => {
-		const email = paymentEmail.trim()
+		if (
+			paymentEmailVerificationRef.current ||
+			isSendingEmailCode ||
+			isVerifyingEmailCode ||
+			!requestedEmail
+		)
+			return
+		const email = requestedEmail
 		const code = paymentEmailCode.trim()
 
 		if (!validEmail.test(email)) {
@@ -654,29 +668,34 @@ const Pricing = ({
 			return
 		}
 
-		const paymentWindow = openPaymentWindow()
+		paymentEmailVerificationRef.current = true
+		try {
+			const paymentWindow = openPaymentWindow()
 
-		if (!paymentWindow) {
-			toast.error(PAYMENT_COPY.paymentPopupBlockedText)
-			return
-		}
+			if (!paymentWindow) {
+				toast.error(PAYMENT_COPY.paymentPopupBlockedText)
+				return
+			}
 
-		const confirmed = await confirmEmailCode({ email, code })
-		if (!confirmed) {
-			paymentWindow.close()
-			return
-		}
+			const confirmed = await confirmEmailCode({ email, code })
+			if (!confirmed) {
+				paymentWindow.close()
+				return
+			}
 
-		const nextPayment = pendingPaymentRequest
-		setPaymentEmail('')
-		setPaymentEmailCode('')
-		setPendingPaymentRequest(null)
-		resetEmailBinding()
+			const nextPayment = pendingPaymentRequest
+			setPaymentEmail('')
+			setPaymentEmailCode('')
+			setPendingPaymentRequest(null)
+			resetEmailBinding()
 
-		if (nextPayment) {
-			startPayment(nextPayment, paymentWindow)
-		} else {
-			paymentWindow.close()
+			if (nextPayment) {
+				startPayment(nextPayment, paymentWindow)
+			} else {
+				paymentWindow.close()
+			}
+		} finally {
+			paymentEmailVerificationRef.current = false
 		}
 	}
 
@@ -975,51 +994,66 @@ const Pricing = ({
 									type="button"
 									className={styles.contactBtn}
 									onClick={requestPaymentEmailCode}
-									disabled={isSendingEmailCode || isVerifyingEmailCode}
+									disabled={
+										isSendingEmailCode ||
+										isVerifyingEmailCode ||
+										emailResendSeconds > 0
+									}
 								>
 									{isSendingEmailCode
 										? 'Отправляем...'
-										: emailCodeRequested
-											? PAYMENT_COPY.contactEmailResendButtonText
-											: PAYMENT_COPY.contactEmailSendButtonText}
+										: emailResendSeconds > 0
+											? `Повторить через ${emailResendSeconds} с`
+											: emailCodeRequested
+												? PAYMENT_COPY.contactEmailResendButtonText
+												: PAYMENT_COPY.contactEmailSendButtonText}
 								</button>
 							</div>
 							{emailCodeRequested && (
-								<div className={styles.contactRequiredForm}>
-									<input
-										className={styles.contactInput}
-										value={paymentEmailCode}
-										onChange={event =>
-											setPaymentEmailCode(
-												event.target.value.replace(/\D/g, '').slice(0, 6)
-											)
-										}
-										placeholder={PAYMENT_COPY.contactEmailCodePlaceholder}
-										inputMode="numeric"
-										disabled={isVerifyingEmailCode}
-									/>
-									<button
-										type="button"
-										className={styles.contactBtn}
-										onClick={confirmPaymentEmailCode}
-										disabled={isSendingEmailCode || isVerifyingEmailCode}
-									>
-										{isVerifyingEmailCode
-											? 'Проверяем...'
-											: PAYMENT_COPY.contactEmailVerifyButtonText}
-									</button>
-									<button
-										type="button"
-										className={styles.contactSecondaryBtn}
-										onClick={() => {
-											resetEmailBinding()
-											setPaymentEmailCode('')
-										}}
-										disabled={isSendingEmailCode || isVerifyingEmailCode}
-									>
-										{PAYMENT_COPY.contactEmailResetButtonText}
-									</button>
-								</div>
+								<>
+									<p className={styles.contactRequiredText}>
+										{emailDeliveryUncertain
+											? `Не удалось подтвердить отправку на ${requestedEmail}. Если письмо придёт, введите код.`
+											: `Код отправлен на ${requestedEmail}`}
+									</p>
+									<div className={styles.contactRequiredForm}>
+										<input
+											className={styles.contactInput}
+											value={paymentEmailCode}
+											onChange={event =>
+												setPaymentEmailCode(
+													event.target.value.replace(/\D/g, '').slice(0, 6)
+												)
+											}
+											placeholder={
+												PAYMENT_COPY.contactEmailCodePlaceholder
+											}
+											inputMode="numeric"
+											disabled={isVerifyingEmailCode}
+										/>
+										<button
+											type="button"
+											className={styles.contactBtn}
+											onClick={confirmPaymentEmailCode}
+											disabled={isSendingEmailCode || isVerifyingEmailCode}
+										>
+											{isVerifyingEmailCode
+												? 'Проверяем...'
+												: PAYMENT_COPY.contactEmailVerifyButtonText}
+										</button>
+										<button
+											type="button"
+											className={styles.contactSecondaryBtn}
+											onClick={() => {
+												resetEmailBinding()
+												setPaymentEmailCode('')
+											}}
+											disabled={isSendingEmailCode || isVerifyingEmailCode}
+										>
+											{PAYMENT_COPY.contactEmailResetButtonText}
+										</button>
+									</div>
+								</>
 							)}
 						</div>
 					)}

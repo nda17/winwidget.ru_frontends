@@ -24,42 +24,53 @@ const useRestorePasswordForm = (authReturnUrl?: string | null) => {
 	const router = useRouter()
 
 	const [isPending, startTransition] = useTransition()
+	const requestInFlightRef = useRef(false)
+	const [isRequestPending, setIsRequestPending] = useState(false)
 	const { executeRecaptcha, isRecaptchaEnabled, isRecaptchaReady } =
 		useRecaptchaV3()
 
-	const { mutate: mutateRestorePassword, isPending: isRestorePending } =
-		useMutation({
-			mutationKey: ['restore-password'],
-			mutationFn: ({
-				data,
-				token
-			}: {
-				data: IRestorePassword
-				token: string | null
-			}) => authService.getRestorePassword(data, token),
-			onSuccess() {
-				startTransition(() => {
-					toast.success(
-						authMethod === 'phone'
-							? 'Новый пароль отправлен по SMS'
-							: 'Временный пароль отправлен на вашу почту'
-					)
-					reset()
-					router.replace(withAuthReturnUrl('/login', authReturnUrl))
-				})
-			},
-			onError(error) {
-				if (axios.isAxiosError(error)) {
-					const serverMessage = error.response?.data?.message
-					const message =
-						serverMessage === 'Internal server error'
-							? 'Не удалось отправить письмо. Попробуйте позже.'
-							: serverMessage || 'Проверьте корректность введённых данных'
-
-					toast.error(`Ошибка восстановления пароля: ${message}`)
-				}
-			}
-		})
+	const {
+		mutateAsync: mutateRestorePassword,
+		isPending: isRestorePending
+	} = useMutation({
+		mutationKey: ['restore-password'],
+		mutationFn: ({
+			data,
+			token
+		}: {
+			data: IRestorePassword
+			token: string | null
+		}) => authService.getRestorePassword(data, token),
+		onSuccess() {
+			startTransition(() => {
+				toast.success(
+					authMethod === 'phone'
+						? 'Новый пароль отправлен по SMS'
+						: 'Временный пароль отправлен на вашу почту'
+				)
+				reset()
+				router.replace(withAuthReturnUrl('/login', authReturnUrl))
+			})
+		},
+		onError(error, { data }) {
+			const response = axios.isAxiosError(error)
+				? error.response
+				: undefined
+			const unknown =
+				!response ||
+				response.data?.code === 'email_delivery_unknown' ||
+				(response.status >= 500 && !response.data?.code)
+			const message = unknown
+				? data.email
+					? 'Не удалось подтвердить отправку временного пароля. Проверьте почту и папку «Спам»; прежний пароль остаётся действительным.'
+					: 'Не удалось подтвердить результат восстановления. Проверьте SMS перед повторным запросом.'
+				: response?.data?.message &&
+					  response.data.message !== 'Internal server error'
+					? response.data.message
+					: 'Не удалось отправить временный пароль. Попробуйте позже.'
+			toast.error(`Ошибка восстановления пароля: ${message}`)
+		}
+	})
 
 	useEffect(() => {
 		setValue('email', '')
@@ -68,43 +79,53 @@ const useRestorePasswordForm = (authReturnUrl?: string | null) => {
 	}, [authMethod, resetPhoneMask, setValue])
 
 	const onSubmit: SubmitHandler<IRestorePassword> = async data => {
-		if (!isRecaptchaReady) {
-			toast.error('Капча недоступна')
-			return
-		}
-
-		let token: string | null = null
-
+		if (requestInFlightRef.current) return
+		requestInFlightRef.current = true
+		setIsRequestPending(true)
 		try {
-			token = await executeRecaptcha('restore_password')
+			if (!isRecaptchaReady) {
+				toast.error('Капча недоступна')
+				return
+			}
+
+			let token: string | null = null
+
+			try {
+				token = await executeRecaptcha('restore_password')
+			} catch {
+				toast.error('Не удалось пройти проверку капчи')
+				return
+			}
+
+			if (isRecaptchaEnabled && !token) {
+				toast.error('Не удалось пройти проверку капчи')
+				return
+			}
+
+			if (authMethod === 'phone') {
+				if (!data.phone || !validPhone.test(data.phone)) {
+					toast.error('Введите корректный номер телефона')
+					return
+				}
+			} else {
+				if (!data.email) {
+					toast.error('Введите email')
+					return
+				}
+
+				if (!validEmail.test(data.email)) {
+					toast.error('Введите корректный email')
+					return
+				}
+			}
+
+			await mutateRestorePassword({ data, token })
 		} catch {
-			toast.error('Не удалось пройти проверку капчи')
-			return
+			// The mutation callback reports an unknown outcome without retrying.
+		} finally {
+			requestInFlightRef.current = false
+			setIsRequestPending(false)
 		}
-
-		if (isRecaptchaEnabled && !token) {
-			toast.error('Не удалось пройти проверку капчи')
-			return
-		}
-
-		if (authMethod === 'phone') {
-			if (!data.phone || !validPhone.test(data.phone)) {
-				toast.error('Введите корректный номер телефона')
-				return
-			}
-		} else {
-			if (!data.email) {
-				toast.error('Введите email')
-				return
-			}
-
-			if (!validEmail.test(data.email)) {
-				toast.error('Введите корректный email')
-				return
-			}
-		}
-
-		mutateRestorePassword({ data, token })
 	}
 
 	const onInvalid = (errors: FieldErrors<IRestorePassword>) => {
@@ -120,7 +141,7 @@ const useRestorePasswordForm = (authReturnUrl?: string | null) => {
 		toast.error(String(message))
 	}
 
-	const isLoading = isPending || isRestorePending
+	const isLoading = isPending || isRestorePending || isRequestPending
 
 	return {
 		register,

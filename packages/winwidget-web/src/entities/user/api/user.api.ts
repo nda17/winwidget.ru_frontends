@@ -22,6 +22,12 @@ export interface IProfileIdentityCodeInput {
 	code?: string
 }
 
+interface IProfileEmailCodeResponse {
+	value: string
+	expiresAt: string
+	resendAvailableAt: string
+}
+
 export interface IProfileTelegramBindingResponse {
 	requestId: string
 	botUrl: string
@@ -392,11 +398,12 @@ class UserService {
 	}
 
 	async sendProfileEmailCode(data: IProfileIdentityCodeInput) {
-		return axiosInterceptorsRequest.post(
+		return axiosInterceptorsRequest.post<IProfileEmailCodeResponse>(
 			`${this._BASE_URL}/profile/bind/email/send-code`,
 			{
 				email: data.email
-			}
+			},
+			{ timeout: 45_000 }
 		)
 	}
 
@@ -406,7 +413,8 @@ class UserService {
 			{
 				email: data.email,
 				code: data.code
-			}
+			},
+			{ timeout: 30_000 }
 		)
 	}
 

@@ -31,10 +31,8 @@ const AFFILIATE_REFERRER_STORAGE_KEY = 'affiliateReferrerId'
 const TELEGRAM_AUTH_POLL_INTERVAL_MS = 2500
 const TELEGRAM_AUTH_POLL_TIMEOUT_MS = 120000
 
-type PendingEmailRegistrationState = {
-	email: string
-	expiresAt: string
-	resendAvailableAt: string
+type PendingEmailRegistrationState = IEmailRegistrationResponse & {
+	deliveryStatus?: 'FAILED' | 'UNKNOWN'
 }
 
 const savePendingEmailRegistrationState = (
@@ -44,10 +42,14 @@ const savePendingEmailRegistrationState = (
 		return
 	}
 
-	window.localStorage.setItem(
-		PENDING_EMAIL_REGISTRATION_STORAGE_KEY,
-		JSON.stringify(payload)
-	)
+	try {
+		window.localStorage.setItem(
+			PENDING_EMAIL_REGISTRATION_STORAGE_KEY,
+			JSON.stringify(payload)
+		)
+	} catch {
+		// Registration still works when browser storage is unavailable.
+	}
 }
 
 const getPendingEmailRegistrationState = () => {
@@ -55,18 +57,25 @@ const getPendingEmailRegistrationState = () => {
 		return null
 	}
 
-	const rawValue = window.localStorage.getItem(
-		PENDING_EMAIL_REGISTRATION_STORAGE_KEY
-	)
-
-	if (!rawValue) {
-		return null
-	}
-
 	try {
-		return JSON.parse(rawValue) as PendingEmailRegistrationState
+		const rawValue = window.localStorage.getItem(
+			PENDING_EMAIL_REGISTRATION_STORAGE_KEY
+		)
+		if (!rawValue) return null
+		const value = JSON.parse(rawValue) as PendingEmailRegistrationState
+		if (
+			!value ||
+			typeof value.email !== 'string' ||
+			!value.email.trim() ||
+			!Number.isFinite(Date.parse(value.expiresAt)) ||
+			!Number.isFinite(Date.parse(value.resendAvailableAt)) ||
+			(value.deliveryStatus !== undefined &&
+				value.deliveryStatus !== 'FAILED' &&
+				value.deliveryStatus !== 'UNKNOWN')
+		)
+			return null
+		return value
 	} catch {
-		window.localStorage.removeItem(PENDING_EMAIL_REGISTRATION_STORAGE_KEY)
 		return null
 	}
 }
@@ -76,7 +85,11 @@ const clearPendingEmailRegistrationState = () => {
 		return
 	}
 
-	window.localStorage.removeItem(PENDING_EMAIL_REGISTRATION_STORAGE_KEY)
+	try {
+		window.localStorage.removeItem(PENDING_EMAIL_REGISTRATION_STORAGE_KEY)
+	} catch {
+		// Storage must not prevent completing or restarting registration.
+	}
 }
 
 const getAffiliateReferrerId = () => {
@@ -84,10 +97,15 @@ const getAffiliateReferrerId = () => {
 		return undefined
 	}
 
-	return (
-		window.localStorage.getItem(AFFILIATE_REFERRER_STORAGE_KEY)?.trim() ||
-		undefined
-	)
+	try {
+		return (
+			window.localStorage
+				.getItem(AFFILIATE_REFERRER_STORAGE_KEY)
+				?.trim() || undefined
+		)
+	} catch {
+		return undefined
+	}
 }
 
 const clearAffiliateReferrerId = () => {
@@ -95,7 +113,11 @@ const clearAffiliateReferrerId = () => {
 		return
 	}
 
-	window.localStorage.removeItem(AFFILIATE_REFERRER_STORAGE_KEY)
+	try {
+		window.localStorage.removeItem(AFFILIATE_REFERRER_STORAGE_KEY)
+	} catch {
+		// Referral persistence is optional for registration.
+	}
 }
 
 const useAuthForm = (
@@ -111,6 +133,13 @@ const useAuthForm = (
 	const [authMethod, setAuthMethod] = useState<'email' | 'phone'>('email')
 	const [isPhoneCodeRequested, setIsPhoneCodeRequested] = useState(false)
 	const [isEmailCodeRequested, setIsEmailCodeRequested] = useState(false)
+	const [emailResendAvailableAt, setEmailResendAvailableAt] = useState(0)
+	const [emailDeliveryStatus, setEmailDeliveryStatus] = useState<
+		'SENT' | 'FAILED' | 'UNKNOWN'
+	>('SENT')
+	const [now, setNow] = useState(Date.now)
+	const authRequestInFlightRef = useRef(false)
+	const [isAuthRequestPending, setIsAuthRequestPending] = useState(false)
 	const [telegramRequest, setTelegramRequest] =
 		useState<ITelegramAuthStartResponse | null>(null)
 	const [isTelegramAuthPolling, setIsTelegramAuthPolling] = useState(false)
@@ -167,24 +196,70 @@ const useAuthForm = (
 	const clearEmailCodeStep = useCallback(() => {
 		clearPendingEmailRegistrationState()
 		setIsEmailCodeRequested(false)
+		setEmailResendAvailableAt(0)
+		setEmailDeliveryStatus('SENT')
 		setValue('code', '')
 	}, [setValue])
 
 	const syncPendingEmailRegistrationState = (
-		payload: IEmailRegistrationResponse
+		payload: PendingEmailRegistrationState
 	) => {
 		savePendingEmailRegistrationState(payload)
 		setValue('email', payload.email)
 		setValue('code', '')
 		setIsEmailCodeRequested(true)
+		setEmailResendAvailableAt(Date.parse(payload.resendAvailableAt))
+		setEmailDeliveryStatus(payload.deliveryStatus ?? 'SENT')
+		setNow(Date.now())
 	}
 
-	const handleEmailFlowError = (error: unknown, prefix: string) => {
-		if (!axios.isAxiosError(error)) {
-			return
+	const handleEmailFlowError = (
+		error: unknown,
+		prefix: string,
+		sendingTo?: string
+	) => {
+		const response = axios.isAxiosError(error) ? error.response : undefined
+		const errorCode = response?.data?.code
+		const deliveryUnknown =
+			!response ||
+			errorCode === 'email_delivery_unknown' ||
+			(response.status >= 500 && !errorCode)
+		const serverResendAt = Date.parse(response?.data?.resendAvailableAt)
+		const serverExpiresAt = Date.parse(response?.data?.expiresAt)
+		if (
+			sendingTo &&
+			(deliveryUnknown || errorCode === 'email_delivery_failed')
+		) {
+			// A lost response may hide a successful send. Keep code entry available
+			// and require an explicit retry after the cooldown, including on reload.
+			const currentTime = Date.now()
+			syncPendingEmailRegistrationState({
+				email: sendingTo.trim().toLowerCase(),
+				expiresAt: new Date(
+					Date.parse(response?.data?.expiresAt) ||
+						currentTime + 10 * 60_000
+				).toISOString(),
+				resendAvailableAt: new Date(
+					Number.isFinite(serverResendAt)
+						? serverResendAt
+						: currentTime + 60_000
+				).toISOString(),
+				deliveryStatus: deliveryUnknown ? 'UNKNOWN' : 'FAILED'
+			})
+		} else if (Number.isFinite(serverResendAt)) {
+			setEmailResendAvailableAt(serverResendAt)
+			setNow(Date.now())
+			const pending = getPendingEmailRegistrationState()
+			if (pending) {
+				savePendingEmailRegistrationState({
+					...pending,
+					expiresAt: Number.isFinite(serverExpiresAt)
+						? new Date(serverExpiresAt).toISOString()
+						: pending.expiresAt,
+					resendAvailableAt: new Date(serverResendAt).toISOString()
+				})
+			}
 		}
-
-		const errorCode = error.response?.data?.code
 		if (
 			errorCode === 'email_code_not_found' ||
 			errorCode === 'user_already_exists'
@@ -192,7 +267,17 @@ const useAuthForm = (
 			clearEmailCodeStep()
 		}
 
-		toast.error(`${prefix}: ${error.response?.data?.message}`)
+		const message =
+			errorCode === 'email_code_attempts_exceeded'
+				? 'Лимит попыток исчерпан. Новый код можно запросить после окончания таймера.'
+				: deliveryUnknown
+					? sendingTo
+						? 'Не удалось подтвердить отправку письма. Проверьте почту и папку «Спам». Повторить запрос можно после окончания таймера.'
+						: 'Не удалось подтвердить результат проверки. Попробуйте войти в аккаунт или повторите проверку кода.'
+					: response?.data?.message ||
+						'Не удалось выполнить запрос. Попробуйте позже.'
+		setAuthMessage(message)
+		toast.error(`${prefix}: ${message}`)
 	}
 
 	const handleLoginError = (error: unknown) => {
@@ -223,32 +308,33 @@ const useAuthForm = (
 		return fallback
 	}
 
-	const { mutate: mutateLogin, isPending: isLoginPending } = useMutation({
-		mutationKey: ['login'],
-		mutationFn: ({
-			data,
-			token
-		}: {
-			data: IFormData
-			token: string | null
-		}) => authService.main('login', data, token),
-		onSuccess() {
-			startTransition(() => {
-				setAuth(true)
-				setAuthResolved(true)
-				toast.success('Успешный вход в аккаунт')
-				reset()
-				navigateAfterAuth(loginDestination)
-				queryClient.invalidateQueries({ queryKey: ['get-profile'] })
-			})
-		},
-		onError(error) {
-			handleLoginError(error)
-		}
-	})
+	const { mutateAsync: mutateLogin, isPending: isLoginPending } =
+		useMutation({
+			mutationKey: ['login'],
+			mutationFn: ({
+				data,
+				token
+			}: {
+				data: IFormData
+				token: string | null
+			}) => authService.main('login', data, token),
+			onSuccess() {
+				startTransition(() => {
+					setAuth(true)
+					setAuthResolved(true)
+					toast.success('Успешный вход в аккаунт')
+					reset()
+					navigateAfterAuth(loginDestination)
+					queryClient.invalidateQueries({ queryKey: ['get-profile'] })
+				})
+			},
+			onError(error) {
+				handleLoginError(error)
+			}
+		})
 
 	const {
-		mutate: mutateEmailSendCode,
+		mutateAsync: mutateEmailSendCode,
 		isPending: isEmailSendCodePending
 	} = useMutation({
 		mutationKey: ['email-send-code'],
@@ -270,13 +356,13 @@ const useAuthForm = (
 			syncPendingEmailRegistrationState(data)
 			toast.success('Код подтверждения отправлен на email')
 		},
-		onError(error) {
-			handleEmailFlowError(error, 'Ошибка отправки кода')
+		onError(error, { data }) {
+			handleEmailFlowError(error, 'Ошибка отправки кода', data.email)
 		}
 	})
 
 	const {
-		mutate: mutateEmailRegister,
+		mutateAsync: mutateEmailRegister,
 		isPending: isEmailRegisterPending
 	} = useMutation({
 		mutationKey: ['email-register'],
@@ -313,7 +399,7 @@ const useAuthForm = (
 	})
 
 	const {
-		mutate: mutateEmailResendCode,
+		mutateAsync: mutateEmailResendCode,
 		isPending: isEmailResendCodePending
 	} = useMutation({
 		mutationKey: ['email-resend-code'],
@@ -328,13 +414,13 @@ const useAuthForm = (
 			syncPendingEmailRegistrationState(data)
 			toast.success('Новый код подтверждения отправлен на email')
 		},
-		onError(error) {
-			handleEmailFlowError(error, 'Ошибка повторной отправки')
+		onError(error, { email }) {
+			handleEmailFlowError(error, 'Ошибка повторной отправки', email)
 		}
 	})
 
 	const {
-		mutate: mutatePhoneSendCode,
+		mutateAsync: mutatePhoneSendCode,
 		isPending: isPhoneSendCodePending
 	} = useMutation({
 		mutationKey: ['phone-send-code'],
@@ -359,7 +445,7 @@ const useAuthForm = (
 	})
 
 	const {
-		mutate: mutatePhoneRegister,
+		mutateAsync: mutatePhoneRegister,
 		isPending: isPhoneRegisterPending
 	} = useMutation({
 		mutationKey: ['phone-register'],
@@ -398,7 +484,7 @@ const useAuthForm = (
 		}
 	})
 
-	const { mutate: mutatePhoneLogin, isPending: isPhoneLoginPending } =
+	const { mutateAsync: mutatePhoneLogin, isPending: isPhoneLoginPending } =
 		useMutation({
 			mutationKey: ['phone-login'],
 			mutationFn: ({
@@ -555,6 +641,13 @@ const useAuthForm = (
 		setValue('email', pendingEmailRegistration.email)
 		setValue('code', '')
 		setIsEmailCodeRequested(true)
+		setEmailResendAvailableAt(
+			Date.parse(pendingEmailRegistration.resendAvailableAt)
+		)
+		setEmailDeliveryStatus(
+			pendingEmailRegistration.deliveryStatus ?? 'SENT'
+		)
+		setNow(Date.now())
 	}, [clearEmailCodeStep, isLogin, resetField, setValue])
 
 	useEffect(() => {
@@ -569,106 +662,145 @@ const useAuthForm = (
 		resetField('phone')
 	}, [authMethod, clearEmailCodeStep, resetField, setValue])
 
+	useEffect(() => {
+		if (emailResendAvailableAt <= Date.now()) return
+		const interval = window.setInterval(() => {
+			const currentTime = Date.now()
+			setNow(currentTime)
+			if (currentTime >= emailResendAvailableAt) {
+				window.clearInterval(interval)
+			}
+		}, 1000)
+		return () => window.clearInterval(interval)
+	}, [emailResendAvailableAt])
+
+	const emailResendSeconds = Math.max(
+		0,
+		Math.ceil((emailResendAvailableAt - now) / 1000)
+	)
+
 	const onSubmit: SubmitHandler<IFormData> = async data => {
-		setAuthMessage('')
-		let token: string | null = null
-		const recaptchaAction =
-			authMethod === 'phone'
-				? isLogin
-					? 'phone_login'
-					: isPhoneCodeRequested
-						? 'phone_register'
-						: 'phone_send_code'
-				: isLogin
-					? 'login'
-					: isEmailCodeRequested
-						? 'email_register'
-						: 'register'
-
+		if (authRequestInFlightRef.current) return
+		authRequestInFlightRef.current = true
+		setIsAuthRequestPending(true)
 		try {
-			token = await executeRecaptcha(recaptchaAction)
-		} catch {
-			toast.error('Не удалось пройти проверку капчи')
-			return
-		}
+			setAuthMessage('')
+			let token: string | null = null
+			const recaptchaAction =
+				authMethod === 'phone'
+					? isLogin
+						? 'phone_login'
+						: isPhoneCodeRequested
+							? 'phone_register'
+							: 'phone_send_code'
+					: isLogin
+						? 'login'
+						: isEmailCodeRequested
+							? 'email_register'
+							: 'register'
 
-		if (isRecaptchaEnabled && !token) {
-			toast.error('Не удалось пройти проверку капчи')
-			return
-		}
-
-		if (authMethod === 'phone') {
-			const phone = parsePhoneInput(data.phone || '')
-			if (!phone) {
-				toast.error('Введите корректный номер телефона')
+			try {
+				token = await executeRecaptcha(recaptchaAction)
+			} catch {
+				toast.error('Не удалось пройти проверку капчи')
 				return
 			}
 
-			const phoneData = { ...data, phone }
+			if (isRecaptchaEnabled && !token) {
+				toast.error('Не удалось пройти проверку капчи')
+				return
+			}
+
+			if (authMethod === 'phone') {
+				const phone = parsePhoneInput(data.phone || '')
+				if (!phone) {
+					toast.error('Введите корректный номер телефона')
+					return
+				}
+
+				const phoneData = { ...data, phone }
+
+				if (isLogin) {
+					await mutatePhoneLogin({ data: phoneData, token })
+					return
+				}
+
+				if (!isPhoneCodeRequested) {
+					await mutatePhoneSendCode({
+						phone,
+						token
+					})
+					return
+				}
+
+				if (!data.code || !validPhoneCode.test(data.code)) {
+					toast.error('Введите корректный код из SMS')
+					return
+				}
+
+				await mutatePhoneRegister({ data: phoneData, token })
+				return
+			}
 
 			if (isLogin) {
-				mutatePhoneLogin({ data: phoneData, token })
+				await mutateLogin({ data, token })
 				return
 			}
 
-			if (!isPhoneCodeRequested) {
-				mutatePhoneSendCode({
-					phone,
-					token
-				})
+			if (!isEmailCodeRequested) {
+				await mutateEmailSendCode({ data, token })
 				return
 			}
 
 			if (!data.code || !validPhoneCode.test(data.code)) {
-				toast.error('Введите корректный код из SMS')
+				toast.error('Введите корректный код из email')
 				return
 			}
 
-			mutatePhoneRegister({ data: phoneData, token })
-			return
+			await mutateEmailRegister({ data, token })
+		} catch {
+			// Mutation callbacks report the failure without sending again.
+		} finally {
+			authRequestInFlightRef.current = false
+			setIsAuthRequestPending(false)
 		}
-
-		if (isLogin) {
-			mutateLogin({ data, token })
-			return
-		}
-
-		if (!isEmailCodeRequested) {
-			mutateEmailSendCode({ data, token })
-			return
-		}
-
-		if (!data.code || !validPhoneCode.test(data.code)) {
-			toast.error('Введите корректный код из email')
-			return
-		}
-
-		mutateEmailRegister({ data, token })
 	}
 
 	const resendEmailCode = async () => {
-		const email = emailValue?.trim()
-
-		if (!email) {
-			toast.error('Введите email')
-			return
-		}
-
-		let token: string | null = null
-
+		if (Date.now() < emailResendAvailableAt) return
+		if (authRequestInFlightRef.current) return
+		authRequestInFlightRef.current = true
+		setIsAuthRequestPending(true)
 		try {
-			token = await executeRecaptcha('email_resend_code')
+			setAuthMessage('')
+			const email = emailValue?.trim()
+
+			if (!email) {
+				toast.error('Введите email')
+				return
+			}
+
+			let token: string | null = null
+
+			try {
+				token = await executeRecaptcha('email_resend_code')
+			} catch {
+				toast.error('Не удалось пройти проверку капчи')
+				return
+			}
+
+			if (isRecaptchaEnabled && !token) {
+				toast.error('Не удалось пройти проверку капчи')
+				return
+			}
+
+			await mutateEmailResendCode({ email, token })
 		} catch {
-			toast.error('Не удалось пройти проверку капчи')
-			return
+			// Mutation callbacks report the failure without sending again.
+		} finally {
+			authRequestInFlightRef.current = false
+			setIsAuthRequestPending(false)
 		}
-
-		if (isRecaptchaEnabled && !token) {
-			toast.error('Не удалось пройти проверку капчи')
-			return
-		}
-
-		mutateEmailResendCode({ email, token })
 	}
 
 	const startTelegramAuth = async () => {
@@ -730,6 +862,7 @@ const useAuthForm = (
 	}
 
 	const isLoading =
+		isAuthRequestPending ||
 		isPending ||
 		isLoginPending ||
 		isEmailSendCodePending ||
@@ -760,6 +893,8 @@ const useAuthForm = (
 		setAuthMethod,
 		isPhoneCodeRequested,
 		isEmailCodeRequested,
+		emailResendSeconds,
+		emailDeliveryStatus,
 		emailValue,
 		phoneValue,
 		resendEmailCode,

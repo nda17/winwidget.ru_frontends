@@ -1,12 +1,48 @@
 import { errorCatch } from '@/shared/api'
 import { userService } from '@/entities/user'
 import { useMutation, useQueryClient } from '@tanstack/react-query'
-import { useState } from 'react'
+import { isAxiosError } from 'axios'
+import { useEffect, useRef, useState } from 'react'
 import toast from 'react-hot-toast'
 
 export const useProfileIdentityBinding = () => {
 	const queryClient = useQueryClient()
-	const [emailCodeRequested, setEmailCodeRequested] = useState(false)
+	const [requestedEmail, setRequestedEmail] = useState('')
+	const requestedEmailRef = useRef('')
+	const [emailDeliveryUncertain, setEmailDeliveryUncertain] =
+		useState(false)
+	const [emailResendAvailableAt, setEmailResendAvailableAt] = useState(0)
+	const emailResendAvailableAtRef = useRef(0)
+	const emailOperationRef = useRef(false)
+	const [now, setNow] = useState(Date.now)
+	const emailCodeRequested = Boolean(requestedEmail)
+	const emailResendSeconds = Math.max(
+		0,
+		Math.ceil((emailResendAvailableAt - now) / 1000)
+	)
+
+	useEffect(() => {
+		if (emailResendAvailableAt <= Date.now()) return
+		const timer = window.setInterval(() => {
+			setNow(Date.now())
+			if (emailResendAvailableAt <= Date.now()) window.clearInterval(timer)
+		}, 1000)
+		return () => window.clearInterval(timer)
+	}, [emailResendAvailableAt])
+
+	const updateEmailCooldown = (resendAvailableAt?: string) => {
+		const parsed = Date.parse(resendAvailableAt ?? '')
+		const deadline = Number.isFinite(parsed) ? parsed : Date.now() + 60_000
+		emailResendAvailableAtRef.current = deadline
+		setEmailResendAvailableAt(deadline)
+		setNow(Date.now())
+	}
+
+	const setPendingEmail = (email: string) => {
+		requestedEmailRef.current = email
+		setRequestedEmail(email)
+	}
+
 	const [phoneCodeRequested, setPhoneCodeRequested] = useState(false)
 	const [telegramBindingRequested, setTelegramBindingRequested] =
 		useState(false)
@@ -23,14 +59,39 @@ export const useProfileIdentityBinding = () => {
 		mutationFn: (email: string) =>
 			userService.sendProfileEmailCode({ email }),
 		onMutate: () => toast.loading('Отправляем код на email...'),
-		onSuccess(_, __, toastId) {
-			setEmailCodeRequested(true)
+		onSuccess(response, email, toastId) {
+			setPendingEmail(email)
+			setEmailDeliveryUncertain(false)
+			updateEmailCooldown(response.data.resendAvailableAt)
 			toast.success('Код подтверждения отправлен на email', {
 				id: toastId
 			})
 		},
-		onError(error, _, toastId) {
-			toast.error(`Привязка email: ${errorCatch(error)}`, { id: toastId })
+		onError(error, email, toastId) {
+			const response = isAxiosError(error) ? error.response : undefined
+			const delivery = response?.data
+			if (typeof delivery?.resendAvailableAt === 'string') {
+				updateEmailCooldown(delivery.resendAvailableAt)
+			}
+			if (
+				(isAxiosError(error) && !error.response) ||
+				(response && response.status >= 500 && !delivery?.code) ||
+				delivery?.code === 'email_delivery_unknown'
+			) {
+				setPendingEmail(email)
+				setEmailDeliveryUncertain(true)
+				if (typeof delivery?.resendAvailableAt !== 'string')
+					updateEmailCooldown()
+				toast.error(
+					'Не удалось получить ответ сервера. Письмо могло отправиться: проверьте почту и папку «Спам». Если код придёт, введите его.',
+					{ id: toastId }
+				)
+				return
+			}
+			toast.error(
+				`Привязка email: ${errorCatch(error) || 'Не удалось отправить код. Попробуйте ещё раз.'}`,
+				{ id: toastId }
+			)
 		}
 	})
 
@@ -44,12 +105,24 @@ export const useProfileIdentityBinding = () => {
 		onMutate: () =>
 			toast.loading('Проверяем код, пожалуйста подождите...'),
 		onSuccess(_, __, toastId) {
-			setEmailCodeRequested(false)
+			setPendingEmail('')
+			setEmailDeliveryUncertain(false)
 			toast.success('Email успешно привязан', { id: toastId })
 			queryClient.invalidateQueries({ queryKey: ['get-profile'] })
 		},
 		onError(error, _, toastId) {
-			toast.error(`Подтверждение email: ${errorCatch(error)}`, {
+			const response = isAxiosError(error) ? error.response : undefined
+			if (typeof response?.data?.resendAvailableAt === 'string') {
+				updateEmailCooldown(response.data.resendAvailableAt)
+			}
+			const message =
+				response?.data?.code === 'email_code_attempts_exceeded'
+					? 'Лимит попыток исчерпан. Новый код можно запросить после окончания таймера.'
+					: isAxiosError(error) && !error.response
+						? 'Не удалось получить ответ сервера. Email мог быть подтверждён. Обновите страницу и проверьте профиль.'
+						: errorCatch(error) ||
+							'Не удалось проверить код. Попробуйте ещё раз.'
+			toast.error(`Подтверждение email: ${message}`, {
 				id: toastId
 			})
 		}
@@ -197,11 +270,22 @@ export const useProfileIdentityBinding = () => {
 	})
 
 	const requestEmailCode = async (email: string) => {
+		if (emailOperationRef.current) return false
+		if (emailResendAvailableAtRef.current > Date.now()) return false
+		const normalizedEmail = email.trim().toLowerCase()
+		if (
+			requestedEmailRef.current &&
+			requestedEmailRef.current !== normalizedEmail
+		)
+			return false
+		emailOperationRef.current = true
 		try {
-			await sendEmailCodeAsync(email)
+			await sendEmailCodeAsync(normalizedEmail)
 			return true
 		} catch {
 			return false
+		} finally {
+			emailOperationRef.current = false
 		}
 	}
 
@@ -209,11 +293,21 @@ export const useProfileIdentityBinding = () => {
 		email: string
 		code: string
 	}) => {
+		if (emailOperationRef.current || !requestedEmailRef.current)
+			return false
+		if (payload.email.trim().toLowerCase() !== requestedEmailRef.current)
+			return false
+		emailOperationRef.current = true
 		try {
-			await verifyEmailCodeAsync(payload)
+			await verifyEmailCodeAsync({
+				email: requestedEmailRef.current,
+				code: payload.code
+			})
 			return true
 		} catch {
 			return false
+		} finally {
+			emailOperationRef.current = false
 		}
 	}
 
@@ -292,6 +386,9 @@ export const useProfileIdentityBinding = () => {
 
 	return {
 		emailCodeRequested,
+		requestedEmail,
+		emailDeliveryUncertain,
+		emailResendSeconds,
 		phoneCodeRequested,
 		telegramBindingRequested,
 		telegramNotificationsBindingRequested,
@@ -316,7 +413,9 @@ export const useProfileIdentityBinding = () => {
 		cancelTelegramNotificationsBinding,
 		disconnectTelegramNotifications,
 		resetEmailBinding() {
-			setEmailCodeRequested(false)
+			if (emailOperationRef.current) return
+			setPendingEmail('')
+			setEmailDeliveryUncertain(false)
 		},
 		resetPhoneBinding() {
 			setPhoneCodeRequested(false)

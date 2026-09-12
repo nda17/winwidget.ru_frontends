@@ -176,6 +176,7 @@ class AuthService {
 			'/auth/restore-password',
 			{ email: data.email, phone: data.phone },
 			{
+				timeout: 45000,
 				headers: {
 					recaptcha: token
 				}
@@ -220,6 +221,7 @@ class AuthService {
 				password: data.password
 			},
 			{
+				timeout: 45000,
 				headers: {
 					recaptcha: token
 				}
@@ -236,6 +238,7 @@ class AuthService {
 				referrerId: data.referrerId
 			},
 			{
+				timeout: 45000,
 				headers: {
 					recaptcha: token
 				}
@@ -256,6 +259,7 @@ class AuthService {
 				email: data.email
 			},
 			{
+				timeout: 45000,
 				headers: {
 					recaptcha: token
 				}

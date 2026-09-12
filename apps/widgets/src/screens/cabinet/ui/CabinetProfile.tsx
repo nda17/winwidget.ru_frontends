@@ -103,6 +103,9 @@ const CabinetProfile = () => {
 	}
 	const {
 		emailCodeRequested,
+		requestedEmail,
+		emailDeliveryUncertain,
+		emailResendSeconds,
 		phoneCodeRequested,
 		isSendingEmailCode,
 		isVerifyingEmailCode,
@@ -172,17 +175,30 @@ const CabinetProfile = () => {
 	})
 
 	const emailValue = watchEmail('email')
+	const emailRequestInFlightRef = useRef(false)
+	const [isPreparingEmailCode, setIsPreparingEmailCode] = useState(false)
+	const isRequestingEmailCode = isPreparingEmailCode || isSendingEmailCode
 
 	const handleEmailCodeRequest = async () => {
-		const ok = await triggerEmail('email')
-		if (!ok) return
-		const sent = await requestEmailCode(emailValue.trim())
-		if (sent) resetEmailForm({ email: emailValue.trim(), code: '' })
+		if (emailRequestInFlightRef.current || isVerifyingEmailCode) return
+		emailRequestInFlightRef.current = true
+		setIsPreparingEmailCode(true)
+		const email = requestedEmail || emailValue.trim()
+		try {
+			const ok = await triggerEmail('email')
+			if (!ok) return
+			const sent = await requestEmailCode(email)
+			if (sent) resetEmailForm({ email, code: '' })
+		} finally {
+			emailRequestInFlightRef.current = false
+			setIsPreparingEmailCode(false)
+		}
 	}
 
 	const handleEmailVerify = handleEmailSubmit(async data => {
+		if (emailRequestInFlightRef.current || !requestedEmail) return
 		const ok = await confirmEmailCode({
-			email: data.email.trim(),
+			email: requestedEmail,
 			code: data.code.trim()
 		})
 		if (ok) {
@@ -192,6 +208,7 @@ const CabinetProfile = () => {
 	})
 
 	const resetEmailFlow = () => {
+		if (emailRequestInFlightRef.current || isVerifyingEmailCode) return
 		resetEmailForm({ email: '', code: '' })
 		resetEmailBinding()
 	}
@@ -632,6 +649,7 @@ const CabinetProfile = () => {
 							<input
 								className={`${styles.input} ${emailErrors.email ? styles.inputError : ''}`}
 								placeholder={user?.email ? 'Новый email' : 'Email'}
+								readOnly={emailCodeRequested || isRequestingEmailCode}
 								{...regEmail('email', {
 									required: 'Введите email',
 									pattern: {
@@ -666,7 +684,9 @@ const CabinetProfile = () => {
 									</span>
 								)}
 								<span className={styles.hint}>
-									Код отправлен на {emailValue}
+									{emailDeliveryUncertain
+										? `Не удалось подтвердить отправку на ${requestedEmail}. Если письмо придёт, введите код.`
+										: `Код отправлен на ${requestedEmail}`}
 								</span>
 							</div>
 						)}
@@ -675,22 +695,28 @@ const CabinetProfile = () => {
 							<button
 								type="button"
 								className={styles.btn}
-								disabled={isSendingEmailCode || isVerifyingEmailCode}
+								disabled={
+									isRequestingEmailCode ||
+									isVerifyingEmailCode ||
+									emailResendSeconds > 0
+								}
 								onClick={handleEmailCodeRequest}
 							>
-								{isSendingEmailCode
+								{isRequestingEmailCode
 									? 'Отправка...'
-									: emailCodeRequested
-										? 'Отправить повторно'
-										: user?.email
-											? 'Сменить email'
-											: 'Привязать email'}
+									: emailResendSeconds > 0
+										? `Повторить через ${emailResendSeconds} с`
+										: emailCodeRequested
+											? 'Отправить повторно'
+											: user?.email
+												? 'Сменить email'
+												: 'Привязать email'}
 							</button>
 							{emailCodeRequested && (
 								<button
 									type="submit"
 									className={styles.btnOutline}
-									disabled={isSendingEmailCode || isVerifyingEmailCode}
+									disabled={isRequestingEmailCode || isVerifyingEmailCode}
 								>
 									{isVerifyingEmailCode ? 'Проверка...' : 'Подтвердить'}
 								</button>
@@ -700,6 +726,7 @@ const CabinetProfile = () => {
 							<button
 								type="button"
 								className={styles.resetLink}
+								disabled={isRequestingEmailCode || isVerifyingEmailCode}
 								onClick={resetEmailFlow}
 							>
 								Сбросить
