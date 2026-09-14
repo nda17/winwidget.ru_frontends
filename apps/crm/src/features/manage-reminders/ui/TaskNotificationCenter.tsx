@@ -8,7 +8,8 @@ import toast from 'react-hot-toast'
 import {
 	listTaskNotifications,
 	setTaskNotificationRead,
-	type TaskNotification
+	type TaskNotification,
+	type TaskNotificationPage
 } from '@/entities/crm-task-notifications'
 import { invalidContractError } from '@/shared/api/authenticated-http-client'
 import { AppIcon, Button, Drawer, useTooltip } from '@/shared/ui'
@@ -37,12 +38,13 @@ const TaskNotificationSession = ({
 			context={context}
 			isOpen={open}
 			onOpenChange={setOpen}
-			render={({ count, content }) => (
+			render={({ count, content, latest }) => (
 				<CombinedNotificationCenter
 					context={context}
 					open={open}
 					setOpen={setOpen}
 					taskCount={count}
+					taskSnapshot={latest}
 					taskContent={content}
 					tab={tab}
 					setTab={setTab}
@@ -63,6 +65,7 @@ export const TaskNotificationPanel = ({
 	render?: (value: {
 		count: number | null
 		content: ReactNode
+		latest: TaskNotificationPage | null
 	}) => ReactNode
 }) => {
 	const [localOpen, setLocalOpen] = useState(false)
@@ -93,6 +96,22 @@ export const TaskNotificationPanel = ({
 		context.canRead &&
 		!context.actorConfirmed &&
 		(context.self.error || (context.self.enabled && !context.self.loading))
+	const load = async (requestedPage: number, requestedUnread: boolean) => {
+		if (!context.current() || !context.actor || !context.session)
+			throw invalidContractError()
+		const result = await listTaskNotifications(
+			context.session.accessToken,
+			{
+				workspaceId: context.workspace.workspaceId,
+				actorMembershipId: context.actor.membershipId,
+				page: requestedPage,
+				pageSize: 10,
+				unreadOnly: requestedUnread
+			}
+		)
+		if (!context.current()) throw invalidContractError()
+		return result
+	}
 	const query = useQuery({
 		queryKey: [
 			'crm-task-notifications',
@@ -107,25 +126,31 @@ export const TaskNotificationPanel = ({
 		gcTime: 0,
 		refetchInterval: 60000,
 		refetchOnWindowFocus: true,
-		queryFn: async () => {
-			if (!context.current() || !context.actor || !context.session)
-				throw invalidContractError()
-			const result = await listTaskNotifications(
-				context.session.accessToken,
-				{
-					workspaceId: context.workspace.workspaceId,
-					actorMembershipId: context.actor.membershipId,
-					page,
-					pageSize: 10,
-					unreadOnly
-				}
-			)
-			if (!context.current()) throw invalidContractError()
-			return result
-		}
+		queryFn: () => load(page, unreadOnly)
+	})
+	// Keep the first page observed while the open drawer browses older pages.
+	// The usual first-page view shares this query, including its HTTP request.
+	const head = useQuery({
+		queryKey: [
+			'crm-task-notifications',
+			context.key,
+			context.actor,
+			1,
+			false
+		],
+		queryFn: () => load(1, false),
+		enabled: ready && !!render,
+		retry: false,
+		gcTime: 0,
+		refetchInterval: 60000
 	})
 	const visible = ready && query.isSuccess
-	const count = visible ? query.data.unreadCount : null
+	const latest = ready && head.isSuccess ? head.data : null
+	const count = render
+		? (latest?.unreadCount ?? null)
+		: visible
+			? query.data.unreadCount
+			: null
 	const mark = async (item: TaskNotification) => {
 		if (
 			busy ||
@@ -320,7 +345,7 @@ export const TaskNotificationPanel = ({
 		</div>
 	)
 	if (render)
-		return render({ count: permissionDenied ? 0 : count, content })
+		return render({ count: permissionDenied ? 0 : count, content, latest })
 	return (
 		<>
 			<button

@@ -115,6 +115,7 @@ const InboxContent = ({
 		{
 			id: 'title',
 			header: 'Обращение',
+			headerClassName: styles.titleColumn,
 			render: entry => (
 				<button
 					type="button"
@@ -129,6 +130,7 @@ const InboxContent = ({
 		{
 			id: 'contact',
 			header: 'Контакт',
+			headerClassName: styles.contactColumn,
 			render: entry => (
 				<div className={styles.contact}>
 					<span>{entry.phone ?? '—'}</span>
@@ -139,6 +141,7 @@ const InboxContent = ({
 		{
 			id: 'origin',
 			header: 'Источник',
+			headerClassName: styles.originColumn,
 			render: entry =>
 				({ MANUAL: 'Вручную', API: 'API', CSV: 'CSV', WIDGET: 'Виджет' })[
 					entry.origin
@@ -147,6 +150,7 @@ const InboxContent = ({
 		{
 			id: 'status',
 			header: 'Статус',
+			headerClassName: styles.statusColumn,
 			render: entry => (
 				<StatusBadge
 					tone={
@@ -164,6 +168,7 @@ const InboxContent = ({
 		{
 			id: 'sla',
 			header: 'SLA',
+			headerClassName: styles.slaColumn,
 			render: entry => (
 				<SlaInboxBadge
 					item={sla.data?.items.find(item => item.entryId === entry.id)}
@@ -180,6 +185,7 @@ const InboxContent = ({
 		{
 			id: 'received',
 			header: 'Получено',
+			headerClassName: styles.receivedColumn,
 			render: entry => new Date(entry.receivedAt).toLocaleString('ru-RU')
 		}
 	]
@@ -340,6 +346,7 @@ const InboxContent = ({
 					) : (
 						<>
 							<DataTable
+								className={styles.entriesTable}
 								mobileLayout="cards"
 								caption="Входящие обращения выбранного рабочего пространства"
 								columns={columns}

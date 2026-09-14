@@ -1,5 +1,6 @@
 import { QueryClient, QueryClientProvider } from '@tanstack/react-query'
 import {
+	act,
 	cleanup,
 	fireEvent,
 	render,
@@ -7,6 +8,10 @@ import {
 	waitFor
 } from '@testing-library/react'
 import { afterEach, beforeEach, describe, expect, it, vi } from 'vitest'
+import toast from 'react-hot-toast'
+import { useSessionStore, resetSessionStore } from '@/entities/session'
+import { listCrmNotifications } from '../api/crm-notifications.api'
+import { inspectNotificationHead } from './CombinedNotificationCenter'
 import {
 	listTaskNotifications,
 	setTaskNotificationRead
@@ -42,9 +47,10 @@ vi.mock('react-hot-toast', () => ({
 }))
 vi.mock('@/shared/ui', async original => ({
 	...(await original<object>()),
-	Drawer: ({ isOpen, title, children }: DrawerProps) =>
+	Drawer: ({ isOpen, title, children, onClose }: DrawerProps) =>
 		isOpen ? (
 			<section role="dialog" aria-label={String(title)}>
+				<button onClick={onClose}>Закрыть панель</button>
 				{children}
 			</section>
 		) : null
@@ -74,6 +80,14 @@ const data = {
 let client: QueryClient, context: ReminderContext
 beforeEach(() => {
 	vi.clearAllMocks()
+	resetSessionStore()
+	vi.mocked(listCrmNotifications).mockResolvedValue({
+		page: 1,
+		pageSize: 10,
+		total: 0,
+		unreadCount: 0,
+		items: []
+	})
 	client = new QueryClient({
 		defaultOptions: { queries: { retry: false } }
 	})
@@ -111,12 +125,180 @@ beforeEach(() => {
 afterEach(() => {
 	cleanup()
 	client.clear()
+	vi.useRealTimers()
+	resetSessionStore()
 })
 const view = () => (
 	<QueryClientProvider client={client}>
 		<TaskNotificationPanel context={context} />
 	</QueryClientProvider>
 )
+const center = () => (
+	<QueryClientProvider client={client}>
+		<TaskNotificationCenter />
+	</QueryClientProvider>
+)
+
+describe('new event notice', () => {
+	beforeEach(() => {
+		context = {
+			...context,
+			session: { accessToken: 'token', userId: 'owner' },
+			sessionRevision: 1,
+			authority: {
+				subject: 'owner',
+				workspaceId,
+				role: 'OWNER',
+				permissions: ['sales:read', 'intake:read']
+			}
+		} as ReminderContext
+		useSessionStore.setState({
+			session: context.session,
+			sessionRevision: 1
+		})
+	})
+	it.each(['intake', 'support', 'tasks'] as const)(
+		'announces a new %s event once for four seconds, without replaying initial history',
+		async source => {
+			render(center())
+			await screen.findByRole('button', {
+				name: 'Уведомления, непрочитанных: 1'
+			})
+			expect(screen.queryByText('Новое событие')).toBeNull()
+			vi.useFakeTimers()
+			const key =
+				source === 'tasks'
+					? [
+							'crm-task-notifications',
+							context.key,
+							context.actor,
+							1,
+							false
+						]
+					: [`crm-${source}-notifications`, context.key, 1, false]
+			const event = {
+				...data.items[0],
+				id: 'new-event',
+				targetId: id,
+				createdAt: '2026-09-08T12:00:00.000Z'
+			}
+			const snapshot = { ...data, items: [event], unreadCount: 1 }
+			await act(async () => {
+				client.setQueryData(key, snapshot)
+				await vi.advanceTimersByTimeAsync(1)
+			})
+			expect(screen.getByRole('status').textContent).toBe('Новое событие')
+			await act(async () => {
+				await vi.advanceTimersByTimeAsync(3998)
+			})
+			expect(screen.getByRole('status').textContent).toBe('Новое событие')
+			await act(async () => {
+				await vi.advanceTimersByTimeAsync(2)
+			})
+			expect(screen.queryByText('Новое событие')).toBeNull()
+			await act(async () => {
+				client.setQueryData(key, {
+					...snapshot,
+					items: [{ ...event, readAt: '2026-09-08T12:01:00.000Z' }]
+				})
+				await vi.advanceTimersByTimeAsync(1)
+				client.setQueryData(key, snapshot)
+				await vi.advanceTimersByTimeAsync(1)
+			})
+			expect(screen.queryByText('Новое событие')).toBeNull()
+		}
+	)
+
+	it('keeps observing newest tasks while browsing older pages and clears the notice on open', async () => {
+		vi.mocked(listTaskNotifications).mockImplementation(
+			async (_token, query) => ({
+				...data,
+				page: query.page,
+				total: 11,
+				items: [
+					{
+						...data.items[0],
+						title: query.page === 2 ? 'Older task' : 'Current task'
+					}
+				]
+			})
+		)
+		render(center())
+		fireEvent.click(
+			await screen.findByRole('button', {
+				name: 'Уведомления, непрочитанных: 1'
+			})
+		)
+		fireEvent.click(screen.getByRole('button', { name: 'Задачи' }))
+		fireEvent.click(screen.getByRole('button', { name: 'Далее' }))
+		await screen.findByRole('link', { name: 'Older task' })
+		fireEvent.click(screen.getByRole('button', { name: 'Закрыть панель' }))
+		act(() => {
+			client.setQueryData(
+				['crm-task-notifications', context.key, context.actor, 1, false],
+				{
+					...data,
+					total: 12,
+					unreadCount: 2,
+					items: [
+						{
+							...data.items[0],
+							id: 'new-due',
+							kind: 'DUE',
+							createdAt: '2026-09-01T12:00:00.000Z'
+						}
+					]
+				}
+			)
+		})
+		await screen.findByText('Новое событие')
+		fireEvent.click(
+			screen.getByRole('button', { name: 'Уведомления, непрочитанных: 2' })
+		)
+		expect(screen.queryByText('Новое событие')).toBeNull()
+		fireEvent.click(screen.getByRole('button', { name: 'Закрыть панель' }))
+		expect(screen.queryByText('Новое событие')).toBeNull()
+	})
+
+	it('ignores history and disappearing records, but detects distinct events at the same timestamp', () => {
+		const first = inspectNotificationHead({ items: data.items })
+		expect(first.newEvent).toBe(false)
+		const read = inspectNotificationHead(
+			{
+				items: [{ ...data.items[0], readAt: '2026-09-08T12:00:00.000Z' }]
+			},
+			first.marker
+		)
+		expect(read.newEvent).toBe(false)
+		const empty = inspectNotificationHead({ items: [] }, read.marker)
+		expect(
+			inspectNotificationHead({ items: data.items }, empty.marker).newEvent
+		).toBe(false)
+		expect(
+			inspectNotificationHead(
+				{
+					items: [
+						{
+							...data.items[0],
+							id: 'older',
+							createdAt: '2026-09-01T12:00:00.000Z'
+						}
+					]
+				},
+				first.marker
+			).newEvent
+		).toBe(false)
+		const sameTime = inspectNotificationHead(
+			{ items: [{ ...data.items[0], id: 'second' }] },
+			first.marker
+		)
+		expect(sameTime.newEvent).toBe(true)
+		expect(
+			inspectNotificationHead({ items: data.items }, sameTime.marker)
+				.newEvent
+		).toBe(false)
+	})
+})
 describe('task notification center', () => {
 	it('shows server badge, safe task link and explicit read preference in READ_ONLY', async () => {
 		render(view())
@@ -272,6 +454,11 @@ describe('task notification center', () => {
 			screen.getByRole('dialog', { name: 'Уведомления' })
 		).toBeTruthy()
 		fireEvent.click(screen.getByRole('button', { name: 'Задачи' }))
+		vi.mocked(toast).mockClear()
+		fireEvent.click(screen.getByRole('button', { name: 'Поддержка' }))
+		fireEvent.click(screen.getByRole('button', { name: 'Заявки' }))
+		fireEvent.click(screen.getByRole('button', { name: 'Задачи' }))
+		expect(toast).not.toHaveBeenCalled()
 		context = confirmed
 		rendered.rerender(center())
 		expect(

@@ -17,7 +17,7 @@
 	@apply flex w-full flex-col gap-3 sm:flex-row sm:items-end lg:w-auto;
 }
 .entryButton {
-	@apply flex flex-col items-start gap-1 rounded-lg text-left transition-colors hover:text-primary focus-visible:outline-none focus-visible:ring-2 focus-visible:ring-primary;
+	@apply flex min-w-0 max-w-full flex-col items-start gap-1 rounded-lg text-left [overflow-wrap:anywhere] transition-colors hover:text-primary focus-visible:outline-none focus-visible:ring-2 focus-visible:ring-primary;
 }
 .entryButton strong {
 	@apply font-semibold;
@@ -26,7 +26,27 @@
 	@apply text-sm text-crm-muted;
 }
 .contact {
-	@apply flex flex-col gap-1 text-sm;
+	@apply flex min-w-0 flex-col gap-1 text-sm [overflow-wrap:anywhere];
+}
+.entriesTable table {
+	@apply md:table-fixed md:min-w-[960px];
+}
+.entriesTable td :where(span, strong) {
+	@apply max-w-full whitespace-normal;
+}
+.titleColumn {
+	@apply w-[26%];
+}
+.contactColumn,
+.receivedColumn {
+	@apply w-[18%];
+}
+.originColumn,
+.statusColumn {
+	@apply w-[12%];
+}
+.slaColumn {
+	@apply w-[14%];
 }
 .pagination {
 	@apply flex flex-wrap items-center justify-end gap-3 border-t border-crm-border p-5 text-sm text-crm-muted;

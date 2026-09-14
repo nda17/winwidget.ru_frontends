@@ -1,3 +1,12 @@
+.triggerGroup {
+	@apply relative inline-flex h-11 w-11 shrink-0;
+}
+.eventNotice {
+	@apply pointer-events-none absolute right-0 top-full z-40 mt-2 w-max max-w-[calc(100vw-2rem)] rounded-xl border border-primary/30 bg-crm-surface px-3 py-2 text-sm font-semibold text-primary shadow-lg;
+}
+.tabs {
+	@apply flex flex-wrap items-center gap-2;
+}
 .trigger {
 	@apply relative inline-flex h-11 w-11 shrink-0 items-center justify-center rounded-xl border border-crm-border bg-crm-surface text-crm-muted transition-colors hover:text-primary focus-visible:outline-none focus-visible:ring-2 focus-visible:ring-primary;
 }
