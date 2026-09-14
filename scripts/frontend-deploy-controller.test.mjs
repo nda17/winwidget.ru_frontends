@@ -1,6 +1,8 @@
 import assert from 'node:assert/strict'
-import { readFileSync } from 'node:fs'
+import { mkdtempSync, readFileSync, rmSync, writeFileSync } from 'node:fs'
 import { spawnSync } from 'node:child_process'
+import { tmpdir } from 'node:os'
+import { join } from 'node:path'
 import test from 'node:test'
 
 const controller = readFileSync(
@@ -297,16 +299,21 @@ test('candidate and live runtimes never overlap beyond the verified four-candida
 		'/controller.mjs "$namespace" "$source_revision"'
 	)
 	const prepareExit = controller.indexOf('if [[ "$mode" == --prepare ]]')
-	const finalEmptyGuard = controller.lastIndexOf(
-		'\nassert_release_project_empty\n'
+	const candidateCleanup = controller.indexOf(
+		'\ncleanup_candidates true ||'
 	)
+	const staging = controller.indexOf('\nprepare_staged_release ||')
+	const finalInventory = controller.indexOf('\nverify_staged_inventory ||')
 	assert.ok(
 		assets < prepareExit &&
 			prepareExit < tls &&
 			tls < stopCandidates &&
 			stopCandidates < cutover
 	)
-	assert.ok(stopCandidates < finalEmptyGuard && finalEmptyGuard < cutover)
+	assert.ok(
+		stopCandidates < candidateCleanup && candidateCleanup < staging
+	)
+	assert.ok(staging < finalInventory && finalInventory < cutover)
 	assert.ok(
 		controller.indexOf('assert_release_project_empty\n') <
 			controller.indexOf('compose build "$app"')
@@ -336,7 +343,7 @@ test('sticky lock identity and canonical checkout checks precede production git 
 	assert.doesNotMatch(workflow, /reset --hard|checkout --|git clean/)
 })
 
-test('rollback protects its own execution from repeated termination and only cleans empty owned candidate networks', () => {
+test('rollback protects its own execution and network cleanup checks stopped container references', () => {
 	const cleanup = controller.slice(
 		controller.indexOf('cleanup() {'),
 		controller.indexOf('trap cleanup EXIT')
@@ -346,16 +353,485 @@ test('rollback protects its own execution from repeated termination and only cle
 			cleanup.indexOf('docker stop')
 	)
 	assert.match(cleanup, /docker start "\$\{old_ids\[\$app\]\}"/)
+	assert.match(cleanup, /cleanup_staged_release \|\| cleanup_failed=true/)
+	assert.match(cleanup, /cleanup_candidates \|\| cleanup_failed=true/)
+	const networkCleanup = controller.slice(
+		controller.indexOf('remove_unreferenced_project_network() {'),
+		controller.indexOf('cleanup_candidates() {')
+	)
 	assert.match(
-		cleanup,
+		networkCleanup,
 		/\{\{index \.Labels "com\.docker\.compose\.project"\}\}/
 	)
-	assert.match(
-		cleanup,
-		/"\$candidate_project" &&[\s\S]*?\{\{len \.Containers\}\}/
-	)
+	assert.match(networkCleanup, /\{\{len \.Containers\}\}/)
+	assert.match(networkCleanup, /docker ps --all --no-trunc --quiet/)
+	assert.match(networkCleanup, /\.HostConfig.NetworkMode/)
+	assert.match(networkCleanup, /\.NetworkSettings.Networks/)
 	assert.doesNotMatch(
-		cleanup,
+		controller,
 		/network prune|compose down|volume rm|docker rmi/
+	)
+})
+
+// Run the controller's actual preparation/cutover fragment and EXIT handler.
+// The Docker CLI fixture persists only synthetic metadata; no daemon is used.
+const stageHelpers = controller.slice(
+	controller.indexOf('remove_unreferenced_project_network() {'),
+	controller.indexOf('trap cleanup EXIT')
+)
+const stageCutover = controller.slice(
+	controller.indexOf('\ncleanup_candidates true ||'),
+	controller.indexOf('\n: >"$release_root/containers"')
+)
+const fixtureApps = ['landing', 'crm', 'widgets', 'admin-panel']
+const fixtureId = n => n.toString(16).padStart(64, '0')
+const fixtureProject = `winwidget-frontends-${revision}`
+const fixtureCandidate = `winwidget-candidate-${revision}`
+
+function dockerFixture() {
+	const fs = require('node:fs')
+	const statePath = process.env.DOCKER_STATE
+	const state = JSON.parse(fs.readFileSync(statePath, 'utf8'))
+	const args = process.argv.slice(2)
+	const id = n => n.toString(16).padStart(64, '0')
+	const save = () => fs.writeFileSync(statePath, JSON.stringify(state))
+	const done = (output = '', status = 0) => {
+		save()
+		if (output) process.stdout.write(`${output}\n`)
+		process.exit(status)
+	}
+	state.calls.push(args)
+	const filter = args[args.indexOf('--filter') + 1]
+	if (args[0] === 'compose-create') {
+		if (
+			args.slice(1).join(' ') !==
+			'create --no-build --pull never --no-recreate landing crm widgets admin-panel'
+		)
+			done('', 90)
+		if (state.networks.some(n => n.project === state.candidate))
+			done('', 91)
+		if (state.scenario === 'network-failure')
+			done('all predefined address pools have been fully subnetted', 1)
+		state.networks.push({ id: id(202), project: state.project })
+		if (state.scenario === 'network-only-failure') done('', 1)
+		const count = state.scenario === 'partial-create' ? 2 : 4
+		for (let i = 0; i < count; i++) {
+			const container = {
+				id: id(30 + i),
+				project: state.project,
+				service: state.apps[i],
+				image: state.images[i],
+				revision: state.revision,
+				status: 'created',
+				running: false,
+				pid: 0,
+				restarts: 0,
+				port: 3000 + i,
+				host: '127.0.0.1',
+				network: `${state.project}_default`
+			}
+			if (i === 1) {
+				if (state.scenario === 'foreign-image')
+					container.image = `sha256:${id(999)}`
+				if (state.scenario === 'running-container') {
+					container.status = 'running'
+					container.running = true
+					container.pid = 17
+				}
+				if (state.scenario === 'public-port') container.host = '0.0.0.0'
+				if (state.scenario === 'duplicate-service')
+					container.service = 'landing'
+			}
+			state.containers.push(container)
+		}
+		done('', state.scenario === 'partial-create' ? 1 : 0)
+	}
+	if (args[0] === 'replace-staged') {
+		const container = state.containers.find(c => c.id === id(31))
+		container.id = id(99)
+		done()
+	}
+	if (args[0] === 'ps') {
+		if (state.scenario === 'inventory-error' && !args.includes('--filter'))
+			done('', 1)
+		done(
+			state.containers
+				.filter(
+					c =>
+						!args.includes('--filter') ||
+						c.project === filter.split('=')[2]
+				)
+				.map(c => c.id)
+				.join('\n')
+		)
+	}
+	if (args[0] === 'network') {
+		if (args[1] === 'ls')
+			done(
+				state.networks
+					.filter(n => `name=^${n.project}_default$` === filter)
+					.map(n => n.id)
+					.join('\n')
+			)
+		const network = state.networks.find(n => n.id === args.at(-1))
+		if (!network) done('', 1)
+		if (args[1] === 'inspect')
+			done(`${network.project}_default ${network.project} default 0`)
+		if (args[1] === 'rm') {
+			if (
+				state.containers.some(
+					c => c.network === `${network.project}_default`
+				)
+			)
+				done('', 1)
+			state.networks = state.networks.filter(n => n !== network)
+			done()
+		}
+	}
+	if (args[0] === 'inspect') {
+		const container = state.containers.find(c => c.id === args.at(-1))
+		if (!container) done('', 1)
+		const format = args[args.indexOf('--format') + 1]
+		if (format.includes('.HostConfig.NetworkMode')) done(container.network)
+		if (format.includes('.HostConfig.PortBindings'))
+			done(`1 1 ${container.host} ${container.port}`)
+		if (format === '{{.State.Status}} {{.State.Running}}')
+			done(`${container.status} ${container.running}`)
+		if (format === '{{index .Config.Labels "com.docker.compose.service"}}')
+			done(container.service)
+		const identity = `${container.project} ${container.service} ${container.image} ${container.revision}`
+		if (format.includes('.Name'))
+			done(
+				`${identity} /${container.project}-${container.service}-1 ${container.status} ${container.running} ${container.pid} ${container.restarts}`
+			)
+		if (format.includes('org.opencontainers.image.revision'))
+			done(identity)
+		done('', 92)
+	}
+	if (args[0] === 'rm') {
+		const container = state.containers.find(c => c.id === args.at(-1))
+		if (!container || (container.running && !args.includes('-f')))
+			done('', 1)
+		state.containers = state.containers.filter(c => c !== container)
+		done()
+	}
+	if (args[0] === 'stop' || args[0] === 'start') {
+		if (
+			args[0] === 'start' &&
+			state.scenario === 'start-failure' &&
+			args.includes(id(30))
+		) {
+			state.containers.find(c => c.id === id(30)).running = true
+			done('', 1)
+		}
+		for (const cid of args.slice(1)) {
+			const container = state.containers.find(c => c.id === cid)
+			if (!container) done('', 1)
+			container.running = args[0] === 'start'
+			container.status = container.running ? 'running' : 'exited'
+		}
+		done()
+	}
+	if (['cp', 'chmod', 'probe'].includes(args[0])) done()
+	done('', 93)
+}
+
+function runStageFixture(scenario = 'success', fragment = stageCutover) {
+	const directory = mkdtempSync(join(tmpdir(), 'frontend-stage-test-'))
+	try {
+		const images = fixtureApps.map(
+			(_, i) => `sha256:${fixtureId(100 + i)}`
+		)
+		const state = {
+			scenario,
+			calls: [],
+			apps: fixtureApps,
+			revision,
+			project: fixtureProject,
+			candidate: fixtureCandidate,
+			images,
+			networks: [
+				{ id: fixtureId(200), project: 'old' },
+				{ id: fixtureId(201), project: fixtureCandidate }
+			],
+			containers: fixtureApps.flatMap((service, i) => [
+				{
+					id: fixtureId(10 + i),
+					project: 'old',
+					service,
+					running: true,
+					network: 'old_default'
+				},
+				{
+					id: fixtureId(20 + i),
+					project: fixtureCandidate,
+					service,
+					image: images[i],
+					revision,
+					status: 'exited',
+					running: false,
+					network: `${fixtureCandidate}_default`
+				}
+			])
+		}
+		if (scenario === 'stopped-network-reference')
+			state.containers.push({
+				id: fixtureId(90),
+				project: 'prior',
+				running: false,
+				network: `${fixtureCandidate}_default`
+			})
+		if (scenario === 'occupied-release')
+			state.containers.push({
+				id: fixtureId(90),
+				project: fixtureProject,
+				running: false,
+				network: 'prior_default'
+			})
+		if (scenario === 'existing-release-network')
+			state.networks.push({ id: fixtureId(202), project: fixtureProject })
+		const statePath = join(directory, 'state.json')
+		const shimPath = join(directory, 'docker.cjs')
+		writeFileSync(statePath, JSON.stringify(state))
+		writeFileSync(
+			shimPath,
+			`${dockerFixture.toString()}\ndockerFixture()\n`
+		)
+		const script = `set -eo pipefail
+revision=${revision}
+project=${fixtureProject}
+candidate_project=${fixtureCandidate}
+apps=(landing crm widgets admin-panel)
+stage_images=(${images.join(' ')})
+candidate_slots=(${fixtureApps.map((_, i) => fixtureId(20 + i)).join(' ')})
+old_ids=(${fixtureApps.map((_, i) => fixtureId(10 + i)).join(' ')})
+staged_ids=()
+stage_started=false
+stage_inventory_collected=false
+candidate_network_owned=true
+cutover_started=false
+completed=false
+current_pointer_written=false
+prior_revision=legacy
+release_root="$FIXTURE_ROOT"
+nginx_target=synthetic-nginx
+die() { printf '%s\\n' "$1" >&2; exit 1; }
+docker() { "$FIXTURE_NODE" "$FIXTURE_DOCKER" "$@"; }
+compose() { docker compose-create "$@"; }
+awk() { printf '%s\\n' 1048576; }
+cp() { docker cp "$@"; }
+chmod() { docker chmod "$@"; }
+curl() { docker probe "$@"; }
+${emptyProjectGuard}
+${stageHelpers}
+trap cleanup EXIT
+${fragment}
+completed=true
+`
+		const output = spawnSync('bash', ['-c', script], {
+			encoding: 'utf8',
+			timeout: 30000,
+			env: {
+				...process.env,
+				DOCKER_STATE: statePath,
+				FIXTURE_ROOT: directory,
+				FIXTURE_NODE: process.execPath,
+				FIXTURE_DOCKER: shimPath
+			}
+		})
+		assert.equal(output.error, undefined)
+		return {
+			...output,
+			state: JSON.parse(readFileSync(statePath, 'utf8'))
+		}
+	} finally {
+		rmSync(directory, { recursive: true, force: true })
+	}
+}
+
+const mutations = state =>
+	state.calls.filter(
+		args =>
+			['start', 'stop', 'rm', 'cp', 'chmod'].includes(args[0]) ||
+			args.slice(0, 2).join(' ') === 'network rm'
+	)
+function assertOldUntouched(result) {
+	assert.equal(result.status, 1, result.stderr)
+	for (const cid of fixtureApps.map((_, i) => fixtureId(10 + i))) {
+		assert.equal(
+			result.state.containers.find(c => c.id === cid)?.running,
+			true
+		)
+		assert.ok(!mutations(result.state).some(args => args.includes(cid)))
+	}
+	assert.ok(
+		!result.state.calls.some(args =>
+			['cp', 'chmod', 'start', 'stop'].includes(args[0])
+		)
+	)
+}
+
+test('actual cutover frees the candidate subnet and creates all four stopped containers before stopping old runtime', () => {
+	const result = runStageFixture()
+	assert.equal(result.status, 0, result.stderr)
+	const calls = result.state.calls
+	const create = calls.findIndex(args => args[0] === 'compose-create')
+	const networkRemoval = calls.findIndex(
+		args => args.slice(0, 2).join(' ') === 'network rm'
+	)
+	const firstStop = calls.findIndex(args => args[0] === 'stop')
+	assert.ok(
+		networkRemoval >= 0 && networkRemoval < create && create < firstStop
+	)
+	assert.deepEqual(
+		calls.filter(args => args[0] === 'start'),
+		[['start', ...fixtureApps.map((_, i) => fixtureId(30 + i))]]
+	)
+	assert.equal(
+		result.state.containers.filter(c => c.project === fixtureCandidate)
+			.length,
+		0
+	)
+})
+
+test('actual network allocation and partial-create failures clean preparation only and never reach cutover', () => {
+	for (const scenario of [
+		'network-failure',
+		'network-only-failure',
+		'partial-create'
+	]) {
+		const result = runStageFixture(scenario)
+		assertOldUntouched(result)
+		assert.match(result.stderr, /preparation failed before cutover/)
+		assert.equal(
+			result.state.containers.filter(c => c.project === fixtureProject)
+				.length,
+			0
+		)
+		assert.ok(
+			!result.state.networks.some(n => n.project === fixtureProject)
+		)
+		assert.ok(
+			result.state.calls
+				.filter(args => args[0] === 'rm')
+				.every(args => !args.includes('-f'))
+		)
+	}
+})
+
+test('actual staging rejects foreign images, running containers, unsafe ports and duplicate services without removing those objects', () => {
+	for (const scenario of [
+		'foreign-image',
+		'running-container',
+		'public-port',
+		'duplicate-service'
+	]) {
+		const result = runStageFixture(scenario)
+		assertOldUntouched(result)
+		assert.ok(
+			result.state.containers.some(c => c.id === fixtureId(31)),
+			scenario
+		)
+		assert.ok(
+			!mutations(result.state).some(args => args.includes(fixtureId(31))),
+			scenario
+		)
+		assert.ok(
+			result.state.networks.some(n => n.project === fixtureProject)
+		)
+	}
+})
+
+test('actual candidate cleanup fails closed for stopped network references and failed global inventory', () => {
+	for (const scenario of [
+		'stopped-network-reference',
+		'inventory-error'
+	]) {
+		const result = runStageFixture(scenario)
+		assertOldUntouched(result)
+		assert.ok(
+			!result.state.calls.some(args => args[0] === 'compose-create')
+		)
+		assert.ok(
+			result.state.networks.some(n => n.project === fixtureCandidate)
+		)
+	}
+})
+
+test('actual staging never adopts prior release containers or a pre-existing release network', () => {
+	for (const scenario of [
+		'occupied-release',
+		'existing-release-network'
+	]) {
+		const result = runStageFixture(scenario)
+		assertOldUntouched(result)
+		assert.ok(
+			!result.state.calls.some(args => args[0] === 'compose-create')
+		)
+		assert.ok(
+			!mutations(result.state).some(
+				args =>
+					args.includes(fixtureId(90)) || args.includes(fixtureId(202))
+			)
+		)
+	}
+})
+
+test('actual cleanup keeps the staged receipt and never adopts a replacement ID after preparation', () => {
+	const result = runStageFixture(
+		'success',
+		`
+cleanup_candidates true || die candidate
+prepare_staged_release || die staging
+docker replace-staged
+verify_staged_inventory && die 'unexpected acceptance'
+die 'injected identity replacement'
+`
+	)
+	assertOldUntouched(result)
+	assert.ok(result.state.containers.some(c => c.id === fixtureId(99)))
+	assert.ok(
+		!mutations(result.state).some(args => args.includes(fixtureId(99)))
+	)
+	assert.match(result.stderr, /Preparation cleanup incomplete/)
+})
+
+test('actual startup failure stops only the staged IDs and restarts the exact prior runtime', () => {
+	const result = runStageFixture('start-failure')
+	assert.equal(result.status, 1, result.stderr)
+	assert.match(
+		result.stderr,
+		/Previous frontend containers and Nginx configuration restored/
+	)
+	for (const cid of fixtureApps.map((_, i) => fixtureId(10 + i))) {
+		assert.equal(
+			result.state.containers.find(c => c.id === cid)?.running,
+			true
+		)
+		assert.ok(
+			!result.state.calls.some(
+				args => args[0] === 'rm' && args.includes(cid)
+			)
+		)
+	}
+	for (const cid of fixtureApps.map((_, i) => fixtureId(30 + i))) {
+		assert.equal(
+			result.state.containers.find(c => c.id === cid)?.running,
+			false
+		)
+		assert.ok(
+			result.state.calls.some(
+				args => args[0] === 'stop' && args.includes(cid)
+			)
+		)
+		assert.ok(
+			!result.state.calls.some(
+				args => args[0] === 'rm' && args.includes(cid)
+			)
+		)
+	}
+	assert.deepEqual(
+		result.state.calls.filter(args => args[0] === 'start').slice(1),
+		fixtureApps.map((_, i) => ['start', fixtureId(10 + i)])
 	)
 })

@@ -24,6 +24,10 @@ readonly legacy_nginx_sha=fac90fc182f5cf9a73975c8d8af81e54266c55a4b37b838c825f41
 readonly apps=(landing crm widgets admin-panel)
 declare -A ports=([landing]=3000 [crm]=3001 [widgets]=3002 [admin-panel]=3003)
 declare -A images=() old_ids=() old_images=() old_revisions=() candidate_ids=()
+declare -a candidate_slots=() staged_ids=() stage_images=()
+stage_started=false
+stage_inventory_collected=false
+candidate_network_owned=false
 
 revision="${EXPECTED_REVISION:-}"
 infra_revision="${FRONTEND_PRODUCTION_INFRA_REVISION:-}"
@@ -220,17 +224,123 @@ fi
 cutover_started=false
 completed=false
 current_pointer_written=false
+# A network with no active endpoints can still belong to a stopped container.
+# Delete only the exact transient project network after proving no references.
+remove_unreferenced_project_network() {
+	local owner="$1" expected="${1}_default" networks network metadata containers cid references reference
+	networks="$(docker network ls --no-trunc --filter "name=^${expected}$" --quiet)" || return 1
+	[[ -n "$networks" ]] || return 0
+	[[ "$networks" =~ ^[a-f0-9]{64}$ ]] || return 1
+	network="$networks"
+	metadata="$(docker network inspect --format '{{.Name}} {{index .Labels "com.docker.compose.project"}} {{index .Labels "com.docker.compose.network"}} {{len .Containers}}' "$network")" || return 1
+	[[ "$metadata" == "$expected $owner default 0" ]] || return 1
+	containers="$(docker ps --all --no-trunc --quiet)" || return 1
+	while IFS= read -r cid; do
+		[[ -n "$cid" ]] || continue
+		[[ "$cid" =~ ^[a-f0-9]{64}$ ]] || return 1
+		references="$(docker inspect --format '{{println .HostConfig.NetworkMode}}{{range $name, $network := .NetworkSettings.Networks}}{{println $name}}{{println $network.NetworkID}}{{end}}' "$cid")" || return 1
+		while IFS= read -r reference; do
+			[[ "$reference" != "$expected" && "$reference" != "$network" ]] || return 1
+		done <<<"$references"
+	done <<<"$containers"
+	docker network rm "$network" >/dev/null || return 1
+}
+
+cleanup_candidates() {
+	local strict="${1:-false}" index cid metadata failed=false
+	for index in "${!candidate_slots[@]}"; do
+		cid="${candidate_slots[$index]}"
+		[[ "$cid" =~ ^[a-f0-9]{64}$ ]] || { failed=true; continue; }
+		metadata="$(docker inspect --format '{{index .Config.Labels "com.docker.compose.project"}} {{index .Config.Labels "com.docker.compose.service"}} {{.Image}} {{index .Config.Labels "org.opencontainers.image.revision"}}' "$cid")" || { failed=true; continue; }
+		[[ "$metadata" == "$candidate_project ${apps[$index]} ${stage_images[$index]} $revision" ]] || { failed=true; continue; }
+		if [[ "$strict" == true ]]; then
+			[[ "$(docker inspect --format '{{.State.Status}} {{.State.Running}}' "$cid")" == 'exited false' ]] || { failed=true; continue; }
+			docker rm "$cid" >/dev/null || { failed=true; continue; }
+		else
+			docker rm -f "$cid" >/dev/null || { failed=true; continue; }
+		fi
+		unset 'candidate_slots[index]'
+	done
+	[[ "$failed" == false ]] || return 1
+	[[ "$candidate_network_owned" == true ]] || return 0
+	remove_unreferenced_project_network "$candidate_project" || return 1
+	candidate_network_owned=false
+}
+
+verify_staged_container() {
+	local cid="$1" index="$2" metadata binding port
+	[[ "$cid" =~ ^[a-f0-9]{64}$ ]] || return 1
+	metadata="$(docker inspect --format '{{index .Config.Labels "com.docker.compose.project"}} {{index .Config.Labels "com.docker.compose.service"}} {{.Image}} {{index .Config.Labels "org.opencontainers.image.revision"}} {{.Name}} {{.State.Status}} {{.State.Running}} {{.State.Pid}} {{.RestartCount}}' "$cid")" || return 1
+	[[ "$metadata" == "$project ${apps[$index]} ${stage_images[$index]} $revision /$project-${apps[$index]}-1 created false 0 0" ]] || return 1
+	port=$((3000 + index))
+	binding="$(docker inspect --format '{{len .HostConfig.PortBindings}} {{with index .HostConfig.PortBindings "3000/tcp"}}{{len .}} {{with index . 0}}{{.HostIp}} {{.HostPort}}{{end}}{{end}}' "$cid")" || return 1
+	[[ "$binding" == "1 1 127.0.0.1 $port" ]]
+}
+
+collect_staged_containers() {
+	local containers cid service index failed=false
+	containers="$(docker ps --all --no-trunc --filter "label=com.docker.compose.project=$project" --quiet)" || return 1
+	staged_ids=()
+	while IFS= read -r cid; do
+		[[ -n "$cid" ]] || continue
+		[[ "$cid" =~ ^[a-f0-9]{64}$ ]] || { failed=true; continue; }
+		service="$(docker inspect --format '{{index .Config.Labels "com.docker.compose.service"}}' "$cid")" || { failed=true; continue; }
+		case "$service" in landing) index=0 ;; crm) index=1 ;; widgets) index=2 ;; admin-panel) index=3 ;; *) failed=true; continue ;; esac
+		if [[ -n "${staged_ids[$index]:-}" ]] || ! verify_staged_container "$cid" "$index"; then failed=true; continue; fi
+		staged_ids[index]="$cid"
+	done <<<"$containers"
+	[[ "$failed" == false ]]
+}
+
+verify_staged_inventory() {
+	local index expected current
+	(( ${#staged_ids[@]} == 4 )) || return 1
+	for index in "${!apps[@]}"; do verify_staged_container "${staged_ids[$index]}" "$index" || return 1; done
+	expected="$(printf '%s\n' "${staged_ids[@]}" | sort)"
+	current="$(docker ps --all --no-trunc --filter "label=com.docker.compose.project=$project" --quiet | sort)" || return 1
+	[[ "$current" == "$expected" ]]
+}
+
+cleanup_staged_release() {
+	local index cid failed=false
+	# Collection may be partial after Compose failed. Never adopt a running,
+	# foreign, duplicate or mismatched object just to make cleanup succeed.
+	if [[ "$stage_inventory_collected" == false ]]; then collect_staged_containers || failed=true; fi
+	for index in "${!staged_ids[@]}"; do
+		cid="${staged_ids[$index]}"
+		verify_staged_container "$cid" "$index" || { failed=true; continue; }
+		docker rm "$cid" >/dev/null || { failed=true; continue; }
+		unset 'staged_ids[index]'
+	done
+	[[ "$failed" == false ]] || return 1
+	remove_unreferenced_project_network "$project"
+}
+
+prepare_staged_release() {
+	local existing create_ok=true
+	assert_release_project_empty
+	existing="$(docker network ls --no-trunc --filter "name=^${project}_default$" --quiet)" || return 1
+	[[ -z "$existing" ]] || return 1
+	stage_started=true
+	compose create --no-build --pull never --no-recreate "${apps[@]}" || create_ok=false
+	if ! collect_staged_containers; then stage_inventory_collected=true; return 1; fi
+	stage_inventory_collected=true
+	[[ "$create_ok" == true ]] || return 1
+	verify_staged_inventory
+}
+
 cleanup() {
-	local status=$? app cid rollback_ok=true cleanup_failed=false networks
+	local status=$? app cid index metadata rollback_ok=true cleanup_failed=false
 	trap - EXIT
 	# A repeated SSH disconnect/termination must not interrupt an in-progress rollback.
 	trap '' INT TERM HUP
 	set +e
 	if [[ "$cutover_started" == true && "$completed" != true ]]; then
-		for app in "${apps[@]}"; do
-			cid="$(compose ps --all -q "$app" 2>/dev/null || true)"
-			if [[ "$cid" =~ ^[a-f0-9]{64}$ ]]; then docker stop "$cid" >/dev/null 2>&1 || rollback_ok=false; fi
-		 done
+		for index in "${!staged_ids[@]}"; do
+			cid="${staged_ids[$index]}"
+			metadata="$(docker inspect --format '{{index .Config.Labels "com.docker.compose.project"}} {{index .Config.Labels "com.docker.compose.service"}} {{.Image}} {{index .Config.Labels "org.opencontainers.image.revision"}}' "$cid" 2>/dev/null)" || { rollback_ok=false; continue; }
+			if [[ "$metadata" == "$project ${apps[$index]} ${stage_images[$index]} $revision" ]]; then docker stop "$cid" >/dev/null 2>&1 || rollback_ok=false; else rollback_ok=false; fi
+		done
 		for app in "${!old_ids[@]}"; do docker start "${old_ids[$app]}" >/dev/null 2>&1 || rollback_ok=false; done
 		if [[ -f "$release_root/nginx.before" ]]; then
 			local restore
@@ -255,22 +365,12 @@ cleanup() {
 		else printf '%s\n' 'CRITICAL: frontend rollback requires operator recovery; preserved releases were not deleted.' >&2; fi
 		status=1
 	fi
-	for app in "${!candidate_ids[@]}"; do
-		cid="${candidate_ids[$app]}"
-		if [[ "$cid" =~ ^[a-f0-9]{64}$ && "$(docker inspect --format '{{index .Config.Labels "com.docker.compose.project"}}' "$cid" 2>/dev/null || true)" == "$candidate_project" ]]; then
-			docker rm -f "$cid" >/dev/null 2>&1 || cleanup_failed=true
-		fi
-	done
-	networks="$(docker network ls --filter "label=com.docker.compose.project=$candidate_project" --quiet)" || cleanup_failed=true
-	while IFS= read -r network; do
-		[[ "$network" =~ ^[a-f0-9]{12,64}$ ]] || continue
-		if [[ "$(docker network inspect --format '{{index .Labels "com.docker.compose.project"}}' "$network" 2>/dev/null)" == "$candidate_project" &&
-			"$(docker network inspect --format '{{len .Containers}}' "$network" 2>/dev/null)" == 0 ]]; then
-			docker network rm "$network" >/dev/null 2>&1 || cleanup_failed=true
-		else cleanup_failed=true; fi
-	done <<<"$networks"
+	if [[ "$stage_started" == true && "$cutover_started" == false ]]; then
+		cleanup_staged_release || cleanup_failed=true
+	fi
+	cleanup_candidates || cleanup_failed=true
 	if [[ "$cleanup_failed" == true ]]; then
-		printf '%s\n' 'Candidate cleanup incomplete; inspect the exact candidate project. Old/release resources were not removed.' >&2
+		printf '%s\n' 'Preparation cleanup incomplete; inspect the exact candidate/staged project. Prior runtime resources were not removed.' >&2
 		status=1
 	fi
 	exit "$status"
@@ -321,20 +421,26 @@ for app in "${apps[@]}"; do
 		"$(docker image inspect --format '{{index .Config.Labels "org.opencontainers.image.revision"}}' "${images[$app]}")" == "$revision" &&
 		"$(docker image inspect --format '{{index .Config.Labels "ru.winwidget.frontend.app"}}' "${images[$app]}")" == "$app" ]] || die 'Built frontend image identity differs.'
 	docker run --rm --network none "${images[$app]}" node container-entrypoint.mjs --verify >/dev/null || die 'Standalone frontend packaging verification failed.'
+	stage_images+=("${images[$app]}")
 done
 
 # Build all images before starting extra Node runtimes on the small VPS.
-for app in "${apps[@]}"; do
+candidate_network_before="$(docker network ls --no-trunc --filter "name=^${candidate_project}_default$" --quiet)" || die 'Candidate network inventory could not be checked.'
+[[ -z "$candidate_network_before" ]] || die 'A candidate network already exists; preserved resources require explicit recovery.'
+candidate_network_owned=true
+for index in "${!apps[@]}"; do
+	app="${apps[$index]}"
 	candidate_name="winwidget-candidate-$app-${revision:0:12}"
 	if docker inspect "$candidate_name" >/dev/null 2>&1; then die 'A candidate name is already occupied; do not adopt an unknown container.'; fi
 	if ! candidate_compose run --no-deps --detach --name "$candidate_name" --publish 127.0.0.1::3000 "$app" >/dev/null; then
 		cid="$(docker inspect --format '{{.Id}}' "$candidate_name" 2>/dev/null || true)"
-		[[ ! "$cid" =~ ^[a-f0-9]{64}$ ]] || candidate_ids[$app]="$cid"
+		if [[ "$cid" =~ ^[a-f0-9]{64}$ ]]; then candidate_ids[$app]="$cid"; candidate_slots[index]="$cid"; fi
 		die 'A frontend candidate could not start.'
 	fi
 	cid="$(docker inspect --format '{{.Id}}' "$candidate_name")"
 	[[ "$cid" =~ ^[a-f0-9]{64}$ ]] || die 'A candidate returned an invalid container identity.'
 	candidate_ids[$app]="$cid"
+	candidate_slots[index]="$cid"
 	[[ "$(docker inspect --format '{{.Image}}' "$cid")" == "${images[$app]}" ]] || die 'Candidate did not start the exact image.'
 	binding="$(docker port "$cid" 3000/tcp)"
 	[[ "$binding" =~ ^127\.0\.0\.1:([0-9]{1,5})$ ]] || die 'Candidate port is not exclusively loopback.'
@@ -384,17 +490,21 @@ for app in "${apps[@]}"; do
 		"$(docker inspect --format '{{.Image}}' "$cid")" == "${images[$app]}" ]] || die 'Candidate identity changed before controlled shutdown.'
 	docker stop "$cid" >/dev/null || die 'A verified candidate could not stop; the old frontend remains live.'
 done
+cleanup_candidates true || die 'Verified candidate cleanup failed; the old frontend remains live.'
 available_kib="$(awk '/^MemAvailable:/ {print $2}' /proc/meminfo)"
 if [[ ! "$available_kib" =~ ^[0-9]+$ ]] || ((available_kib < 512 * 1024)); then die 'Available memory dropped after candidate preparation; the old frontend remains live.'; fi
-assert_release_project_empty
+prepare_staged_release || die 'New frontend preparation failed before cutover; the old frontend remains live.'
+verify_staged_inventory || die 'Prepared frontend inventory changed; the old frontend remains live.'
 cp "$nginx_target" "$release_root/nginx.before"
 chmod 600 "$release_root/nginx.before"
 cutover_started=true
 for app in "${!old_ids[@]}"; do docker stop "${old_ids[$app]}" >/dev/null || die 'Could not stop a reviewed prior frontend container.'; done
-compose up --detach --no-build --no-deps "${apps[@]}" || die 'New frontend startup failed; restoring the prior release.'
+docker start "${staged_ids[@]}" >/dev/null || die 'New frontend startup failed; restoring the prior release.'
 : >"$release_root/containers"
-for app in "${apps[@]}"; do
+for index in "${!apps[@]}"; do
+	app="${apps[$index]}"
 	cid="$(compose ps -q "$app")"
+	[[ "$cid" == "${staged_ids[$index]}" ]] || die 'Started frontend container differs from its prepared identity.'
 	[[ "$cid" =~ ^[a-f0-9]{64}$ && "$(docker inspect --format '{{.Image}}' "$cid")" == "${images[$app]}" ]] || die 'New runtime image identity differs.'
 	[[ "$(docker port "$cid" 3000/tcp)" == "127.0.0.1:${ports[$app]}" ]] || die 'New runtime is not bound to its exact loopback port.'
 	probe "$app" "${ports[$app]}" "$revision" || die 'New frontend own HTTP readiness failed.'

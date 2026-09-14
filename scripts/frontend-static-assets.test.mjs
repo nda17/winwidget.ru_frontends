@@ -358,7 +358,11 @@ test('rollback and interrupted execution retain previous resources and remove on
 	assert.match(controller, /cp "\$release_root\/nginx.before" "\$restore"/)
 	assert.match(
 		controller,
-		/label=com\.docker\.compose\.project=\$candidate_project/
+		/remove_unreferenced_project_network "\$candidate_project"/
+	)
+	assert.match(
+		controller,
+		/"\$metadata" == "\$expected \$owner default 0"/
 	)
 	assert.match(controller, /\{\{len \.Containers\}\}/)
 	assert.doesNotMatch(
