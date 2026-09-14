@@ -1,5 +1,6 @@
 import { QueryClient, QueryClientProvider } from '@tanstack/react-query'
 import {
+	act,
 	cleanup,
 	fireEvent,
 	render,
@@ -16,6 +17,27 @@ import {
 import { useSalesSession } from '@/features/manage-sales'
 import DealsScreen from './DealsScreen'
 
+vi.mock('next/navigation', async () => {
+	const { useSyncExternalStore } = await import('react')
+	const subscribe = (callback: () => void) => {
+		window.addEventListener('test-next-navigation', callback)
+		window.addEventListener('popstate', callback)
+		return () => {
+			window.removeEventListener('test-next-navigation', callback)
+			window.removeEventListener('popstate', callback)
+		}
+	}
+	return {
+		useSearchParams: () =>
+			new URLSearchParams(
+				useSyncExternalStore(
+					subscribe,
+					() => window.location.search,
+					() => ''
+				)
+			)
+	}
+})
 vi.mock('@/entities/sales', () => ({
 	listSalesDeals: vi.fn(),
 	listSalesPipelines: vi.fn()
@@ -23,7 +45,9 @@ vi.mock('@/entities/sales', () => ({
 vi.mock('@/features/manage-sales', () => ({
 	useSalesSession: vi.fn(),
 	CreateDealDrawer: () => null,
-	DealDetailsDrawer: () => null,
+	DealDetailsDrawer: ({ onClose }: { onClose: () => void }) => (
+		<button onClick={onClose}>Закрыть сделку</button>
+	),
 	salesDate: (date: string) => date,
 	salesMoney: (amount: number) => String(amount)
 }))
@@ -83,6 +107,9 @@ const checkbox = () =>
 		name: 'Без следующего действия'
 	}) as HTMLInputElement
 const ready = async () => {
+	const filters = await screen.findByText('Фильтры и сохранённые виды')
+	if (!filters.parentElement?.hasAttribute('open'))
+		fireEvent.click(filters)
 	await screen.findByRole('button', { name: 'Новый заказ Клиент' })
 	await waitFor(() =>
 		expect(
@@ -93,7 +120,17 @@ const ready = async () => {
 }
 
 beforeEach(() => {
+	vi.restoreAllMocks()
 	vi.clearAllMocks()
+	for (const method of ['pushState', 'replaceState'] as const) {
+		const original = window.history[method].bind(window.history)
+		vi.spyOn(window.history, method).mockImplementation((...args) => {
+			original(...args)
+			window.dispatchEvent(new Event('test-next-navigation'))
+		})
+	}
+	window.localStorage.clear()
+	window.history.replaceState(null, '', '/deals')
 	client = new QueryClient({
 		defaultOptions: { queries: { retry: false, gcTime: 0 } }
 	})
@@ -178,13 +215,15 @@ describe('deal list without-next-action filter', () => {
 					'',
 					'',
 					'',
-					true
+					true,
+					{}
 				)
 			)
 			await ready()
 			fireEvent.click(screen.getByRole('button', { name: 'Далее' }))
 			await screen.findByText('Всего 21 · страница 2')
 			removed = true
+			fireEvent.click(screen.getByText('Ещё'))
 			fireEvent.click(screen.getByRole('button', { name: 'Обновить' }))
 			await screen.findByText('На этой странице больше нет сделок')
 			expect(
@@ -204,7 +243,8 @@ describe('deal list without-next-action filter', () => {
 				'',
 				'',
 				'',
-				true
+				true,
+				{}
 			)
 			const firstPage = screen.getByRole('button', {
 				name: 'На первую страницу'
@@ -226,7 +266,8 @@ describe('deal list without-next-action filter', () => {
 				'',
 				'',
 				'',
-				true
+				true,
+				{}
 			)
 			expect(toast).toHaveBeenLastCalledWith(
 				'Переход на первую страницу сделок'
@@ -246,7 +287,8 @@ describe('deal list without-next-action filter', () => {
 			'',
 			'',
 			'',
-			false
+			false,
+			{}
 		)
 		fireEvent.click(screen.getByRole('button', { name: 'Далее' }))
 		await waitFor(() =>
@@ -258,7 +300,8 @@ describe('deal list without-next-action filter', () => {
 				'',
 				'',
 				'',
-				false
+				false,
+				{}
 			)
 		)
 		fireEvent.click(checkbox())
@@ -271,7 +314,8 @@ describe('deal list without-next-action filter', () => {
 			'',
 			'',
 			'',
-			true
+			true,
+			{}
 		)
 		expect(checkbox().checked).toBe(true)
 		expect(toast).toHaveBeenLastCalledWith(
@@ -287,7 +331,8 @@ describe('deal list without-next-action filter', () => {
 			'',
 			'',
 			'',
-			false
+			false,
+			{}
 		)
 		expect(toast).toHaveBeenLastCalledWith(
 			'Фильтр «Без следующего действия» выключен'
@@ -317,7 +362,8 @@ describe('deal list without-next-action filter', () => {
 			'Клиент',
 			pipelineId,
 			'WON',
-			true
+			true,
+			{}
 		)
 		expect(
 			(screen.getByLabelText('Статус') as HTMLSelectElement).value
@@ -395,5 +441,259 @@ describe('deal list without-next-action filter', () => {
 		expect(document.body.textContent).not.toContain(
 			'private service detail'
 		)
+	})
+})
+
+describe('deal views and server pipeline', () => {
+	it('paginates each stage on the server and displays the complete stage total', async () => {
+		render(view())
+		await ready()
+		fireEvent.click(screen.getByRole('button', { name: /^Воронка$/ }))
+		await screen.findByRole('region', { name: 'Этап Новая' })
+		await waitFor(() =>
+			expect(listSalesDeals).toHaveBeenLastCalledWith(
+				'test-token',
+				workspaceId,
+				1,
+				20,
+				'',
+				pipelineId,
+				'',
+				false,
+				{ stageId }
+			)
+		)
+		expect(screen.getByText('21')).toBeTruthy()
+		expect(screen.queryByText('Всего 21 · страница 1')).toBeNull()
+		fireEvent.click(
+			screen.getByRole('button', { name: 'Следующая страница: Новая' })
+		)
+		await waitFor(() =>
+			expect(listSalesDeals).toHaveBeenLastCalledWith(
+				'test-token',
+				workspaceId,
+				2,
+				20,
+				'',
+				pipelineId,
+				'',
+				false,
+				{ stageId }
+			)
+		)
+		expect(await screen.findByText('2 / 2')).toBeTruthy()
+	})
+	it('applies My and Overdue presets using server filters', async () => {
+		render(view())
+		await ready()
+		fireEvent.click(screen.getByRole('button', { name: 'Мои сделки' }))
+		await waitFor(() =>
+			expect(listSalesDeals).toHaveBeenLastCalledWith(
+				'test-token',
+				workspaceId,
+				1,
+				20,
+				'',
+				'',
+				'OPEN',
+				false,
+				{ assignedToSubject: 'actor' }
+			)
+		)
+		fireEvent.click(screen.getByRole('button', { name: 'Просроченные' }))
+		await waitFor(() =>
+			expect(listSalesDeals).toHaveBeenLastCalledWith(
+				'test-token',
+				workspaceId,
+				1,
+				20,
+				'',
+				'',
+				'OPEN',
+				false,
+				{ overdue: true, sort: 'next_action_asc' }
+			)
+		)
+		expect(window.location.search).toContain('overdue=true')
+	})
+	it('applies an analytics Link query when Next reuses a previously opened board', async () => {
+		const rendered = render(view())
+		await ready()
+		fireEvent.click(screen.getByRole('button', { name: /^Воронка$/ }))
+		await screen.findByRole('region', { name: 'Этап Новая' })
+		await waitFor(() =>
+			expect(window.location.search).toContain('layout=board')
+		)
+		// Next Link updates router context without a popstate event. The retained
+		// screen must read the new query before its existing effects run again.
+		const href =
+			'/deals?status=OPEN&overdue=true&overdueBefore=2026-09-14T15%3A57%3A51.755Z'
+		act(() => window.history.pushState(null, '', href))
+		rendered.rerender(view())
+		await waitFor(() =>
+			expect(listSalesDeals).toHaveBeenLastCalledWith(
+				'test-token',
+				workspaceId,
+				1,
+				20,
+				'',
+				'',
+				'OPEN',
+				false,
+				{ overdue: true, overdueBefore: '2026-09-14T15:57:51.755Z' }
+			)
+		)
+		expect(screen.queryByRole('region', { name: 'Этап Новая' })).toBeNull()
+		expect(window.location.search).toContain('overdue=true')
+		expect(window.location.search).not.toContain('pipelineId=')
+		expect(window.location.search).not.toContain('layout=board')
+	})
+	it('resets a remembered board on All deals and on an empty-query history navigation', async () => {
+		render(view())
+		await ready()
+		fireEvent.click(screen.getByRole('button', { name: /^Воронка$/ }))
+		await screen.findByRole('region', { name: 'Этап Новая' })
+		fireEvent.click(screen.getByRole('button', { name: 'Все сделки' }))
+		await ready()
+		expect(window.location.search).toBe('?layout=list')
+		fireEvent.click(screen.getByRole('button', { name: 'Мои сделки' }))
+		await waitFor(() =>
+			expect(window.location.search).toContain('assignedToSubject=actor')
+		)
+		act(() => {
+			window.history.pushState(null, '', '/deals')
+			window.dispatchEvent(new PopStateEvent('popstate'))
+		})
+		await waitFor(() =>
+			expect(listSalesDeals).toHaveBeenLastCalledWith(
+				'test-token',
+				workspaceId,
+				1,
+				20,
+				'',
+				'',
+				'',
+				false,
+				{}
+			)
+		)
+		expect(
+			screen
+				.getByRole('button', { name: 'Мои сделки' })
+				.getAttribute('aria-pressed')
+		).toBe('false')
+	})
+	it('keeps the server page and active filters while opening and closing a linked deal', async () => {
+		render(view())
+		await ready()
+		fireEvent.click(screen.getByRole('button', { name: 'Мои сделки' }))
+		await ready()
+		fireEvent.click(screen.getByRole('button', { name: 'Далее' }))
+		await screen.findByText('Всего 21 · страница 2')
+		fireEvent.click(
+			screen.getByRole('button', { name: 'Новый заказ Клиент' })
+		)
+		expect(window.location.search).toContain(`dealId=${deal.id}`)
+		expect(screen.getByText('Всего 21 · страница 2')).toBeTruthy()
+		fireEvent.click(screen.getByRole('button', { name: 'Закрыть сделку' }))
+		expect(window.location.search).not.toContain('dealId=')
+		expect(window.location.search).toContain('assignedToSubject=actor')
+		expect(screen.getByText('Всего 21 · страница 2')).toBeTruthy()
+		expect(listSalesDeals).toHaveBeenLastCalledWith(
+			'test-token',
+			workspaceId,
+			2,
+			20,
+			'',
+			'',
+			'OPEN',
+			false,
+			{ assignedToSubject: 'actor' }
+		)
+	})
+	it('preserves analytics cohort and employee filters from a direct link', async () => {
+		window.history.replaceState(
+			null,
+			'',
+			'/deals?status=WON&createdFrom=2026-09-01T00%3A00%3A00.000Z&createdTo=2026-09-15T00%3A00%3A00.000Z&assignedToSubject=employee'
+		)
+		render(view())
+		await ready()
+		expect(listSalesDeals).toHaveBeenLastCalledWith(
+			'test-token',
+			workspaceId,
+			1,
+			20,
+			'',
+			'',
+			'WON',
+			false,
+			{
+				assignedToSubject: 'employee',
+				createdFrom: '2026-09-01T00:00:00.000Z',
+				createdTo: '2026-09-15T00:00:00.000Z'
+			}
+		)
+		expect(screen.getByText(/Дата создания: 01.09.2026/)).toBeTruthy()
+	})
+	it('remembers filters and named views only in their user and workspace scope', async () => {
+		const rendered = render(view())
+		await ready()
+		fireEvent.click(screen.getByRole('button', { name: 'Мои сделки' }))
+		fireEvent.click(screen.getByRole('button', { name: 'Сохранить вид' }))
+		fireEvent.change(screen.getByLabelText(/Название представления/), {
+			target: { value: 'Моя работа' }
+		})
+		fireEvent.click(
+			screen.getByRole('button', { name: 'Сохранить представление' })
+		)
+		expect(screen.getByRole('option', { name: 'Моя работа' })).toBeTruthy()
+		rendered.unmount()
+		window.history.replaceState(null, '', '/deals')
+		const restored = render(view())
+		await ready()
+		expect(screen.getByRole('option', { name: 'Моя работа' })).toBeTruthy()
+		expect(listSalesDeals).toHaveBeenLastCalledWith(
+			'test-token',
+			workspaceId,
+			1,
+			20,
+			'',
+			'',
+			'OPEN',
+			false,
+			{ assignedToSubject: 'actor' }
+		)
+		restored.unmount()
+		window.history.replaceState(null, '', '/deals')
+		vi.mocked(useSalesSession).mockReturnValue({
+			...context,
+			session: { ...context.session, userId: 'other' },
+			key: [workspaceId, 'other', 1, 'ALL']
+		} as never)
+		render(view())
+		await ready()
+		expect(screen.queryByRole('option', { name: 'Моя работа' })).toBeNull()
+		expect(listSalesDeals).toHaveBeenLastCalledWith(
+			'test-token',
+			workspaceId,
+			1,
+			20,
+			'',
+			'',
+			'',
+			false,
+			{}
+		)
+	})
+	it('shows stage failures without claiming there are zero deals', async () => {
+		render(view())
+		await ready()
+		vi.mocked(listSalesDeals).mockRejectedValue(new Error('unavailable'))
+		fireEvent.click(screen.getByRole('button', { name: /^Воронка$/ }))
+		await screen.findByText('Не удалось загрузить этап.')
+		expect(
+			screen.queryByText('Нет сделок по выбранным условиям')
+		).toBeNull()
 	})
 })

@@ -1,4 +1,8 @@
-import { listCustomers, type Customer } from '@/entities/customer'
+import {
+	getCustomer,
+	listCustomers,
+	type Customer
+} from '@/entities/customer'
 import { useSessionStore } from '@/entities/session'
 import { getCrmPermissions } from '@/entities/crm-access'
 import {
@@ -29,7 +33,37 @@ import { CreateDealDrawer, parseRublesToMinor } from './CreateDealDrawer'
 import { DealDetailsDrawer } from './DealDetailsDrawer'
 import { CompleteTaskDrawer } from './CompleteTaskDrawer'
 
-vi.mock('@/entities/customer', () => ({ listCustomers: vi.fn() }))
+vi.mock('@/entities/customer', () => ({
+	listCustomers: vi.fn(),
+	getCustomer: vi.fn()
+}))
+vi.mock('@/features/edit-customer', () => ({
+	CustomerEditor: ({
+		initialName,
+		onSaved,
+		onClose
+	}: {
+		initialName: string
+		onSaved: (record: Customer) => void
+		onClose: () => void
+	}) => (
+		<section aria-label="Создание контакта внутри сделки">
+			<span>{initialName}</span>
+			<button
+				onClick={() => {
+					onSaved({
+						...contact,
+						id: '88888888-8888-4888-8888-888888888888',
+						name: initialName
+					})
+					onClose()
+				}}
+			>
+				Сохранить нового клиента
+			</button>
+		</section>
+	)
+}))
 vi.mock('@/entities/crm-access', () => ({ getCrmPermissions: vi.fn() }))
 vi.mock('@/entities/sales', () => ({
 	getSalesDeal: vi.fn(),
@@ -173,6 +207,7 @@ beforeEach(() => {
 		total: 1,
 		items: [contact]
 	})
+	vi.mocked(getCustomer).mockResolvedValue(contact)
 	vi.mocked(getSalesDeal).mockResolvedValue(deal)
 	vi.mocked(listSalesTimeline).mockResolvedValue({
 		schemaVersion: 1,
@@ -213,9 +248,8 @@ describe('Sales workflow forms', () => {
 				onSaved={vi.fn()}
 			/>
 		)
-		fireEvent.change(
-			await screen.findByRole('combobox', { name: 'Клиент' }),
-			{ target: { value: contact.id } }
+		fireEvent.click(
+			await screen.findByRole('button', { name: contact.name })
 		)
 		fireEvent.change(
 			screen.getByRole('textbox', { name: 'Название сделки' }),
@@ -238,7 +272,7 @@ describe('Sales workflow forms', () => {
 			'contacts',
 			workspaceId,
 			1,
-			20,
+			10,
 			''
 		)
 		expect(vi.mocked(mutateSales).mock.calls[0][1]).toMatchObject({
@@ -257,6 +291,132 @@ describe('Sales workflow forms', () => {
 			}
 		})
 		expect(onClose).toHaveBeenCalledTimes(1)
+	})
+	it('recovers a failed contact refresh after selection without losing the selected contact or deal draft', async () => {
+		mount(
+			<CreateDealDrawer
+				pipelines={[pipeline]}
+				onClose={vi.fn()}
+				onSaved={vi.fn()}
+			/>
+		)
+		fireEvent.click(
+			await screen.findByRole('button', { name: contact.name })
+		)
+		fireEvent.change(screen.getByLabelText(/Название сделки/), {
+			target: { value: 'Сохранённый черновик' }
+		})
+		vi.mocked(listCustomers).mockRejectedValue(
+			new AuthenticatedApiError('temporary', 'Service unavailable')
+		)
+		await act(async () => {
+			await client.invalidateQueries({
+				queryKey: ['crm-customers', workspaceId]
+			})
+		})
+		await screen.findByText(
+			'Не удалось обновить контакты. Выбранный клиент и поля сделки сохранены. Повторите проверку, чтобы создать сделку.'
+		)
+		expect(
+			(
+				screen.getByRole('button', {
+					name: 'Создать сделку'
+				}) as HTMLButtonElement
+			).disabled
+		).toBe(true)
+		expect(screen.getByText(contact.name)).toBeTruthy()
+		vi.mocked(listCustomers).mockResolvedValue({
+			schemaVersion: 1,
+			page: 1,
+			pageSize: 10,
+			total: 1,
+			items: [contact]
+		})
+		fireEvent.click(screen.getByRole('button', { name: 'Повторить' }))
+		await waitFor(() =>
+			expect(
+				(
+					screen.getByRole('button', {
+						name: 'Создать сделку'
+					}) as HTMLButtonElement
+				).disabled
+			).toBe(false)
+		)
+		expect(
+			(screen.getByLabelText(/Название сделки/) as HTMLInputElement).value
+		).toBe('Сохранённый черновик')
+		expect(screen.getByText(contact.name)).toBeTruthy()
+		expect(mutateSales).not.toHaveBeenCalled()
+	})
+	it('keeps the deal draft and selects the newly created contact without navigation', async () => {
+		context.permissions.data!.permissions.push('customers:write')
+		mount(
+			<CreateDealDrawer
+				pipelines={[pipeline]}
+				onClose={vi.fn()}
+				onSaved={vi.fn()}
+			/>
+		)
+		await screen.findByRole('button', { name: contact.name })
+		fireEvent.change(screen.getByLabelText(/^Название сделки/), {
+			target: { value: 'Не потерять черновик' }
+		})
+		fireEvent.change(screen.getByLabelText(/^Сумма, ₽/), {
+			target: { value: '100,50' }
+		})
+		fireEvent.change(screen.getByLabelText(/^Срок действия/), {
+			target: { value: '2026-09-20T14:30' }
+		})
+		fireEvent.change(screen.getByLabelText('Поиск контакта'), {
+			target: { value: 'Новый клиент' }
+		})
+		fireEvent.click(
+			screen.getByRole('button', { name: 'Создать контакт' })
+		)
+		expect(
+			screen.getByRole('region', {
+				name: 'Создание контакта внутри сделки'
+			}).textContent
+		).toContain('Новый клиент')
+		fireEvent.click(
+			screen.getByRole('button', { name: 'Сохранить нового клиента' })
+		)
+		await waitFor(() =>
+			expect(
+				screen.getByRole('button', { name: 'Создать сделку' })
+			).toHaveProperty('disabled', false)
+		)
+		expect(screen.getByLabelText(/^Название сделки/)).toHaveProperty(
+			'value',
+			'Не потерять черновик'
+		)
+		expect(screen.getByLabelText(/^Сумма, ₽/)).toHaveProperty(
+			'value',
+			'100,50'
+		)
+		fireEvent.submit(document.getElementById('create-sales-deal')!)
+		await waitFor(() => expect(mutateSales).toHaveBeenCalledOnce())
+		expect(vi.mocked(mutateSales).mock.calls[0][1].mutation).toMatchObject(
+			{
+				kind: 'create',
+				title: 'Не потерять черновик',
+				amountMinor: 10050,
+				contactId: '88888888-8888-4888-8888-888888888888'
+			}
+		)
+	})
+	it('does not label an open deal without a next action as closed', async () => {
+		vi.mocked(getSalesDeal).mockResolvedValue({ ...deal, nextTask: null })
+		mount(
+			<DealDetailsDrawer
+				id={deal.id}
+				pipelines={[pipeline]}
+				onClose={vi.fn()}
+				onSaved={vi.fn()}
+			/>
+		)
+		expect(await screen.findByText('Нет следующего действия')).toBeTruthy()
+		expect(screen.queryByText('Сделка закрыта')).toBeNull()
 	})
 	it('does not create without contacts permission', async () => {
 		context.permissions.data!.permissions = ['sales:read', 'sales:write']

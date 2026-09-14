@@ -8,7 +8,8 @@ import {
 	parseSalesDealResult,
 	parseSalesPage,
 	parseSalesTask,
-	parseTimelineEntry
+	parseTimelineEntry,
+	type SalesDealFilters
 } from '../model/sales.contract'
 
 export const listSalesPipelines = async (
@@ -35,7 +36,8 @@ export const listSalesDeals = async (
 	search: string,
 	pipelineId: string,
 	status: string,
-	withoutNextAction = false
+	withoutNextAction = false,
+	filters: SalesDealFilters = {}
 ) => {
 	if (typeof withoutNextAction !== 'boolean') throw invalidContractError()
 	const result = parseSalesPage(
@@ -50,7 +52,20 @@ export const listSalesDeals = async (
 				search,
 				...(pipelineId ? { pipelineId } : {}),
 				...(status ? { status } : {}),
-				...(withoutNextAction ? { withoutNextAction: 'true' } : {})
+				...(withoutNextAction ? { withoutNextAction: 'true' } : {}),
+				...(filters.stageId ? { stageId: filters.stageId } : {}),
+				...(filters.assignedToSubject
+					? { assignedToSubject: filters.assignedToSubject }
+					: {}),
+				...(filters.overdue ? { overdue: 'true' } : {}),
+				...(filters.overdueBefore
+					? { overdueBefore: filters.overdueBefore }
+					: {}),
+				...(filters.createdFrom
+					? { createdFrom: filters.createdFrom }
+					: {}),
+				...(filters.createdTo ? { createdTo: filters.createdTo } : {}),
+				...(filters.sort ? { sort: filters.sort } : {})
 			}
 		}),
 		page,
@@ -62,6 +77,18 @@ export const listSalesDeals = async (
 				(deal?.status !== 'OPEN' ||
 					deal.nextTask !== null ||
 					(status && deal.status !== status))
+			)
+				return null
+			if (
+				deal &&
+				((pipelineId && deal.pipelineId !== pipelineId) ||
+					(status && deal.status !== status) ||
+					(filters.stageId && deal.stageId !== filters.stageId) ||
+					(filters.assignedToSubject &&
+						deal.assignedToSubject !== filters.assignedToSubject) ||
+					(filters.createdFrom && deal.createdAt < filters.createdFrom) ||
+					(filters.createdTo && deal.createdAt >= filters.createdTo) ||
+					(filters.overdue && deal.status !== 'OPEN'))
 			)
 				return null
 			return deal?.archivedAt === null ? deal : null

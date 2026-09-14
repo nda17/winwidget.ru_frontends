@@ -1,4 +1,5 @@
 export * from './app-icon'
+export { ActionMenu } from './action-menu/ActionMenu'
 export * from './brand-logo'
 export * from './button'
 export * from './data-table'

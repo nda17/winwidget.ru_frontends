@@ -18,6 +18,14 @@ import {
 } from '@/entities/customer'
 import { AuthenticatedApiError } from '@/shared/api/authenticated-http-client'
 import {
+	CRM_PHONE_INPUT_ERROR,
+	CRM_PHONE_INPUT_MAX_LENGTH,
+	CRM_PHONE_INPUT_PLACEHOLDER,
+	formatCrmPhoneInput,
+	isCrmPhoneInputValid,
+	parseCrmPhoneInput
+} from '@/shared/lib/phone'
+import {
 	Button,
 	Drawer,
 	ScreenState,
@@ -27,7 +35,7 @@ import {
 } from '@/shared/ui'
 import { useMutation, useQuery } from '@tanstack/react-query'
 import { useState, type FormEvent } from 'react'
-import { useForm, useWatch } from 'react-hook-form'
+import { Controller, useForm, useWatch } from 'react-hook-form'
 import toast from 'react-hot-toast'
 import styles from './CustomerEditor.module.scss'
 import { CompanyLookup } from './CompanyLookup'
@@ -37,10 +45,11 @@ interface EditorProps {
 	workspaceId: string
 	kind: CustomerKind
 	id?: string
+	initialName?: string
 	canWrite: boolean
 	scopeKey?: string
 	onClose: () => void
-	onSaved: () => void
+	onSaved: (record: Customer) => void
 }
 
 interface Draft {
@@ -162,6 +171,7 @@ const CustomerForm = ({
 	workspaceId,
 	kind,
 	id,
+	initialName,
 	canWrite,
 	scopeKey,
 	onClose,
@@ -182,9 +192,12 @@ const CustomerForm = ({
 	const [companyPage, setCompanyPage] = useState(1)
 	const form = useForm<Draft>({
 		defaultValues: {
-			name: record?.name ?? '',
+			name: record?.name ?? initialName ?? '',
 			notes: record?.notes ?? '',
-			phone: record?.kind === 'contacts' ? (record.phone ?? '') : '',
+			phone:
+				record?.kind === 'contacts'
+					? formatCrmPhoneInput(record.phone ?? '')
+					: '',
 			email: record?.kind === 'contacts' ? (record.email ?? '') : '',
 			companyId:
 				record?.kind === 'contacts' ? (record.companyId ?? '') : '',
@@ -294,11 +307,11 @@ const CustomerForm = ({
 			return current.session.accessToken
 		},
 		mutateCustomer,
-		(_, completed) => {
+		(saved, completed) => {
 			toast.success(
 				completed.archive ? 'Запись архивирована' : 'Изменения сохранены'
 			)
-			onSaved()
+			onSaved(saved)
 			onClose()
 		}
 	)
@@ -370,7 +383,7 @@ const CustomerForm = ({
 						...(kind === 'contacts'
 							? {
 									...callPreferences,
-									phone: nullable(draft.phone),
+									phone: parseCrmPhoneInput(draft.phone),
 									email: nullable(draft.email)?.toLowerCase() ?? null,
 									companyId: nullable(draft.companyId)
 								}
@@ -391,7 +404,7 @@ const CustomerForm = ({
 	}
 	const checkDuplicates = async () => {
 		if (!(await form.trigger(['phone', 'email']))) return
-		const phone = form.getValues('phone').trim()
+		const phone = parseCrmPhoneInput(form.getValues('phone')) || ''
 		const email = form.getValues('email').trim()
 		if (!phone && !email) {
 			toast('Укажите телефон или email для поиска совпадений')
@@ -515,20 +528,33 @@ const CustomerForm = ({
 				/>
 				{kind === 'contacts' ? (
 					<>
-						<TextField
-							label="Телефон"
-							type="tel"
-							placeholder="+79001234567"
-							hint="Международный формат: + и от 7 до 15 цифр, без пробелов."
-							maxLength={16}
-							readOnly={!editable}
-							error={form.formState.errors.phone?.message}
-							{...form.register('phone', {
-								pattern: {
-									value: /^\+[1-9][0-9]{6,14}$/,
-									message: 'Пример формата: +79001234567'
-								}
-							})}
+						<Controller
+							name="phone"
+							control={form.control}
+							rules={{
+								validate: value =>
+									isCrmPhoneInputValid(value) || CRM_PHONE_INPUT_ERROR
+							}}
+							render={({ field }) => (
+								<TextField
+									{...field}
+									label="Телефон"
+									type="tel"
+									inputMode="tel"
+									autoComplete="tel"
+									placeholder={CRM_PHONE_INPUT_PLACEHOLDER}
+									hint="Можно вставить номер с пробелами и скобками. Для другой страны укажите + и код страны."
+									maxLength={CRM_PHONE_INPUT_MAX_LENGTH}
+									readOnly={!editable}
+									error={form.formState.errors.phone?.message}
+									onChange={event => {
+										if (editable)
+											field.onChange(
+												formatCrmPhoneInput(event.currentTarget.value)
+											)
+									}}
+								/>
+							)}
 						/>
 						<TextField
 							label="Email"

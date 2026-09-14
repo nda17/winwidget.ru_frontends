@@ -1,6 +1,7 @@
 'use client'
 
 import { listCustomers, type Customer } from '@/entities/customer'
+import { CustomerEditor } from '@/features/edit-customer'
 import type { SalesPipeline } from '@/entities/sales'
 import {
 	Button,
@@ -9,12 +10,13 @@ import {
 	SelectField,
 	TextField
 } from '@/shared/ui'
-import { useQuery } from '@tanstack/react-query'
-import { useState, type FormEvent } from 'react'
+import { useQuery, useQueryClient } from '@tanstack/react-query'
+import { useEffect, useState, type FormEvent } from 'react'
 import toast from 'react-hot-toast'
 import { useSalesCommand } from '../model/use-sales-command'
 import { useSalesSession } from '../model/use-sales-session'
 import { SalesCommandState } from './SalesCommandState'
+import { NextActionFields } from './NextActionFields'
 import styles from './SalesWorkflow.module.scss'
 
 export const parseRublesToMinor = (value: string) => {
@@ -34,6 +36,8 @@ export const CreateDealDrawer = ({
 	onSaved: () => void
 }) => {
 	const context = useSalesSession()
+	const client = useQueryClient()
+	const [creatingContact, setCreatingContact] = useState(false)
 	const [pipelineId, setPipelineId] = useState(pipelines[0]?.id || '')
 	const pipeline = pipelines.find(item => item.id === pipelineId)
 	const [stageId, setStageId] = useState(
@@ -47,12 +51,30 @@ export const CreateDealDrawer = ({
 	const [searchInput, setSearchInput] = useState('')
 	const [page, setPage] = useState(1)
 	const [selected, setSelected] = useState<Customer | null>(null)
+	useEffect(() => {
+		const timer = window.setTimeout(() => {
+			setSearch(searchInput.trim())
+			setPage(1)
+		}, 300)
+		return () => window.clearTimeout(timer)
+	}, [searchInput])
+	const canCreateContacts =
+		context.canWrite &&
+		context.permissions.data?.permissions.includes('customers:write') ===
+			true
 	const canReadContacts =
 		context.canRead &&
 		context.permissions.data?.permissions.includes('customers:read') ===
 			true
 	const contacts = useQuery({
-		queryKey: ['sales', 'contact-picker', ...context.key, page, search],
+		queryKey: [
+			'crm-customers',
+			context.workspace.workspaceId,
+			'sales-picker',
+			...context.key,
+			page,
+			search
+		],
 		enabled: canReadContacts && !!context.session,
 		queryFn: () =>
 			listCustomers(
@@ -60,7 +82,7 @@ export const CreateDealDrawer = ({
 				'contacts',
 				context.workspace.workspaceId,
 				page,
-				20,
+				10,
 				search
 			),
 		retry: false,
@@ -130,198 +152,248 @@ export const CreateDealDrawer = ({
 		command.resetAfterReview()
 	}
 	return (
-		<Drawer
-			isOpen
-			onClose={() => {
-				if (command.canClose()) onClose()
-			}}
-			title="Новая сделка"
-			description="Выберите клиента и запланируйте первое действие. Вы будете ответственным за сделку."
-			footer={
-				<Button
-					type="submit"
-					form="create-sales-deal"
-					disabled={!ready || command.locked || !selected}
-					isLoading={command.pending}
-				>
-					Создать сделку
-				</Button>
-			}
-		>
-			<form
-				id="create-sales-deal"
-				className={styles.form}
-				onSubmit={submit}
+		<>
+			<Drawer
+				isOpen={!creatingContact}
+				onClose={() => {
+					if (command.canClose()) onClose()
+				}}
+				title="Новая сделка"
+				description="Выберите клиента и запланируйте первое действие. Вы будете ответственным за сделку."
+				footer={
+					<Button
+						type="submit"
+						form="create-sales-deal"
+						disabled={!ready || command.locked || !selected}
+						isLoading={command.pending}
+					>
+						Создать сделку
+					</Button>
+				}
 			>
-				<SalesCommandState command={command} onReview={review} />
-				<fieldset className={styles.fields} disabled={command.locked}>
-					<TextField
-						label="Название сделки"
-						required
-						maxLength={200}
-						value={title}
-						onChange={event => setTitle(event.target.value)}
-					/>
-					<div className={styles.formGrid}>
-						<SelectField
-							label="Воронка"
-							value={pipelineId}
-							onChange={event => choosePipeline(event.target.value)}
-						>
-							{pipelines.map(item => (
-								<option key={item.id} value={item.id}>
-									{item.name}
-								</option>
-							))}
-						</SelectField>
-						<SelectField
-							label="Этап"
-							value={stageId}
-							onChange={event => setStageId(event.target.value)}
-						>
-							{pipeline?.stages
-								.filter(stage => stage.state === 'OPEN')
-								.map(stage => (
-									<option key={stage.id} value={stage.id}>
-										{stage.name}
+				<form
+					id="create-sales-deal"
+					className={styles.form}
+					onSubmit={submit}
+				>
+					<SalesCommandState command={command} onReview={review} />
+					<fieldset className={styles.fields} disabled={command.locked}>
+						<TextField
+							label="Название сделки"
+							required
+							maxLength={200}
+							value={title}
+							onChange={event => setTitle(event.target.value)}
+						/>
+						<div className={styles.formGrid}>
+							<SelectField
+								label="Воронка"
+								value={pipelineId}
+								onChange={event => choosePipeline(event.target.value)}
+							>
+								{pipelines.map(item => (
+									<option key={item.id} value={item.id}>
+										{item.name}
 									</option>
 								))}
-						</SelectField>
-					</div>
-					<TextField
-						label="Сумма, ₽"
-						inputMode="decimal"
-						required
-						value={amount}
-						onChange={event => setAmount(event.target.value)}
-					/>
-				</fieldset>
-				<section className={styles.section} aria-label="Выбор контакта">
-					<h3>Контакт</h3>
-					{!canReadContacts ? (
-						<ScreenState
-							variant="permission"
-							compact
-							description="Нет доступа к контактам для создания сделки."
+							</SelectField>
+							<SelectField
+								label="Этап"
+								value={stageId}
+								onChange={event => setStageId(event.target.value)}
+							>
+								{pipeline?.stages
+									.filter(stage => stage.state === 'OPEN')
+									.map(stage => (
+										<option key={stage.id} value={stage.id}>
+											{stage.name}
+										</option>
+									))}
+							</SelectField>
+						</div>
+						<TextField
+							label="Сумма, ₽"
+							inputMode="decimal"
+							required
+							value={amount}
+							onChange={event => setAmount(event.target.value)}
 						/>
-					) : (
-						<>
-							<div className={styles.actions}>
-								<TextField
-									label="Поиск контакта"
-									value={searchInput}
-									disabled={command.locked}
-									onChange={event => setSearchInput(event.target.value)}
-								/>
-								<Button
-									variant="secondary"
-									disabled={command.locked}
-									onClick={() => {
-										setPage(1)
-										setSearch(searchInput.trim())
-									}}
-								>
-									Найти
-								</Button>
-							</div>
-							{contacts.isError ? (
-								<ScreenState
-									variant="error"
-									compact
-									action={
-										<Button
-											variant="secondary"
-											onClick={() => void contacts.refetch()}
-										>
-											Повторить
-										</Button>
-									}
-								/>
-							) : contacts.isPending ? (
-								<ScreenState variant="loading" compact />
-							) : (
-								<>
-									<SelectField
-										label="Клиент"
-										value={selected?.id || ''}
-										disabled={command.locked || contacts.isFetching}
-										onChange={event =>
-											setSelected(
-												options.find(
-													item => item.id === event.target.value
-												) || null
-											)
-										}
-									>
-										<option value="">Выберите контакт</option>
-										{selected &&
-										!options.some(item => item.id === selected.id) ? (
-											<option value={selected.id}>{selected.name}</option>
+					</fieldset>
+					<section className={styles.section} aria-label="Выбор контакта">
+						<h3>Контакт</h3>
+						{!canReadContacts ? (
+							<ScreenState
+								variant="permission"
+								compact
+								description="Нет доступа к контактам для создания сделки."
+							/>
+						) : (
+							<>
+								{selected ? (
+									<>
+										<div className={styles.actions}>
+											<strong>{selected.name}</strong>
+											<Button
+												size="sm"
+												variant="ghost"
+												disabled={command.locked}
+												onClick={() => setSelected(null)}
+											>
+												Выбрать другого
+											</Button>
+										</div>
+										{contacts.isError ? (
+											<ScreenState
+												variant="error"
+												compact
+												description="Не удалось обновить контакты. Выбранный клиент и поля сделки сохранены. Повторите проверку, чтобы создать сделку."
+												action={
+													<Button
+														variant="secondary"
+														disabled={
+															command.locked || contacts.isFetching
+														}
+														onClick={() => {
+															void contacts.refetch()
+															toast('Повторно проверяем контакты')
+														}}
+													>
+														Повторить
+													</Button>
+												}
+											/>
 										) : null}
-										{options.map(item => (
-											<option key={item.id} value={item.id}>
-												{item.name}
-												{item.kind === 'contacts' && item.phone
-													? ` · ${item.phone}`
-													: ''}
-											</option>
-										))}
-									</SelectField>
-									{!options.length ? (
-										<p className={styles.muted}>
-											Контактов не найдено. Создайте клиента в разделе
-											«Контакты».
-										</p>
-									) : null}
-									<div className={styles.pagination}>
-										<Button
-											size="sm"
-											variant="ghost"
-											disabled={
-												command.locked || page === 1 || contacts.isFetching
+									</>
+								) : (
+									<>
+										<TextField
+											label="Поиск контакта"
+											maxLength={200}
+											placeholder="Имя, телефон или email"
+											value={searchInput}
+											disabled={command.locked}
+											onChange={event =>
+												setSearchInput(event.target.value)
 											}
-											onClick={() => setPage(value => value - 1)}
-										>
-											Назад
-										</Button>
-										<span>
-											Страница {page} · всего {contacts.data?.total || 0}
-										</span>
-										<Button
-											size="sm"
-											variant="ghost"
-											disabled={
-												command.locked ||
-												page * 20 >= (contacts.data?.total || 0) ||
-												contacts.isFetching
-											}
-											onClick={() => setPage(value => value + 1)}
-										>
-											Далее
-										</Button>
-									</div>
-								</>
-							)}
-						</>
-					)}
-				</section>
-				<fieldset className={styles.fields} disabled={command.locked}>
-					<TextField
-						label="Первое действие"
-						required
-						maxLength={200}
-						value={taskTitle}
-						onChange={event => setTaskTitle(event.target.value)}
-					/>
-					<TextField
-						label="Срок действия"
-						type="datetime-local"
-						required
-						value={due}
-						onChange={event => setDue(event.target.value)}
-					/>
-				</fieldset>
-			</form>
-		</Drawer>
+										/>
+										{contacts.isError ? (
+											<ScreenState
+												variant="error"
+												compact
+												action={
+													<Button
+														variant="secondary"
+														onClick={() => void contacts.refetch()}
+													>
+														Повторить
+													</Button>
+												}
+											/>
+										) : contacts.isFetching ? (
+											<ScreenState variant="loading" compact />
+										) : (
+											<div
+												className={styles.content}
+												role="group"
+												aria-label="Найденные контакты"
+											>
+												{options.map(item => (
+													<Button
+														key={item.id}
+														variant="secondary"
+														disabled={command.locked}
+														onClick={() => {
+															setSelected(item)
+															toast('Контакт выбран')
+														}}
+													>
+														{item.name}
+														{item.kind === 'contacts' && item.phone
+															? ` · ${item.phone}`
+															: ''}
+													</Button>
+												))}
+												{!options.length ? (
+													<p className={styles.muted}>
+														Контактов не найдено.
+													</p>
+												) : null}
+												{(contacts.data?.total ?? 0) > 10 || page > 1 ? (
+													<div className={styles.pagination}>
+														<Button
+															size="sm"
+															variant="ghost"
+															disabled={command.locked || page === 1}
+															onClick={() => setPage(value => value - 1)}
+														>
+															Назад
+														</Button>
+														<span>
+															Страница {page} · всего{' '}
+															{contacts.data?.total}
+														</span>
+														<Button
+															size="sm"
+															variant="ghost"
+															disabled={
+																command.locked ||
+																page * 10 >= (contacts.data?.total ?? 0)
+															}
+															onClick={() => setPage(value => value + 1)}
+														>
+															Далее
+														</Button>
+													</div>
+												) : null}
+											</div>
+										)}
+										{canCreateContacts ? (
+											<Button
+												variant="secondary"
+												disabled={command.locked}
+												onClick={() => {
+													setCreatingContact(true)
+													toast('Новый контакт для сделки')
+												}}
+											>
+												Создать контакт
+											</Button>
+										) : null}
+									</>
+								)}
+							</>
+						)}
+					</section>
+					<fieldset className={styles.fields} disabled={command.locked}>
+						<NextActionFields
+							title={taskTitle}
+							onTitleChange={setTaskTitle}
+							due={due}
+							onDueChange={setDue}
+							disabled={command.locked}
+							titleLabel="Первое действие"
+							dueLabel="Срок действия"
+						/>
+					</fieldset>
+				</form>
+			</Drawer>
+			{creatingContact ? (
+				<CustomerEditor
+					workspaceId={context.workspace.workspaceId}
+					kind="contacts"
+					canWrite={canCreateContacts}
+					scopeKey={context.scopeKey}
+					initialName={searchInput}
+					onClose={() => setCreatingContact(false)}
+					onSaved={contact => {
+						setSelected(contact)
+						void client.invalidateQueries({
+							queryKey: ['crm-customers', context.workspace.workspaceId]
+						})
+						void contacts.refetch()
+					}}
+				/>
+			) : null}
+		</>
 	)
 }

@@ -8,6 +8,7 @@ import {
 } from '@testing-library/react'
 import { afterEach, beforeEach, describe, expect, it, vi } from 'vitest'
 import {
+	findCustomerDuplicates,
 	getCustomer,
 	listCustomers,
 	mutateCustomer,
@@ -346,7 +347,7 @@ afterEach(() => {
 	cleanup()
 	client.clear()
 })
-const mount = (canWrite = true, id?: string) => {
+const mount = (canWrite = true, id?: string, initialName?: string) => {
 	const onSaved = vi.fn()
 	const onClose = vi.fn()
 	render(
@@ -356,6 +357,7 @@ const mount = (canWrite = true, id?: string) => {
 					workspaceId={workspaceId}
 					kind="contacts"
 					id={id}
+					initialName={initialName}
 					canWrite={canWrite}
 					onSaved={onSaved}
 					onClose={onClose}
@@ -366,6 +368,76 @@ const mount = (canWrite = true, id?: string) => {
 	return { onSaved, onClose }
 }
 describe('CustomerEditor', () => {
+	it('formats pasted local phones and sends E164 with the saved contact to the caller', async () => {
+		const callbacks = mount(true, undefined, 'Новый клиент из сделки')
+		expect(screen.getByRole('textbox', { name: 'Имя' })).toHaveProperty(
+			'value',
+			'Новый клиент из сделки'
+		)
+		const phone = screen.getByRole('textbox', { name: 'Телефон' })
+		fireEvent.change(phone, { target: { value: '8 (999) 123-45-67' } })
+		expect(phone).toHaveProperty('value', '+7 999 123 45 67')
+		fireEvent.submit(document.getElementById('customer-editor')!)
+		await waitFor(() => expect(mutateCustomer).toHaveBeenCalledOnce())
+		expect(
+			vi.mocked(mutateCustomer).mock.calls[0][1].fields
+		).toMatchObject({
+			name: 'Новый клиент из сделки',
+			phone: '+79991234567'
+		})
+		expect(callbacks.onSaved).toHaveBeenCalledWith(contact)
+	})
+	it('normalizes the duplicate lookup independently of the displayed phone', async () => {
+		vi.mocked(findCustomerDuplicates).mockResolvedValue({
+			schemaVersion: 1,
+			items: [],
+			page: 1,
+			pageSize: 25,
+			total: 0
+		})
+		mount()
+		fireEvent.change(screen.getByRole('textbox', { name: 'Телефон' }), {
+			target: { value: '+44 (20) 7946-0018' }
+		})
+		fireEvent.click(
+			screen.getByRole('button', { name: 'Проверить совпадения' })
+		)
+		await waitFor(() =>
+			expect(findCustomerDuplicates).toHaveBeenCalledWith(
+				'token',
+				workspaceId,
+				'+442079460018',
+				''
+			)
+		)
+	})
+	it.each(['+74951234567', '+998901234567', '+123456789012345'])(
+		'preserves an existing international or landline number %s when editing other fields',
+		async phone => {
+			vi.mocked(getCustomer).mockResolvedValue({ ...contact, phone })
+			mount(true, contact.id)
+			fireEvent.change(
+				await screen.findByRole('textbox', { name: 'Имя' }),
+				{
+					target: { value: 'Новое имя' }
+				}
+			)
+			fireEvent.submit(document.getElementById('customer-editor')!)
+			await waitFor(() => expect(mutateCustomer).toHaveBeenCalledOnce())
+			expect(
+				vi.mocked(mutateCustomer).mock.calls[0][1].fields
+			).toMatchObject({ phone })
+		}
+	)
+	it('blocks an overlong phone without truncating it into a different number', async () => {
+		mount(true, undefined, 'Клиент')
+		const phone = screen.getByRole('textbox', { name: 'Телефон' })
+		fireEvent.change(phone, { target: { value: '+1234567890123456' } })
+		fireEvent.submit(document.getElementById('customer-editor')!)
+		await screen.findByText('Проверьте правильность ввода номера телефона')
+		expect(phone).toHaveProperty('value', '+1234567890123456')
+		expect(mutateCustomer).not.toHaveBeenCalled()
+	})
 	it('keeps an unsaved draft and its version when a live refresh finds a remote edit', async () => {
 		mount(true, contact.id)
 		const input = await screen.findByRole('textbox', { name: 'Имя' })

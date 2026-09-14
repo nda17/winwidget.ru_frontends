@@ -1,17 +1,17 @@
 .screen {
-	@apply flex flex-col gap-6;
+	@apply flex min-w-0 flex-col gap-4;
 }
 .tabs {
-	@apply flex flex-wrap gap-3;
+	@apply flex flex-wrap items-center gap-2;
 }
 .panel {
 	@apply overflow-hidden rounded-panel border border-crm-border bg-crm-surface shadow-panel;
 }
 .panelHeader {
-	@apply flex flex-wrap items-center justify-between gap-4 border-b border-crm-border p-5 lg:p-6;
+	@apply flex flex-wrap items-center justify-between gap-3 border-b border-crm-border p-3 sm:p-4;
 }
 .panelTitle {
-	@apply text-lg font-bold text-crm-text;
+	@apply text-base font-semibold text-crm-text;
 }
 .search {
 	@apply flex w-full flex-col gap-3 sm:flex-row sm:items-end lg:w-auto;
@@ -49,5 +49,5 @@
 	@apply w-[14%];
 }
 .pagination {
-	@apply flex flex-wrap items-center justify-end gap-3 border-t border-crm-border p-5 text-sm text-crm-muted;
+	@apply flex flex-wrap items-center justify-end gap-3 border-t border-crm-border p-3 text-sm text-crm-muted;
 }

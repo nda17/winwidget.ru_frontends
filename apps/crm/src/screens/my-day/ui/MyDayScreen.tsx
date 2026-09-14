@@ -1,6 +1,7 @@
 'use client'
 
 import { useState } from 'react'
+import Link from 'next/link'
 import { useQueryClient } from '@tanstack/react-query'
 import toast from 'react-hot-toast'
 import {
@@ -23,6 +24,7 @@ import { isUuidV4 } from '@/shared/lib/contract'
 import { WorkdayExportControl } from '@/features/export-records'
 import {
 	Button,
+	ActionMenu,
 	PageHeader,
 	ReadOnlyBanner,
 	ScreenState
@@ -165,39 +167,56 @@ const MyDayContent = ({
 			>
 				<div className={styles.screen}>
 					<PageHeader
-						eyebrow="Рабочий день"
 						title="Планировщик"
-						description="Сосредоточьтесь на задачах: выберите день, период или все сроки."
+						description="Задачи на день, просрочки и новые обращения."
 						actions={
 							<>
-								<Button
-									variant="secondary"
+								{context.permissions.data?.permissions.includes(
+									'sales:analytics'
+								) &&
+								['OWNER', 'CRM_ADMIN', 'TEAM_LEAD'].includes(
+									context.permissions.data.role
+								) ? (
+									<Link
+										href="/analytics"
+										className={styles.overviewLink}
+										onClick={() => toast('Открываем обзор команды')}
+									>
+										Обзор команды
+									</Link>
+								) : null}
+								<ActionMenu
 									disabled={command.pending || command.ambiguous}
-									tooltip="Открыть серии задач, которые создаются по расписанию, и управлять их повторением."
-									disabledTooltip="Сначала подтвердите результат текущего изменения задачи."
-									onClick={() => {
-										setSeriesOpen(true)
-										toast('Повторяющиеся задачи')
-									}}
 								>
-									Повторяющиеся
-								</Button>
-								<WorkdayExportControl
-									disabled={command.pending || command.ambiguous}
-								/>
-								<Button
-									variant="secondary"
-									disabled={command.pending || command.ambiguous}
-									onClick={() =>
-										void reload().catch(() =>
-											toast.error('Не удалось обновить задачи')
-										)
-									}
-									tooltip="Загрузить актуальные задачи с сервера, сохранив выбранные период и фильтры."
-									disabledTooltip="Дождитесь подтверждения текущего изменения перед обновлением списка."
-								>
-									Обновить
-								</Button>
+									<Button
+										variant="secondary"
+										disabled={command.pending || command.ambiguous}
+										tooltip="Открыть серии задач, которые создаются по расписанию, и управлять их повторением."
+										disabledTooltip="Сначала подтвердите результат текущего изменения задачи."
+										onClick={() => {
+											setSeriesOpen(true)
+											toast('Повторяющиеся задачи')
+										}}
+									>
+										Повторяющиеся
+									</Button>
+									<WorkdayExportControl
+										disabled={command.pending || command.ambiguous}
+									/>
+									<Button
+										variant="secondary"
+										disabled={command.pending || command.ambiguous}
+										onClick={() =>
+											void reload().catch(() =>
+												toast.error('Не удалось обновить задачи')
+											)
+										}
+										tooltip="Загрузить актуальные задачи с сервера, сохранив выбранные период и фильтры."
+										disabledTooltip="Дождитесь подтверждения текущего изменения перед обновлением списка."
+									>
+										Обновить
+									</Button>
+								</ActionMenu>
 								<Button
 									disabled={!context.canWrite || command.locked}
 									tooltip="Создать самостоятельную задачу или связать её со сделкой, указав срок и ответственного."
@@ -327,12 +346,24 @@ const MyDayContent = ({
 									['COMPLETED', 'Готово']
 								] as const
 							).map(([status, label]) => (
-								<div className={styles.summaryItem} key={status}>
+								<button
+									type="button"
+									className={styles.summaryItem}
+									key={status}
+									disabled={command.pending || command.ambiguous}
+									onClick={() => {
+										if (!command.canClose()) return
+										setSelected(null)
+										setView('list')
+										setFilters(value => ({ ...value, status, page: 1 }))
+										toast(`Показаны задачи: ${label.toLowerCase()}`)
+									}}
+								>
 									<span className={styles.hint}>{label}</span>
 									<strong className={styles.summaryValue}>
 										{overview.data?.counts[status] ?? '—'}
 									</strong>
-								</div>
+								</button>
 							))}
 							<button
 								className={`${styles.summaryItem} ${styles.overdue}`}
@@ -356,6 +387,9 @@ const MyDayContent = ({
 							</button>
 						</section>
 					)}
+					<WorkdayInboxSummary
+						disabled={command.pending || command.ambiguous}
+					/>
 					<WorkdayCollection
 						key={JSON.stringify([
 							context.key,
@@ -373,9 +407,6 @@ const MyDayContent = ({
 							if (command.canClose())
 								setFilters(value => ({ ...value, page }))
 						}}
-					/>
-					<WorkdayInboxSummary
-						disabled={command.pending || command.ambiguous}
 					/>
 					{selected ? (
 						<WorkdayTaskDrawer

@@ -2,6 +2,14 @@
 
 import { TeamSelect, useTeamOptions } from '@/entities/crm-team'
 import {
+	CRM_PHONE_INPUT_ERROR,
+	CRM_PHONE_INPUT_MAX_LENGTH,
+	CRM_PHONE_INPUT_PLACEHOLDER,
+	formatCrmPhoneInput,
+	isCrmPhoneInputValid,
+	parseCrmPhoneInput
+} from '@/shared/lib/phone'
+import {
 	getInboxEntry,
 	listIntakeActivities,
 	mutateInbox,
@@ -16,7 +24,7 @@ import {
 } from '@/shared/ui'
 import { useQuery } from '@tanstack/react-query'
 import { useState } from 'react'
-import { useForm, useWatch } from 'react-hook-form'
+import { Controller, useForm, useWatch } from 'react-hook-form'
 import toast from 'react-hot-toast'
 import type { IntakeAccess } from '../model/use-intake-access'
 import { useIntakeCommand } from '../model/use-intake-command'
@@ -175,7 +183,7 @@ export const InboxEditor = ({ access, id, onClose, onSaved }: Props) => {
 							commandId: crypto.randomUUID(),
 							title: draft.title.trim(),
 							name: draft.name.trim(),
-							phone: draft.phone.trim() || null,
+							phone: parseCrmPhoneInput(draft.phone),
 							email: draft.email.trim().toLowerCase() || null,
 							message: draft.message.trim() || null,
 							teamId: draft.teamId || null
@@ -349,19 +357,35 @@ export const InboxEditor = ({ access, id, onClose, onSaved }: Props) => {
 											})}
 										/>
 										<div className={styles.row}>
-											<TextField
-												label="Телефон"
-												type="tel"
-												placeholder="+79001234567"
-												maxLength={16}
-												readOnly={!editable}
-												error={form.formState.errors.phone?.message}
-												{...form.register('phone', {
+											<Controller
+												name="phone"
+												control={form.control}
+												rules={{
 													validate: value =>
-														!value ||
-														/^\+[1-9][0-9]{6,14}$/.test(value) ||
-														'Укажите номер в формате +79001234567'
-												})}
+														isCrmPhoneInputValid(value) ||
+														CRM_PHONE_INPUT_ERROR
+												}}
+												render={({ field }) => (
+													<TextField
+														{...field}
+														label="Телефон"
+														type="tel"
+														inputMode="tel"
+														autoComplete="tel"
+														placeholder={CRM_PHONE_INPUT_PLACEHOLDER}
+														maxLength={CRM_PHONE_INPUT_MAX_LENGTH}
+														readOnly={!editable}
+														error={form.formState.errors.phone?.message}
+														onChange={event => {
+															if (editable)
+																field.onChange(
+																	formatCrmPhoneInput(
+																		event.currentTarget.value
+																	)
+																)
+														}}
+													/>
+												)}
 											/>
 											<TextField
 												label="Email"

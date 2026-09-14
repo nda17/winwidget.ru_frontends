@@ -14,6 +14,7 @@ import { useSessionStore } from '@/entities/session'
 import { CustomerEditor } from '@/features/edit-customer'
 import { ExportRecordsControl } from '@/features/export-records'
 import { AuthenticatedApiError } from '@/shared/api/authenticated-http-client'
+import { isUuidV4 } from '@/shared/lib/contract'
 import {
 	AppIcon,
 	Button,
@@ -27,7 +28,11 @@ import { useQuery, useQueryClient } from '@tanstack/react-query'
 import { useState, type FormEvent } from 'react'
 import styles from './ContactsScreen.module.scss'
 
-const ContactsScreen = () => {
+const ContactsScreen = ({
+	initialContactId
+}: {
+	initialContactId?: string | null
+}) => {
 	const { workspaceId, canWrite: subscriptionCanWrite } =
 		useCrmWorkspaceAccess()
 	const session = useSessionStore(state => state.session)
@@ -43,6 +48,29 @@ const ContactsScreen = () => {
 		canRead &&
 		subscriptionCanWrite &&
 		permissions.data!.permissions.includes('customers:write')
+	const linkBinding = JSON.stringify([
+		workspaceId,
+		session?.userId,
+		revision
+	])
+	const linkScope = JSON.stringify([linkBinding, scopeKey])
+	const [link, setLink] = useState(() =>
+		isUuidV4(initialContactId)
+			? {
+					id: initialContactId,
+					binding: linkBinding,
+					scope: null as string | null
+				}
+			: null
+	)
+	if (
+		link &&
+		(link.binding !== linkBinding ||
+			(link.scope !== null && link.scope !== linkScope))
+	)
+		setLink(null)
+	else if (link?.scope === null && canRead)
+		setLink({ ...link, scope: linkScope })
 	const [kind, setKind] = useState<CustomerKind>('contacts')
 	const [searchDraft, setSearchDraft] = useState('')
 	const [search, setSearch] = useState('')
@@ -51,6 +79,15 @@ const ContactsScreen = () => {
 		id?: string
 		kind: CustomerKind
 	} | null>(null)
+	const activeSelection =
+		selected ??
+		(link?.scope === linkScope
+			? { id: link.id, kind: 'contacts' as const }
+			: null)
+	const closeEditor = () => {
+		setSelected(null)
+		setLink(null)
+	}
 	const queryClient = useQueryClient()
 	const records = useQuery({
 		queryKey: [
@@ -150,7 +187,7 @@ const ContactsScreen = () => {
 		setPage(1)
 		setSearch('')
 		setSearchDraft('')
-		setSelected(null)
+		closeEditor()
 	}
 	const totalPages = Math.max(
 		1,
@@ -362,15 +399,15 @@ const ContactsScreen = () => {
 					</div>
 				</section>
 			)}
-			{selected && canRead && !permissionError ? (
+			{activeSelection && canRead && !permissionError ? (
 				<CustomerEditor
-					key={`${workspaceId}:${session?.userId}:${revision}:${selected.kind}:${selected.id ?? 'new'}`}
+					key={`${workspaceId}:${session?.userId}:${revision}:${activeSelection.kind}:${activeSelection.id ?? 'new'}`}
 					workspaceId={workspaceId}
-					kind={selected.kind}
-					id={selected.id}
+					kind={activeSelection.kind}
+					id={activeSelection.id}
 					canWrite={canWrite}
 					scopeKey={scopeKey}
-					onClose={() => setSelected(null)}
+					onClose={closeEditor}
 					onSaved={() => {
 						void queryClient.invalidateQueries({
 							queryKey: ['crm-customers', workspaceId]

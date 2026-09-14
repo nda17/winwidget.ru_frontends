@@ -230,6 +230,9 @@ importers:
       clsx:
         specifier: 2.1.1
         version: 2.1.1
+      libphonenumber-js:
+        specifier: 1.12.42
+        version: 1.12.42
       next:
         specifier: 16.3.3
         version: 16.3.3(@babel/core@7.29.7)(@types/node@20.19.39)(react-dom@19.2.8(react@19.2.8))(react@19.2.8)(sass@1.103.1)

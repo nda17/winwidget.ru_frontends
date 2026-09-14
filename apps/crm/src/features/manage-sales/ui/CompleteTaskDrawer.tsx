@@ -1,19 +1,14 @@
 'use client'
 
 import { getSalesDeal, type SalesTask } from '@/entities/sales'
-import {
-	Button,
-	Drawer,
-	ScreenState,
-	TextareaField,
-	TextField
-} from '@/shared/ui'
+import { Button, Drawer, ScreenState, TextareaField } from '@/shared/ui'
 import { useQuery } from '@tanstack/react-query'
 import { useState, type FormEvent } from 'react'
 import toast from 'react-hot-toast'
 import { useSalesCommand } from '../model/use-sales-command'
 import { useSalesSession } from '../model/use-sales-session'
 import { SalesCommandState } from './SalesCommandState'
+import { NextActionFields } from './NextActionFields'
 import { salesDate } from './DealDetailsDrawer'
 import styles from './SalesWorkflow.module.scss'
 
@@ -154,19 +149,12 @@ export const CompleteTaskDrawer = ({
 							value={outcome}
 							onChange={event => setOutcome(event.target.value)}
 						/>
-						<TextField
-							label="Следующее действие"
-							required
-							maxLength={200}
-							value={title}
-							onChange={event => setTitle(event.target.value)}
-						/>
-						<TextField
-							label="Срок следующего действия"
-							type="datetime-local"
-							required
-							value={due}
-							onChange={event => setDue(event.target.value)}
+						<NextActionFields
+							title={title}
+							onTitleChange={setTitle}
+							due={due}
+							onDueChange={setDue}
+							disabled={!ready}
 						/>
 					</fieldset>
 					<p className={styles.muted}>

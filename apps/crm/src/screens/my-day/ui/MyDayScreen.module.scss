@@ -1,11 +1,11 @@
 .screen {
-	@apply flex min-w-0 flex-col gap-5;
+	@apply flex min-w-0 flex-col gap-4;
 }
 .filters {
-	@apply min-w-0 rounded-panel border border-crm-border bg-crm-surface p-4 sm:p-5;
+	@apply min-w-0 rounded-xl border border-crm-border bg-crm-surface p-3 sm:p-4;
 }
 .toolbar {
-	@apply mb-4 flex flex-wrap items-center justify-between gap-3;
+	@apply mb-3 flex flex-wrap items-center justify-between gap-2;
 }
 .viewSwitch {
 	@apply flex flex-wrap items-center gap-2;
@@ -23,7 +23,7 @@
 	@apply grid min-w-0 grid-cols-1 gap-3 px-3 pb-3 sm:grid-cols-2 xl:grid-cols-3;
 }
 .hint {
-	@apply text-sm leading-relaxed text-crm-muted;
+	@apply text-sm leading-5 text-crm-muted;
 }
 .filters > .hint {
 	@apply mt-3;
@@ -32,7 +32,7 @@
 	@apply grid grid-cols-2 gap-3 lg:grid-cols-4;
 }
 .summaryItem {
-	@apply flex min-w-0 flex-col items-start gap-2 rounded-2xl border border-crm-border bg-crm-surface p-4 text-left;
+	@apply flex min-w-0 flex-col items-start gap-1 rounded-xl border border-crm-border bg-crm-surface p-3 text-left transition-colors hover:border-primary/40 focus-visible:outline-none focus-visible:ring-2 focus-visible:ring-primary disabled:cursor-not-allowed;
 }
 .summaryValue {
 	@apply text-2xl font-semibold text-crm-text;
@@ -114,4 +114,7 @@
 }
 .empty {
 	@apply py-6 text-center text-sm text-crm-muted;
+}
+.overviewLink {
+	@apply inline-flex min-h-11 items-center justify-center rounded-xl border border-crm-border bg-crm-surface px-3 py-2 text-sm font-medium text-crm-text hover:bg-crm-surface-muted focus-visible:outline-none focus-visible:ring-2 focus-visible:ring-primary;
 }

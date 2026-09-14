@@ -1,5 +1,5 @@
 .header {
-	@apply flex flex-col items-start justify-between gap-4 lg:flex-row lg:flex-wrap;
+	@apply flex flex-col items-start justify-between gap-3 lg:flex-row lg:flex-wrap lg:items-center;
 }
 
 .copy {
@@ -7,15 +7,15 @@
 }
 
 .eyebrow {
-	@apply mb-1 text-xs font-bold uppercase tracking-[0.1em] text-primary;
+	@apply mb-1 text-xs font-medium uppercase tracking-wide text-crm-muted;
 }
 
 .title {
-	@apply break-words text-2xl font-bold tracking-tight text-crm-text sm:text-3xl;
+	@apply break-words text-2xl font-semibold tracking-tight text-crm-text;
 }
 
 .description {
-	@apply mt-2 max-w-3xl break-words text-sm leading-6 text-crm-muted;
+	@apply mt-1 max-w-3xl break-words text-sm leading-5 text-crm-muted;
 }
 
 .actions {

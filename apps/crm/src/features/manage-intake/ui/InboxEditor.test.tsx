@@ -183,6 +183,39 @@ const mount = (
 	return onClose
 }
 describe('InboxEditor real command states', () => {
+	it.each([
+		['8 (999) 123-45-67', '+7 999 123 45 67', '+79991234567'],
+		['+44 (20) 7946-0018', '+44 20 7946 0018', '+442079460018'],
+		['', '', null]
+	])(
+		'submits the canonical optional phone from %s',
+		async (input, display, phone) => {
+			mount()
+			fireEvent.change(
+				screen.getByRole('textbox', { name: 'Тема обращения' }),
+				{
+					target: { value: 'Запрос' }
+				}
+			)
+			fireEvent.change(
+				screen.getByRole('textbox', { name: 'Имя клиента' }),
+				{
+					target: { value: 'Клиент' }
+				}
+			)
+			const field = screen.getByRole('textbox', { name: 'Телефон' })
+			fireEvent.change(field, { target: { value: input } })
+			expect(field).toHaveProperty('value', display)
+			fireEvent.click(
+				screen.getByRole('button', { name: 'Создать обращение' })
+			)
+			await waitFor(() => expect(mutateInbox).toHaveBeenCalledOnce())
+			expect(vi.mocked(mutateInbox).mock.calls[0][1]).toMatchObject({
+				operation: 'create',
+				phone
+			})
+		}
+	)
 	it('shows a safe not-found state for an inaccessible linked UUID without a create or acceptance action', async () => {
 		vi.mocked(getInboxEntry).mockRejectedValue(
 			new AuthenticatedApiError(

@@ -14,6 +14,7 @@ import {
 import { AuthenticatedApiError } from '@/shared/api/authenticated-http-client'
 import {
 	AppIcon,
+	ActionMenu,
 	Button,
 	DataTable,
 	PageHeader,
@@ -209,31 +210,32 @@ const InboxContent = ({
 	return (
 		<div className={styles.screen}>
 			<PageHeader
-				eyebrow="Обработка обращений"
 				title="Входящие"
-				description="Ручные и внешние обращения вашего рабочего пространства. Проверяйте детали и историю, прежде чем продолжить работу с клиентом."
+				description="Новые заявки и история работы с обращениями."
 				actions={
 					<div className={styles.tabs}>
-						<ExportRecordsControl
-							entity="inbox"
-							disabled={denied || tab !== 'inbox'}
-						/>
-						<Button
-							variant="secondary"
-							tooltip="Проверить CSV-файл и импортировать строки как новые обращения. Контакты и сделки создаются при принятии в работу."
-							disabled={
-								!access.canWrite ||
-								access.permissions.data?.role === 'ANALYST' ||
-								denied ||
-								tab !== 'inbox'
-							}
-							onClick={() => {
-								toast('Открываем проверку CSV')
-								setImporting(true)
-							}}
-						>
-							Импорт CSV
-						</Button>
+						<ActionMenu>
+							<ExportRecordsControl
+								entity="inbox"
+								disabled={denied || tab !== 'inbox'}
+							/>
+							<Button
+								variant="secondary"
+								tooltip="Проверить CSV-файл и импортировать строки как новые обращения. Контакты и сделки создаются при принятии в работу."
+								disabled={
+									!access.canWrite ||
+									access.permissions.data?.role === 'ANALYST' ||
+									denied ||
+									tab !== 'inbox'
+								}
+								onClick={() => {
+									toast('Открываем проверку CSV')
+									setImporting(true)
+								}}
+							>
+								Импорт CSV
+							</Button>
+						</ActionMenu>
 						<Button
 							disabled={!access.canWrite || denied || tab !== 'inbox'}
 							tooltip="Внести обращение вручную, чтобы затем принять его в работу или отклонить."

@@ -1,5 +1,7 @@
 'use client'
 
+import { getCustomer } from '@/entities/customer'
+import Link from 'next/link'
 import {
 	getSalesDeal,
 	listSalesTimeline,
@@ -12,8 +14,7 @@ import {
 	ScreenState,
 	SelectField,
 	StatusBadge,
-	TextareaField,
-	TextField
+	TextareaField
 } from '@/shared/ui'
 import { useQuery, useQueryClient } from '@tanstack/react-query'
 import { useState, type FormEvent } from 'react'
@@ -21,6 +22,8 @@ import toast from 'react-hot-toast'
 import { useSalesCommand } from '../model/use-sales-command'
 import { useSalesSession } from '../model/use-sales-session'
 import { SalesCommandState } from './SalesCommandState'
+import { NextActionFields } from './NextActionFields'
+import { useSalesAssignees } from '../model/use-sales-assignees'
 import styles from './SalesWorkflow.module.scss'
 
 export const salesMoney = (minor: number) =>
@@ -99,7 +102,11 @@ const DealEditor = ({
 					Изменения доступны после проверки актуальных данных и прав.
 				</p>
 			) : null}
-			<form className={styles.form} onSubmit={submit}>
+			<form
+				id="deal-result-form"
+				className={styles.form}
+				onSubmit={submit}
+			>
 				<fieldset
 					className={styles.fields}
 					disabled={command.locked || !enabled}
@@ -124,35 +131,17 @@ const DealEditor = ({
 						rows={3}
 					/>
 					{target?.state === 'OPEN' ? (
-						<>
-							<TextField
-								label="Следующее действие"
-								value={taskTitle}
-								onChange={event => setTaskTitle(event.target.value)}
-								required
-								maxLength={200}
-							/>
-							<TextField
-								label="Срок следующего действия"
-								type="datetime-local"
-								value={due}
-								onChange={event => setDue(event.target.value)}
-								required
-							/>
-						</>
+						<NextActionFields
+							title={taskTitle}
+							onTitleChange={setTaskTitle}
+							due={due}
+							onDueChange={setDue}
+						/>
 					) : (
 						<p className={styles.muted}>
 							Текущее действие завершится вместе со сделкой.
 						</p>
 					)}
-					<Button
-						type="submit"
-						tooltip="Сохранить результат текущего действия и переход на выбранный этап сделки."
-						isLoading={command.pending}
-						disabled={!target}
-					>
-						Сохранить результат
-					</Button>
 				</fieldset>
 			</form>
 			{confirmArchive ? (
@@ -245,6 +234,32 @@ export const DealDetailsDrawer = ({
 	})
 	const deal = detail.data
 	const pipeline = pipelines.find(item => item.id === deal?.pipelineId)
+	const assigneeLabel = useSalesAssignees(
+		context,
+		deal && !detail.isError ? [deal.assignedToSubject] : []
+	)
+	const canReadContact =
+		context.canRead &&
+		context.permissions.data?.permissions.includes('customers:read') ===
+			true
+	const contact = useQuery({
+		queryKey: [
+			'crm-customer-detail',
+			...context.key,
+			'deal-contact',
+			deal?.contactId
+		],
+		enabled: canReadContact && !!deal && !detail.isError,
+		queryFn: () =>
+			getCustomer(
+				context.session!.accessToken,
+				'contacts',
+				context.workspace.workspaceId,
+				deal!.contactId
+			),
+		retry: false,
+		gcTime: 0
+	})
 	const reload = async () => {
 		const [auth, record] = await Promise.all([
 			context.permissions.refetch(),
@@ -284,7 +299,27 @@ export const DealDetailsDrawer = ({
 					? deal?.title || 'Сделка'
 					: 'Сделка'
 			}
-			description="Карточка, история и обязательное следующее действие."
+			description={
+				context.canRead && !detail.isError ? pipeline?.name : undefined
+			}
+			footer={
+				context.canRead && !detail.isError && deal ? (
+					<Button
+						type="submit"
+						form="deal-result-form"
+						disabled={
+							!context.canWrite ||
+							detail.isFetching ||
+							!pipeline ||
+							command.locked
+						}
+						isLoading={command.pending}
+						tooltip="Сохранить результат и следующее действие либо закрыть сделку на выбранном этапе"
+					>
+						Сохранить результат
+					</Button>
+				) : null
+			}
 		>
 			<SalesCommandState
 				command={command}
@@ -314,42 +349,103 @@ export const DealDetailsDrawer = ({
 				<ScreenState variant="loading" />
 			) : (
 				<div className={styles.content}>
-					<div className={styles.summary}>
-						<span>
-							{pipeline?.stages.find(stage => stage.id === deal.stageId)
-								?.name || statuses[deal.status]}
-						</span>
-						<strong>{salesMoney(deal.amountMinor)}</strong>
-						<span>{deal.contactName}</span>
-					</div>
-					<dl className={styles.details}>
-						<div>
-							<dt>Статус</dt>
-							<dd>{statuses[deal.status]}</dd>
+					<section className={styles.summary} aria-label="Клиент и сделка">
+						<div className={styles.summaryHeading}>
+							{canReadContact ? (
+								<Link
+									className={styles.contactLink}
+									href={`/contacts?contactId=${encodeURIComponent(deal.contactId)}`}
+									onClick={event => {
+										if (!command.canClose()) event.preventDefault()
+									}}
+								>
+									{deal.contactName}
+								</Link>
+							) : (
+								<span className={styles.contactName}>
+									{deal.contactName}
+								</span>
+							)}
+							<StatusBadge
+								tone={
+									deal.status === 'WON'
+										? 'success'
+										: deal.status === 'LOST'
+											? 'danger'
+											: 'info'
+								}
+							>
+								{pipeline?.stages.find(stage => stage.id === deal.stageId)
+									?.name || statuses[deal.status]}
+							</StatusBadge>
 						</div>
-						<div>
-							<dt>Ответственный</dt>
-							<dd>
-								{deal.assignedToSubject ===
-								context.permissions.data?.subject
-									? 'Вы'
-									: deal.assignedToSubject}
-							</dd>
-						</div>
-						<div>
-							<dt>Следующее действие</dt>
-							<dd>{deal.nextTask?.title || 'Сделка закрыта'}</dd>
-						</div>
-						<div>
-							<dt>Срок</dt>
-							<dd>
-								{deal.nextTask ? salesDate(deal.nextTask.dueAt) : '—'}
-							</dd>
-						</div>
-					</dl>
-					{deal.nextTask && Date.parse(deal.nextTask.dueAt) < openedAt ? (
-						<StatusBadge tone="danger">Действие просрочено</StatusBadge>
-					) : null}
+						{canReadContact &&
+						!contact.isError &&
+						contact.data?.kind === 'contacts' ? (
+							<div className={styles.contactChannels}>
+								{contact.data.phone ? (
+									<a
+										href={`tel:${contact.data.phone}`}
+										onClick={() => toast('Открытие звонка')}
+									>
+										{contact.data.phone}
+									</a>
+								) : null}
+								{contact.data.email ? (
+									<a
+										href={`mailto:${contact.data.email}`}
+										onClick={() => toast('Открытие письма')}
+									>
+										{contact.data.email}
+									</a>
+								) : null}
+							</div>
+						) : canReadContact && contact.isError ? (
+							<p className={styles.muted}>
+								Контактные данные временно недоступны.
+							</p>
+						) : null}
+						<dl className={styles.details}>
+							<div>
+								<dt>Сумма сделки</dt>
+								<dd className={styles.amount}>
+									{salesMoney(deal.amountMinor)}
+								</dd>
+							</div>
+							<div>
+								<dt>Ответственный</dt>
+								<dd>{assigneeLabel(deal.assignedToSubject)}</dd>
+							</div>
+						</dl>
+					</section>
+					<section
+						className={styles.nextAction}
+						aria-label="Следующее действие по сделке"
+					>
+						<h3>Следующее действие</h3>
+						<strong>
+							{deal.nextTask?.title ||
+								(deal.status === 'OPEN'
+									? 'Нет следующего действия'
+									: 'Сделка закрыта')}
+						</strong>
+						{deal.nextTask ? (
+							<div className={styles.actions}>
+								<time dateTime={deal.nextTask.dueAt}>
+									{salesDate(deal.nextTask.dueAt)}
+								</time>
+								{Date.parse(deal.nextTask.dueAt) < openedAt ? (
+									<StatusBadge tone="danger">
+										Действие просрочено
+									</StatusBadge>
+								) : null}
+							</div>
+						) : deal.status === 'OPEN' ? (
+							<p className={styles.muted}>
+								Запланируйте звонок, встречу или другое действие ниже.
+							</p>
+						) : null}
+					</section>
 					<DealEditor
 						key={editorRevision}
 						deal={deal}
@@ -380,7 +476,7 @@ export const DealDetailsDrawer = ({
 									{history.data?.items.map(item => (
 										<li key={item.id}>
 											<strong>{historyLabels[item.kind]}</strong>
-											<p>{item.outcome}</p>
+											{item.outcome ? <p>{item.outcome}</p> : null}
 											<time dateTime={item.createdAt}>
 												{salesDate(item.createdAt)}
 											</time>

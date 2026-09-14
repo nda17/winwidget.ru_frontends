@@ -118,6 +118,40 @@ export const WorkdayFilters = ({
 				<div
 					className={styles.viewSwitch}
 					role="group"
+					aria-label="Быстрый выбор периода"
+				>
+					{(['TODAY', 'TOMORROW', 'WEEK', 'OVERDUE'] as const).map(
+						nextPeriod => (
+							<Button
+								key={nextPeriod}
+								size="sm"
+								variant={value.period === nextPeriod ? 'primary' : 'ghost'}
+								aria-pressed={value.period === nextPeriod}
+								onClick={() => {
+									const next: Filters = {
+										...value,
+										period: nextPeriod,
+										from: undefined,
+										to: undefined,
+										page: 1,
+										...(nextPeriod === 'OVERDUE'
+											? { status: undefined }
+											: {})
+									}
+									if (onChange(next) !== false)
+										toast(
+											`Показаны задачи: ${periods[nextPeriod].toLowerCase()}`
+										)
+								}}
+							>
+								{periods[nextPeriod]}
+							</Button>
+						)
+					)}
+				</div>
+				<div
+					className={styles.viewSwitch}
+					role="group"
 					aria-label="Представление задач"
 				>
 					{(['list', 'board'] as const).map(mode => (
@@ -134,9 +168,6 @@ export const WorkdayFilters = ({
 						</Button>
 					))}
 				</div>
-				<p className={styles.hint}>
-					Период определяется по сроку задачи, а не дате создания.
-				</p>
 			</div>
 			<form className={styles.filterGrid} onSubmit={submit}>
 				<SelectField

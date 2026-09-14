@@ -1,5 +1,5 @@
 .banner {
-	@apply flex flex-col gap-3 rounded-2xl border px-4 py-4 sm:flex-row sm:items-start;
+	@apply flex flex-col gap-2 rounded-xl border px-3 py-3 sm:flex-row sm:items-start;
 }
 
 .info {
@@ -11,7 +11,7 @@
 }
 
 .icon {
-	@apply inline-flex h-9 w-9 shrink-0 items-center justify-center rounded-xl bg-crm-surface/80;
+	@apply inline-flex h-8 w-8 shrink-0 items-center justify-center rounded-lg bg-crm-surface/80;
 }
 
 .copy {

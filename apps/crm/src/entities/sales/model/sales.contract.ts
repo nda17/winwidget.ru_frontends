@@ -7,6 +7,19 @@ import {
 } from '@/shared/lib/contract'
 
 export type DealStatus = 'OPEN' | 'WON' | 'LOST'
+export interface SalesDealFilters {
+	stageId?: string
+	assignedToSubject?: string
+	overdue?: boolean
+	overdueBefore?: string
+	createdFrom?: string
+	createdTo?: string
+	sort?:
+		| 'created_desc'
+		| 'updated_desc'
+		| 'amount_desc'
+		| 'next_action_asc'
+}
 export interface SalesTask {
 	id: string
 	workspaceId: string

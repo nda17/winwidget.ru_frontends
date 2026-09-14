@@ -352,3 +352,81 @@ describe('Sales API request and response binding', () => {
 		).rejects.toMatchObject({ kind: 'temporary' })
 	})
 })
+
+describe('Sales list analytics drill-down', () => {
+	const filters = {
+		stageId,
+		assignedToSubject: 'actor',
+		overdue: true,
+		overdueBefore: '2026-09-14T09:00:00.000Z',
+		createdFrom: '2026-09-01T00:00:00.000Z',
+		createdTo: '2026-09-08T00:00:00.000Z',
+		sort: 'next_action_asc' as const
+	}
+	it('passes exact server filters for the selected stage/employee/creation cohort and retains pagination', async () => {
+		request.mockResolvedValue({
+			schemaVersion: 1,
+			page: 2,
+			pageSize: 20,
+			total: 21,
+			items: [deal]
+		})
+		await listSalesDeals(
+			'token',
+			workspaceId,
+			2,
+			20,
+			'',
+			pipelineId,
+			'OPEN',
+			false,
+			filters
+		)
+		expect(request).toHaveBeenLastCalledWith({
+			accessToken: 'token',
+			method: 'GET',
+			url: '/crm/sales/deals',
+			params: {
+				workspaceId,
+				page: '2',
+				pageSize: '20',
+				search: '',
+				pipelineId,
+				status: 'OPEN',
+				...filters,
+				overdue: 'true'
+			}
+		})
+	})
+	it.each([
+		{ ...deal, assignedToSubject: 'other' },
+		{ ...deal, stageId: id },
+		{ ...deal, createdAt: '2026-08-31T23:59:59.999Z' },
+		{ ...deal, createdAt: '2026-09-08T00:00:00.000Z' },
+		{ ...deal, status: 'WON', nextTask: null }
+	])(
+		'rejects returned rows outside requested report bounds',
+		async row => {
+			request.mockResolvedValue({
+				schemaVersion: 1,
+				page: 1,
+				pageSize: 20,
+				total: 1,
+				items: [row]
+			})
+			await expect(
+				listSalesDeals(
+					'token',
+					workspaceId,
+					1,
+					20,
+					'',
+					'',
+					'',
+					false,
+					filters
+				)
+			).rejects.toMatchObject({ kind: 'temporary' })
+		}
+	)
+})
