@@ -363,7 +363,6 @@ export const TaskNotificationPanel = ({
 				onClick={() => {
 					hint.close()
 					setOpen(true)
-					toast('Центр уведомлений открыт')
 				}}
 			>
 				<AppIcon name="bell" size={20} />
