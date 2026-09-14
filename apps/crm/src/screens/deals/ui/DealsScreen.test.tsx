@@ -17,14 +17,19 @@ import {
 import { useSalesSession } from '@/features/manage-sales'
 import DealsScreen from './DealsScreen'
 
+const navigation = vi.hoisted(() => ({ search: '' }))
 vi.mock('next/navigation', async () => {
 	const { useSyncExternalStore } = await import('react')
 	const subscribe = (callback: () => void) => {
+		const popstate = () => {
+			navigation.search = window.location.search
+			callback()
+		}
 		window.addEventListener('test-next-navigation', callback)
-		window.addEventListener('popstate', callback)
+		window.addEventListener('popstate', popstate)
 		return () => {
 			window.removeEventListener('test-next-navigation', callback)
-			window.removeEventListener('popstate', callback)
+			window.removeEventListener('popstate', popstate)
 		}
 	}
 	return {
@@ -32,7 +37,7 @@ vi.mock('next/navigation', async () => {
 			new URLSearchParams(
 				useSyncExternalStore(
 					subscribe,
-					() => window.location.search,
+					() => navigation.search,
 					() => ''
 				)
 			)
@@ -122,12 +127,30 @@ const ready = async () => {
 beforeEach(() => {
 	vi.restoreAllMocks()
 	vi.clearAllMocks()
+	window.history.replaceState(
+		{ __NA: true, __PRIVATE_NEXTJS_INTERNALS_TREE: { segment: 'deals' } },
+		'',
+		'/deals'
+	)
+	navigation.search = window.location.search
 	for (const method of ['pushState', 'replaceState'] as const) {
 		const original = window.history[method].bind(window.history)
-		vi.spyOn(window.history, method).mockImplementation((...args) => {
-			original(...args)
-			window.dispatchEvent(new Event('test-next-navigation'))
-		})
+		vi.spyOn(window.history, method).mockImplementation(
+			(data, unused, url) => {
+				// Next's App Router treats marked state as an internal history write:
+				// it changes the address bar without notifying useSearchParams.
+				if (data?.__NA || data?._N) return original(data, unused, url)
+				const next = data ?? {}
+				for (const key of ['__NA', '__PRIVATE_NEXTJS_INTERNALS_TREE'])
+					if (window.history.state?.[key])
+						next[key] = window.history.state[key]
+				original(next, unused, url)
+				if (url) {
+					navigation.search = window.location.search
+					window.dispatchEvent(new Event('test-next-navigation'))
+				}
+			}
+		)
 	}
 	window.localStorage.clear()
 	window.history.replaceState(null, '', '/deals')
@@ -445,6 +468,48 @@ describe('deal list without-next-action filter', () => {
 })
 
 describe('deal views and server pipeline', () => {
+	it('synchronizes screen actions with a hydrated Next route while preserving its internal history', async () => {
+		render(view())
+		await ready()
+		const internalTree =
+			window.history.state.__PRIVATE_NEXTJS_INTERNALS_TREE
+		expect(window.history.state.__NA).toBe(true)
+		fireEvent.click(screen.getByRole('button', { name: /^Воронка$/ }))
+		await screen.findByRole('region', { name: 'Этап Новая' })
+		expect(
+			screen
+				.getByRole('button', { name: /^Воронка$/ })
+				.getAttribute('aria-pressed')
+		).toBe('true')
+		fireEvent.click(screen.getByRole('button', { name: 'Список' }))
+		await ready()
+		expect(screen.queryByRole('region', { name: 'Этап Новая' })).toBeNull()
+		fireEvent.click(screen.getByRole('button', { name: 'Мои сделки' }))
+		await waitFor(() =>
+			expect(
+				screen
+					.getByRole('button', { name: 'Мои сделки' })
+					.getAttribute('aria-pressed')
+			).toBe('true')
+		)
+		await ready()
+		fireEvent.click(
+			screen.getByRole('button', { name: 'Новый заказ Клиент' })
+		)
+		await screen.findByRole('button', { name: 'Закрыть сделку' })
+		expect(window.location.search).toContain(`dealId=${deal.id}`)
+		fireEvent.click(screen.getByRole('button', { name: 'Закрыть сделку' }))
+		await waitFor(() =>
+			expect(
+				screen.queryByRole('button', { name: 'Закрыть сделку' })
+			).toBeNull()
+		)
+		expect(window.location.search).toContain('assignedToSubject=actor')
+		expect(window.history.state.__NA).toBe(true)
+		expect(window.history.state.__PRIVATE_NEXTJS_INTERNALS_TREE).toEqual(
+			internalTree
+		)
+	})
 	it('paginates each stage on the server and displays the complete stage total', async () => {
 		render(view())
 		await ready()

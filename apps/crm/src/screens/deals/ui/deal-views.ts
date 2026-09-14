@@ -109,8 +109,10 @@ export const writeDealViewLocation = (
 	url.searchParams.set('layout', view.layout)
 	url.searchParams.delete('dealId')
 	if (selected) url.searchParams.set('dealId', selected)
+	// Next copies its router state for external writes. Passing history.state
+	// marks this as an internal write and skips the useSearchParams update.
 	window.history.replaceState(
-		window.history.state,
+		null,
 		'',
 		`${url.pathname}${url.search}${url.hash}`
 	)
