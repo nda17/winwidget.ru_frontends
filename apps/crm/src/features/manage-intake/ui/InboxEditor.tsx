@@ -212,7 +212,7 @@ export const InboxEditor = ({ access, id, onClose, onSaved }: Props) => {
 							</Button>
 						}
 					/>
-				) : id && (!entry || record.isFetching) ? (
+				) : id && !entry ? (
 					<ScreenState
 						variant={record.isError ? 'error' : 'loading'}
 						description={record.error?.message}
@@ -459,7 +459,7 @@ export const InboxEditor = ({ access, id, onClose, onSaved }: Props) => {
 											</Button>
 										}
 									/>
-								) : history.isPending || history.isFetching ? (
+								) : history.isPending ? (
 									<ScreenState compact variant="loading" />
 								) : (
 									<>

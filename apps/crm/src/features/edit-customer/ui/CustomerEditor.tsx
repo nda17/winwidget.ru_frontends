@@ -88,7 +88,26 @@ export const CustomerEditor = (props: EditorProps) => {
 		staleTime: 0,
 		refetchOnWindowFocus: false
 	})
-	if (props.id && (!record.data || record.isError || record.isFetching))
+	const owner = JSON.stringify([
+		props.workspaceId,
+		session?.userId,
+		revision,
+		props.scopeKey,
+		props.kind,
+		props.id
+	])
+	const [snapshot, setSnapshot] = useState<{
+		owner: string
+		record: Customer
+	} | null>(null)
+	if (record.data && snapshot?.owner !== owner)
+		setSnapshot({ owner, record: record.data })
+	const baseline =
+		snapshot?.owner === owner ? snapshot.record : record.data
+	const accessDenied =
+		record.error instanceof AuthenticatedApiError &&
+		['unauthorized', 'forbidden', 'notFound'].includes(record.error.kind)
+	if (props.id && (!baseline || accessDenied))
 		return (
 			<Drawer isOpen onClose={props.onClose} title="Карточка клиента">
 				<ScreenState
@@ -118,13 +137,23 @@ export const CustomerEditor = (props: EditorProps) => {
 		<CustomerForm
 			key={
 				`${props.workspaceId}:${session?.userId}:${revision}:${props.scopeKey}:v2:` +
-				(record.data
-					? `${record.data.id}:${record.data.version}`
+				(baseline
+					? `${baseline.id}:${baseline.version}`
 					: `new:${props.kind}`)
 			}
 			{...props}
-			record={record.data}
-			reload={() => void record.refetch()}
+			record={baseline}
+			serverChanged={
+				!!baseline &&
+				!!record.data &&
+				record.data.version !== baseline.version
+			}
+			reload={() => {
+				void record.refetch().then(result => {
+					if (result.data && !result.isError)
+						setSnapshot({ owner, record: result.data })
+				})
+			}}
 		/>
 	)
 }
@@ -138,8 +167,13 @@ const CustomerForm = ({
 	onClose,
 	onSaved,
 	record,
+	serverChanged,
 	reload
-}: EditorProps & { record?: Customer; reload: () => void }) => {
+}: EditorProps & {
+	record?: Customer
+	serverChanged: boolean
+	reload: () => void
+}) => {
 	const session = useSessionStore(state => state.session)
 	const revision = useSessionStore(state => state.sessionRevision)
 	const [archiveConfirm, setArchiveConfirm] = useState(false)
@@ -375,9 +409,10 @@ const CustomerForm = ({
 		name: 'companyId'
 	})
 	const conflict =
-		!memory.uncertain &&
-		mutation.error instanceof AuthenticatedApiError &&
-		mutation.error.kind === 'conflict'
+		serverChanged ||
+		(!memory.uncertain &&
+			mutation.error instanceof AuthenticatedApiError &&
+			mutation.error.kind === 'conflict')
 	const requisites = useWatch({
 		control: form.control,
 		name: [
@@ -433,9 +468,13 @@ const CustomerForm = ({
 				onSubmit={submit}
 				noValidate
 			>
-				{mutation.error ? (
+				{mutation.error || serverChanged ? (
 					<div className={styles.notice} role="alert">
-						<p>{mutation.error.message}</p>
+						<p>
+							{serverChanged
+								? 'Карточка обновлена другим действием. Ваш черновик сохранён; перед сохранением проверьте актуальную версию.'
+								: mutation.error?.message}
+						</p>
 						{command ? (
 							<p>
 								Ответ не подтверждён. Поля временно заблокированы;

@@ -27,6 +27,16 @@ vi.mock('@/entities/crm-task-notifications', () => ({
 vi.mock('../model/use-reminder-session', () => ({
 	useReminderSession: vi.fn()
 }))
+vi.mock('../api/crm-notifications.api', () => ({
+	listCrmNotifications: vi.fn().mockResolvedValue({
+		page: 1,
+		pageSize: 10,
+		total: 0,
+		unreadCount: 0,
+		items: []
+	}),
+	readCrmNotification: vi.fn()
+}))
 vi.mock('react-hot-toast', () => ({
 	default: Object.assign(vi.fn(), { success: vi.fn(), error: vi.fn() })
 }))
@@ -181,7 +191,7 @@ describe('task notification center', () => {
 			current: () => false
 		} as ReminderContext
 		render(view())
-		fireEvent.click(screen.getByRole('button', { name: 'Уведомления' }))
+		fireEvent.click(screen.getByRole('button', { name: /^Уведомления/ }))
 		expect(screen.getByRole('alert').textContent).toContain(
 			'Не удалось проверить доступ'
 		)
@@ -204,7 +214,7 @@ describe('task notification center', () => {
 				current: () => true
 			}
 			render(view())
-			fireEvent.click(screen.getByRole('button', { name: 'Уведомления' }))
+			fireEvent.click(screen.getByRole('button', { name: /^Уведомления/ }))
 			expect(screen.getByRole('alert').textContent).toContain(
 				'Не удалось подтвердить текущего сотрудника'
 			)
@@ -226,7 +236,7 @@ describe('task notification center', () => {
 			current: () => true
 		}
 		render(view())
-		fireEvent.click(screen.getByRole('button', { name: 'Уведомления' }))
+		fireEvent.click(screen.getByRole('button', { name: /^Уведомления/ }))
 		expect(screen.getByRole('status').textContent).toContain(
 			'Проверяем доступ'
 		)
@@ -257,10 +267,11 @@ describe('task notification center', () => {
 			</QueryClientProvider>
 		)
 		const rendered = render(center())
-		fireEvent.click(screen.getByRole('button', { name: 'Уведомления' }))
+		fireEvent.click(screen.getByRole('button', { name: /^Уведомления/ }))
 		expect(
 			screen.getByRole('dialog', { name: 'Уведомления' })
 		).toBeTruthy()
+		fireEvent.click(screen.getByRole('button', { name: 'Задачи' }))
 		context = confirmed
 		rendered.rerender(center())
 		expect(
@@ -298,7 +309,7 @@ describe('task notification center', () => {
 				current: () => false
 			} as ReminderContext
 			render(view())
-			fireEvent.click(screen.getByRole('button', { name: 'Уведомления' }))
+			fireEvent.click(screen.getByRole('button', { name: /^Уведомления/ }))
 			expect(screen.getByRole('alert').textContent).toContain(
 				'Недостаточно прав'
 			)
@@ -328,7 +339,7 @@ describe('task notification center', () => {
 			current: () => false
 		} as ReminderContext
 		const rendered = render(view())
-		fireEvent.click(screen.getByRole('button', { name: 'Уведомления' }))
+		fireEvent.click(screen.getByRole('button', { name: /^Уведомления/ }))
 		expect(screen.getByRole('status').textContent).toContain(
 			'Проверяем доступ'
 		)

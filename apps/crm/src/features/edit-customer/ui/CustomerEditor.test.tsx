@@ -366,6 +366,28 @@ const mount = (canWrite = true, id?: string) => {
 	return { onSaved, onClose }
 }
 describe('CustomerEditor', () => {
+	it('keeps an unsaved draft and its version when a live refresh finds a remote edit', async () => {
+		mount(true, contact.id)
+		const input = await screen.findByRole('textbox', { name: 'Имя' })
+		fireEvent.change(input, { target: { value: 'Мой черновик' } })
+		vi.mocked(getCustomer).mockResolvedValue({
+			...contact,
+			name: 'Чужое изменение',
+			version: 4
+		})
+		await client.invalidateQueries({ queryKey: ['crm-customer-detail'] })
+		await waitFor(() => expect(getCustomer).toHaveBeenCalledTimes(2))
+		expect(screen.getByRole('textbox', { name: 'Имя' })).toHaveProperty(
+			'value',
+			'Мой черновик'
+		)
+		expect(mutateCustomer).not.toHaveBeenCalled()
+		expect(
+			screen
+				.getByRole('button', { name: 'Сохранить' })
+				.hasAttribute('disabled')
+		).toBe(true)
+	})
 	it('saves explicit contact timezone and an overnight call window as v2 without autosave', async () => {
 		mount(true, contact.id)
 		await screen.findByRole('textbox', { name: 'Имя' })

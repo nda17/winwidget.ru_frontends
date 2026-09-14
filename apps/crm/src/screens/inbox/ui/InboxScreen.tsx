@@ -335,7 +335,7 @@ const InboxContent = ({
 								</Button>
 							}
 						/>
-					) : query.isPending || query.isFetching ? (
+					) : query.isPending ? (
 						<ScreenState variant="loading" />
 					) : (
 						<>
